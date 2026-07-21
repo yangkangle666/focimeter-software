@@ -25,6 +25,9 @@ focimeter_system/outputs/*
 # Render and preview artifacts
 /outputs/
 
+# Local Git worktrees
+/.worktrees/
+
 # OS and editor noise
 .DS_Store
 Thumbs.db
