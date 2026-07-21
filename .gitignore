@@ -32,6 +32,9 @@ focimeter_system/outputs/*
 .DS_Store
 Thumbs.db
 desktop.ini
+~$*.docx
+~$*.xlsx
+~$*.pptx
 *.tmp
 *.bak
 *.swp
