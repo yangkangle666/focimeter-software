@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/calibration_model.schema.json",
+  "title": "M3 hybrid power-matrix calibration model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_type", "model_id", "validation_status", "source_dataset_sha256", "hardware", "correction", "quality_limits", "fit_metrics", "standard_lenses"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "model_type": {"const": "hybrid_power_matrix_v1"},
+    "model_id": {"type": "string", "minLength": 1},
+    "validation_status": {"enum": ["simulation_only", "metrology_validated"]},
+    "source_dataset_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "hardware": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["distance_m", "expected_spot_count"],
+      "properties": {
+        "distance_m": {"type": "number", "exclusiveMinimum": 0},
+        "expected_spot_count": {"type": "integer", "minimum": 4}
+      }
+    },
+    "correction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matrix", "bias"],
+      "properties": {
+        "matrix": {"$ref": "#/$defs/matrix3"},
+        "bias": {"$ref": "#/$defs/vector3"}
+      }
+    },
+    "quality_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validated_sphere_range_D", "validated_abs_cylinder_max_D", "cylinder_threshold_D", "max_fit_rmse_pixel", "max_condition_number", "max_skew_power_D", "min_confidence", "validation_confidence"],
+      "properties": {
+        "validated_sphere_range_D": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
+        "validated_abs_cylinder_max_D": {"type": "number", "exclusiveMinimum": 0},
+        "cylinder_threshold_D": {"type": "number", "minimum": 0},
+        "max_fit_rmse_pixel": {"type": "number", "exclusiveMinimum": 0},
+        "max_condition_number": {"type": "number", "minimum": 1},
+        "max_skew_power_D": {"type": "number", "exclusiveMinimum": 0},
+        "min_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "validation_confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "fit_metrics": {"type": "object"},
+    "standard_lenses": {"type": "array", "items": {"type": "object"}}
+  },
+  "$defs": {
+    "vector3": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+    "matrix3": {"type": "array", "items": {"$ref": "#/$defs/vector3"}, "minItems": 3, "maxItems": 3}
+  }
+}

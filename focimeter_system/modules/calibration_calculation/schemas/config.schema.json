@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/config.schema.json",
+  "title": "Unified focimeter configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "config_name", "camera", "optical", "image_processing", "recognition", "calculation", "path_policy"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "config_name": {"type": "string", "minLength": 1},
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pixel_size_um", "image_width", "image_height"],
+      "properties": {
+        "pixel_size_um": {"$ref": "#/$defs/unknownPositiveNumber"},
+        "image_width": {"$ref": "#/$defs/unknownPositiveInteger"},
+        "image_height": {"$ref": "#/$defs/unknownPositiveInteger"}
+      }
+    },
+    "optical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["distance_m", "hartmann_spacing_mm"],
+      "properties": {
+        "distance_m": {"$ref": "#/$defs/unknownPositiveNumber"},
+        "hartmann_spacing_mm": {"$ref": "#/$defs/unknownPositiveNumber"}
+      }
+    },
+    "image_processing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roi_width_ratio", "roi_height_ratio", "median_kernel", "tophat_kernel", "otsu_a", "otsu_b", "max_depth"],
+      "properties": {
+        "roi_width_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "roi_height_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "median_kernel": {"type": "integer", "minimum": 1},
+        "tophat_kernel": {"type": "integer", "minimum": 1},
+        "otsu_a": {"type": "number", "minimum": 0},
+        "otsu_b": {"type": "number", "minimum": 0},
+        "max_depth": {"type": "integer", "minimum": 0}
+      }
+    },
+    "recognition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_spot_count", "min_confidence"],
+      "properties": {
+        "expected_spot_count": {"type": "integer", "minimum": 1},
+        "min_confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pixel_threshold", "angle_unit", "diopter_unit"],
+      "properties": {
+        "pixel_threshold": {"type": "number", "minimum": 0},
+        "angle_unit": {"const": "degree"},
+        "diopter_unit": {"const": "D"}
+      }
+    },
+    "path_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_type", "allow_absolute_path"],
+      "properties": {
+        "path_type": {"const": "relative_to_project_root"},
+        "allow_absolute_path": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "unknownPositiveNumber": {
+      "oneOf": [
+        {"type": "number", "exclusiveMinimum": 0},
+        {"type": "null"},
+        {"const": "TODO_CONFIRM"}
+      ]
+    },
+    "unknownPositiveInteger": {
+      "oneOf": [
+        {"type": "integer", "minimum": 1},
+        {"type": "null"},
+        {"const": "TODO_CONFIRM"}
+      ]
+    }
+  }
+}

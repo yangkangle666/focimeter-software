@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "model_type": "hybrid_power_matrix_v1",
+  "model_id": "m3_simulation_identity_001",
+  "validation_status": "simulation_only",
+  "source_dataset_sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "hardware": {"distance_m": 0.03, "expected_spot_count": 5},
+  "correction": {
+    "matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    "bias": [0.0, 0.0, 0.0]
+  },
+  "quality_limits": {
+    "validated_sphere_range_D": [-5.0, 5.0],
+    "validated_abs_cylinder_max_D": 1.5,
+    "cylinder_threshold_D": 1e-8,
+    "max_fit_rmse_pixel": 1e-6,
+    "max_condition_number": 10.0,
+    "max_skew_power_D": 1e-6,
+    "min_confidence": 0.7,
+    "validation_confidence": 1.0
+  },
+  "fit_metrics": {"mode": "deterministic_noiseless_simulation"},
+  "standard_lenses": [
+    {"sample_id": "sphere_neg_5_train", "serial_number": "SIM-SPH-N05"},
+    {"sample_id": "sphere_pos_5_train", "serial_number": "SIM-SPH-P05"},
+    {"sample_id": "cylinder_neg_1_5_axis_0_train", "serial_number": "SIM-CYL-N15"},
+    {"sample_id": "cylinder_neg_1_5_axis_45_train", "serial_number": "SIM-CYL-N15"}
+  ]
+}

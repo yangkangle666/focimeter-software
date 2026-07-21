@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/result_success.schema.json",
+  "title": "M3 calculation success output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "module", "status", "lens_type", "result", "quality", "intermediate", "error"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "task_id": {"type": "string", "minLength": 1},
+    "module": {"const": "m3_calibration_calculation"},
+    "status": {"const": "ok"},
+    "lens_type": {"enum": ["spherical", "cylindrical"]},
+    "result": {"$ref": "#/$defs/result"},
+    "quality": {"$ref": "#/$defs/quality"},
+    "intermediate": {"$ref": "#/$defs/intermediate"},
+    "error": {"type": "null"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"lens_type": {"const": "spherical"}}, "required": ["lens_type"]},
+      "then": {
+        "properties": {
+          "result": {
+            "properties": {"C": {"const": 0}, "A": {"type": "null"}}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"lens_type": {"const": "cylindrical"}}, "required": ["lens_type"]},
+      "then": {
+        "properties": {
+          "result": {
+            "properties": {
+              "C": {"type": "number", "not": {"const": 0}},
+              "A": {"type": "number"}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["S", "C", "A", "unit", "angle_unit"],
+      "properties": {
+        "S": {"type": "number"},
+        "C": {"type": "number"},
+        "A": {"type": ["number", "null"]},
+        "unit": {"const": "D"},
+        "angle_unit": {"const": "degree"}
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["is_usable", "confidence", "warnings"],
+      "properties": {
+        "is_usable": {"type": "boolean"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "shift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dx", "dy"],
+      "properties": {"dx": {"type": "number"}, "dy": {"type": "number"}}
+    },
+    "intermediate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coordinate_system_valid", "coordinate_type_before", "coordinate_type_after", "shift_unit"],
+      "properties": {
+        "coordinate_system_valid": {"const": true},
+        "coordinate_type_before": {"const": "image_pixel"},
+        "coordinate_type_after": {"const": "calibration_pixel"},
+        "shift_unit": {"const": "pixel"},
+        "shift_y_positive": {"$ref": "#/$defs/shift"},
+        "shift_x_positive": {"$ref": "#/$defs/shift"}
+      }
+    }
+  }
+}
