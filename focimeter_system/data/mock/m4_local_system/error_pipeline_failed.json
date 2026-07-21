@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "task_id": "sample_pipeline_failed",
+  "module": "m4_local_system",
+  "status": "error",
+  "error": {
+    "code": "UPSTREAM_MODULE_FAILED",
+    "message": "Cannot display final result because m2_image_recognition failed.",
+    "module": "m4_local_system",
+    "recoverable": true,
+    "details": {
+      "failed_module": "m2_image_recognition",
+      "upstream_error_code": "SPOT_COUNT_MISMATCH"
+    }
+  }
+}

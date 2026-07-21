@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "task_id": "sample_001",
+  "module": "m4_local_system",
+  "status": "ok",
+  "display": {
+    "title": "焦度计本地系统测量结果",
+    "lens_type_label": "球镜",
+    "main_result": "S=-2.50D, C=0.00D, A=--",
+    "quality_label": "可用",
+    "warnings": []
+  },
+  "artifacts": {
+    "report_path": "outputs/reports/sample_001_report.json",
+    "log_path": "outputs/logs/sample_001_run.log",
+    "result_path": "outputs/results/sample_001_result.json"
+  },
+  "pipeline": {
+    "m1_input_config": "ok",
+    "m2_image_recognition": "ok",
+    "m3_calibration_calculation": "ok",
+    "m4_local_system": "ok"
+  },
+  "error": null
+}

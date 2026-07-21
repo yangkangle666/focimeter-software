@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "task_id": "sample_001",
+  "module": "m4_local_system",
+  "status": "ok",
+  "inputs": {
+    "input_package_path": "data/mock/m1_input_config/input_package_ok.json",
+    "spots_calib_path": "data/mock/m2_image_recognition/spots_calib_ok.json",
+    "spots_meas_path": "data/mock/m2_image_recognition/spots_meas_ok.json",
+    "result_path": "data/mock/m3_calibration_calculation/result_spherical_ok.json"
+  },
+  "error": null
+}

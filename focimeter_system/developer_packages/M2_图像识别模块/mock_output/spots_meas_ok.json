@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "task_id": "sample_001",
+  "module": "m2_image_recognition",
+  "status": "ok",
+  "image_type": "measurement",
+  "coordinate_type": "image_pixel",
+  "spots": [
+    {"spot_id": 0, "role": "center", "x": 512.10, "y": 384.10, "confidence": 0.97},
+    {"spot_id": 1, "role": "y_positive", "x": 513.20, "y": 306.80, "confidence": 0.94},
+    {"spot_id": 2, "role": "left_or_negative", "x": 431.90, "y": 384.60, "confidence": 0.92},
+    {"spot_id": 3, "role": "other", "x": 512.50, "y": 462.70, "confidence": 0.91},
+    {"spot_id": 4, "role": "x_positive", "x": 590.90, "y": 385.00, "confidence": 0.93}
+  ],
+  "quality": {
+    "expected_count": 5,
+    "detected_count": 5,
+    "min_confidence": 0.91,
+    "is_usable": true,
+    "warnings": []
+  },
+  "error": null
+}

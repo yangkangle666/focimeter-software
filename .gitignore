@@ -1,0 +1,46 @@
+# Visual Studio / C++ build artifacts
+.vs/
+**/.vs/
+Debug/
+Release/
+x64/
+Win32/
+*.obj
+*.ilk
+*.pdb
+*.idb
+*.tlog
+*.recipe
+*.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local temporary files
+*.tmp
+*.bak
+*.swp
+
+# Render / preview QA outputs
+outputs/*预览/
+outputs/*預覽/
+outputs/QA_*/
+outputs/答辩手册预览/
+outputs/通俗版预览/
+outputs/三类流程图预览/
+outputs/项目汇报预览/
+
+# Keep source documents and deliverables, but ignore regenerated page images
+outputs/**/*.png
+
+# Local secrets / environment files
+.env
+.env.*
+*.key
+*.pem

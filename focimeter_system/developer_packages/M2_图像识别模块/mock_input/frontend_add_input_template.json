@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "task_id": "sample_001",
+  "module": "m2_image_recognition",
+  "status": "ok",
+  "frontend_input": {
+    "input_package_path": "mock_input/input_package_ok.json",
+    "config_path": "docs/default_config.json",
+    "show_intermediate_images": true
+  },
+  "must_read_upstream_output": [
+    "mock_input/input_package_ok.json"
+  ],
+  "expected_output": [
+    "spots_calib_ok.json",
+    "spots_meas_ok.json"
+  ],
+  "error": null
+}

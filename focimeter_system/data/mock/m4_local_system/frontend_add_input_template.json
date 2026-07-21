@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "task_id": "sample_001",
+  "module": "m4_local_system",
+  "status": "ok",
+  "frontend_input": {
+    "input_package_path": "mock_input/input_package_ok.json",
+    "spots_calib_path": "mock_input/spots_calib_ok.json",
+    "spots_meas_path": "mock_input/spots_meas_ok.json",
+    "result_path": "mock_input/result_spherical_ok.json",
+    "export_report": true
+  },
+  "must_read_upstream_output": [
+    "mock_input/input_package_ok.json",
+    "mock_input/spots_calib_ok.json",
+    "mock_input/spots_meas_ok.json",
+    "mock_input/result_spherical_ok.json"
+  ],
+  "expected_output": "display_output_ok.json",
+  "error": null
+}
