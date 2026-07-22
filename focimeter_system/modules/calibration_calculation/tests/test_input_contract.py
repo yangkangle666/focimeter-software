@@ -44,6 +44,13 @@ class InputContractTests(unittest.TestCase):
         self.measurement["quality"]["detected_count"] = 4
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "SPOT_COUNT_MISMATCH")
 
+    def test_actual_spot_count_below_expected_is_rejected(self) -> None:
+        for document in (self.calibration, self.measurement):
+            document["spots"].pop(3)
+            document["quality"]["detected_count"] = 4
+        report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
+        self.assert_issue(report, "SPOT_COUNT_MISMATCH")
+
     def test_expected_count_mismatch_is_rejected(self) -> None:
         self.config["recognition"]["expected_spot_count"] = 6
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "SPOT_COUNT_MISMATCH")

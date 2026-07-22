@@ -32,6 +32,20 @@ def canonical_sha256(data: Mapping[str, object]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def calibration_dataset_sha256(
+    dataset: Mapping[str, object],
+    sample_documents: Sequence[Mapping[str, object]],
+) -> str:
+    """Fingerprint the manifest and the parsed spot data used to fit the model."""
+
+    return canonical_sha256(
+        {
+            "dataset": dataset,
+            "sample_documents": list(sample_documents),
+        }
+    )
+
+
 def fit_linear_correction(
     raw: np.ndarray,
     certified: np.ndarray,
@@ -141,13 +155,12 @@ def _validation_metrics(
         vector_errors.append(
             float(np.linalg.norm(prescription_to_power_vector(measured).as_array() - prescription_to_power_vector(expected).as_array()))
         )
-        if expected.C == 0:
-            sphere_errors.append(abs(measured.S - expected.S))
-            if expected.S == 0:
-                zero_errors.append(max(abs(measured.S), abs(measured.C)))
-        else:
-            cylinder_errors.append(abs(measured.C - expected.C))
+        sphere_errors.append(abs(measured.S - expected.S))
+        cylinder_errors.append(abs(measured.C - expected.C))
+        if expected.C != 0:
             axis_errors.append(_axis_error(measured.A, expected.A))
+        elif expected.S == 0:
+            zero_errors.append(max(abs(measured.S), abs(measured.C)))
         key = (sample["serial_number"], expected.S, expected.C, expected.A)
         repeat_groups[key].append(measured)
     repeatability: list[float] = []
@@ -196,6 +209,7 @@ def fit_calibration_model(
         raise CalibrationDataError("A positive finite distance_m is required.")
 
     records: list[dict[str, object]] = []
+    sample_documents: list[dict[str, object]] = []
     for sample in dataset["samples"]:
         calibration = _load_json(_project_file(project_root, str(sample["spots_calib_path"])))
         measurement = _load_json(_project_file(project_root, str(sample["spots_meas_path"])))
@@ -214,6 +228,13 @@ def fit_calibration_model(
                 "raw": raw,
                 "certified": certified,
                 "weight": geometry.min_spot_confidence / float(sample["uncertainty_D"]) ** 2,
+            }
+        )
+        sample_documents.append(
+            {
+                "sample_id": sample["sample_id"],
+                "spots_calib": calibration,
+                "spots_meas": measurement,
             }
         )
 
@@ -245,12 +266,13 @@ def fit_calibration_model(
         "max_skew_power_D": max(1e-6, 1.5 * max(float(record["skew"]) for record in records)),
     }
 
+    dataset_hash = calibration_dataset_sha256(dataset, sample_documents)
     temporary_dict = {
         "schema_version": "1.0",
         "model_type": "hybrid_power_matrix_v1",
         "model_id": "fitting",
         "validation_status": "simulation_only",
-        "source_dataset_sha256": canonical_sha256(dataset),
+        "source_dataset_sha256": dataset_hash,
         "hardware": {"distance_m": distance_m, "expected_spot_count": expected_spot_count},
         "correction": {"matrix": matrix.tolist(), "bias": bias.tolist()},
         "quality_limits": {
@@ -286,7 +308,6 @@ def fit_calibration_model(
         (metrics["max_repeatability_D"] or 0.0) / 0.03,
     ]
     validation_confidence = max(0.0, min(1.0, 1.0 - max(error_ratios)))
-    dataset_hash = canonical_sha256(dataset)
     model_dict = temporary_model.to_dict()
     model_dict["model_id"] = f"{dataset['dataset_id']}-{dataset_hash[:12]}"
     model_dict["validation_status"] = (

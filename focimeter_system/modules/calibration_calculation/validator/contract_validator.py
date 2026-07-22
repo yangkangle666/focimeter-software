@@ -149,6 +149,14 @@ def _count_issues(
                 message=f"detected_count is {quality['detected_count']} but spots contains {len(spots)} items.",
             )
         )
+    if len(spots) != expected_count:
+        issues.append(
+            ValidationIssue(
+                path=f"{prefix}.spots",
+                code="SPOT_COUNT_MISMATCH",
+                message=f"spots contains {len(spots)} items but config requires {expected_count}.",
+            )
+        )
     if quality["expected_count"] != expected_count:
         issues.append(
             ValidationIssue(

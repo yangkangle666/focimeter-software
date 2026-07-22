@@ -3,7 +3,9 @@ import unittest
 import numpy as np
 
 from modules.calibration_calculation.algorithm.calibration import (
+    _validation_metrics,
     apply_correction,
+    calibration_dataset_sha256,
     canonical_sha256,
     fit_linear_correction,
 )
@@ -11,6 +13,7 @@ from modules.calibration_calculation.algorithm.types import (
     CalibrationDataError,
     CalibrationModel,
     PowerVector,
+    Prescription,
 )
 
 
@@ -75,6 +78,59 @@ class CalibrationAlgorithmTests(unittest.TestCase):
 
     def test_canonical_hash_ignores_mapping_order(self) -> None:
         self.assertEqual(canonical_sha256({"a": 1, "b": 2}), canonical_sha256({"b": 2, "a": 1}))
+
+    def test_dataset_hash_includes_loaded_spot_documents(self) -> None:
+        dataset = {"dataset_id": "test", "samples": [{"sample_id": "sample"}]}
+        original = [{"sample_id": "sample", "spots_calib": {"x": 1}, "spots_meas": {"x": 2}}]
+        changed = [{"sample_id": "sample", "spots_calib": {"x": 1}, "spots_meas": {"x": 3}}]
+        self.assertNotEqual(
+            calibration_dataset_sha256(dataset, original),
+            calibration_dataset_sha256(dataset, changed),
+        )
+
+    def test_validation_rejects_sphere_error_on_cylindrical_samples(self) -> None:
+        expected = [
+            Prescription(0.0, -1.0, 90.0),
+            Prescription(0.0, -1.0, 90.0),
+            Prescription(0.0, 0.0, None),
+            Prescription(0.0, 0.0, None),
+            Prescription(1.0, 0.0, None),
+        ]
+        predicted = [
+            Prescription(10.0, -1.0, 90.0),
+            Prescription(10.0, -1.0, 90.0),
+            *expected[2:],
+        ]
+        samples = [
+            {"serial_number": "cylinder"},
+            {"serial_number": "cylinder"},
+            {"serial_number": "zero"},
+            {"serial_number": "zero"},
+            {"serial_number": "sphere"},
+        ]
+        metrics, passed = _validation_metrics(predicted, expected, samples)
+        self.assertFalse(passed)
+        self.assertEqual(10.0, metrics["max_sphere_error_D"])
+
+    def test_validation_rejects_cylinder_error_on_spherical_samples(self) -> None:
+        expected = [
+            Prescription(0.0, -1.0, 90.0),
+            Prescription(0.0, -1.0, 90.0),
+            Prescription(0.0, 0.0, None),
+            Prescription(0.0, 0.0, None),
+            Prescription(1.0, 0.0, None),
+        ]
+        predicted = [*expected[:-1], Prescription(1.0, -0.5, 0.0)]
+        samples = [
+            {"serial_number": "cylinder"},
+            {"serial_number": "cylinder"},
+            {"serial_number": "zero"},
+            {"serial_number": "zero"},
+            {"serial_number": "sphere"},
+        ]
+        metrics, passed = _validation_metrics(predicted, expected, samples)
+        self.assertFalse(passed)
+        self.assertEqual(0.5, metrics["max_cylinder_error_D"])
 
 
 if __name__ == "__main__":
