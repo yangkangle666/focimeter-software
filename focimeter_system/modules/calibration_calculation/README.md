@@ -40,6 +40,8 @@ data/mock/m2_image_recognition/spots_meas_ok.json
 config/default_config.json
 ```
 
+上游 M1 输入包引用仓库中真实存在的 `calib_mock_001.jpg` 和 `meas_mock_001.jpg`，并由 `validate_mock_data.py` 实际检查路径后设置 `paths_checked=true`。这两张图仅用于路径接口测试；M3 不读取原始图片，只消费上列统一光斑 JSON，并在结果中传递 `MOCK_DATA_ONLY` 标记。
+
 输出必须符合以下统一样例：
 
 ```text

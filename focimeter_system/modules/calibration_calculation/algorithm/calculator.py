@@ -124,6 +124,13 @@ def calculate(
             raise CalculationError("COMBINED_CONFIDENCE_TOO_LOW")
 
         warnings = []
+        input_warnings = {
+            str(warning)
+            for document in (calibration, measurement)
+            for warning in document["quality"]["warnings"]
+        }
+        if "MOCK_DATA_ONLY" in input_warnings:
+            warnings.append("MOCK_DATA_ONLY")
         if parsed_model.validation_status == "simulation_only":
             warnings.append("simulation_model_allowed_for_test_only")
         intermediate: dict[str, object] = {

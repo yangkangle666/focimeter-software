@@ -14,7 +14,7 @@
     "paths_checked": true,
     "config_checked": true,
     "is_usable": true,
-    "warnings": []
+    "warnings": ["MOCK_DATA_ONLY"]
   },
   "error": null
 }

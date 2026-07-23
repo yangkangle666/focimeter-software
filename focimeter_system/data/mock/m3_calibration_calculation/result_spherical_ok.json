@@ -14,7 +14,7 @@
   "quality": {
     "is_usable": true,
     "confidence": 0.91,
-    "warnings": []
+    "warnings": ["MOCK_DATA_ONLY"]
   },
   "intermediate": {
     "coordinate_system_valid": true,
