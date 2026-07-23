@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "task_id": "m2_synthetic_missing",
+  "module": "m1_input_config",
+  "status": "ok",
+  "data": {
+    "calibration_image": "data/mock/m2_image_recognition/synthetic/calibration/base_5spots.png",
+    "measurement_image": "data/mock/m2_image_recognition/synthetic/failure/missing_spots_3.png",
+    "config_path": "config/default_config.json",
+    "run_mode": "local_image",
+    "created_at": "2026-07-22T20:00:00+08:00"
+  },
+  "quality": {
+    "paths_checked": true,
+    "config_checked": true,
+    "is_usable": true,
+    "warnings": ["SYNTHETIC_DATA_ONLY"]
+  },
+  "error": null
+}

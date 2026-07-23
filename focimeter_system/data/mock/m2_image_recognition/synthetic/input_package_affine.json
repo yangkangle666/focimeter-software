@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "task_id": "m2_synthetic_affine",
+  "module": "m1_input_config",
+  "status": "ok",
+  "data": {
+    "calibration_image": "data/mock/m2_image_recognition/synthetic/calibration/base_5spots.png",
+    "measurement_image": "data/mock/m2_image_recognition/synthetic/measurement/anisotropic_xy.png",
+    "config_path": "config/default_config.json",
+    "run_mode": "local_image"
+  },
+  "quality": {
+    "is_usable": true
+  },
+  "error": null
+}

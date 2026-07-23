@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "task_id": "m2_synthetic_dataset",
+  "module": "m2_image_recognition",
+  "status": "ok",
+  "kind": "synthetic_mock",
+  "image_size": {"width": 1024, "height": 768},
+  "calibration_spots": [
+    {"spot_id": 0, "role": "center", "x": 512.0, "y": 384.0},
+    {"spot_id": 1, "role": "y_positive", "x": 512.0, "y": 304.0},
+    {"spot_id": 2, "role": "left_or_negative", "x": 432.0, "y": 384.0},
+    {"spot_id": 3, "role": "other", "x": 512.0, "y": 464.0},
+    {"spot_id": 4, "role": "x_positive", "x": 592.0, "y": 384.0}
+  ],
+  "cases": {
+    "measurement/translate_rotate_scale.png": {"expected": "ok", "scale": 1.05, "rotation_degrees": 8.0, "translation": [12.0, -8.0]},
+    "measurement/rotation_25deg.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 25.0, "translation": [4.0, -3.0]},
+    "measurement/scale_118pct.png": {"expected": "ok", "scale": 1.18, "rotation_degrees": 0.0, "translation": [-8.0, 5.0]},
+    "measurement/anisotropic_xy.png": {"expected": "ok", "affine_matrix": [[1.20, 0.0], [0.0, 0.80]], "translation": [9.0, -6.0]},
+    "measurement/brightness_only.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [3.0, -4.0], "brightness": 155},
+    "measurement/noise_only.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [-4.0, 3.0], "noise_sigma": 7.0},
+    "measurement/brightness_noise.png": {"expected": "ok", "scale": 0.98, "rotation_degrees": -6.0, "translation": [-5.0, 9.0], "brightness": 195, "noise_sigma": 7.0},
+    "failure/missing_spots_3.png": {"expected": "SPOT_COUNT_MISMATCH"},
+    "failure/extra_spot_6.png": {"expected": "SPOT_COUNT_MISMATCH"},
+    "failure/merged_spots.png": {"expected": "CENTROID_FAILED"},
+    "failure/ambiguous_roles.png": {"expected": "COORDINATE_SYSTEM_INVALID"},
+    "failure/ambiguous_pairing_45deg.png": {"expected": "COORDINATE_SYSTEM_INVALID", "reason": "symmetric cross has multiple plausible identities"}
+  },
+  "error": null
+}
