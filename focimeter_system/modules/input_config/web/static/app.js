@@ -11,6 +11,12 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
+const stageOneFiveSpotPreset = {
+  calibration: "data/samples/calibration/calib_mock_001.jpg",
+  measurement: "data/samples/measurement/meas_mock_001.jpg",
+  config: "config/default_config.json",
+};
+
 const configLabels = {
   camera: "相机",
   optical: "光学",
@@ -68,6 +74,7 @@ async function initialize() {
     state.config = structuredClone(state.bootstrap.default_config);
     state.configPath = "config/default_config.json";
     $("#config-existing").value = state.configPath;
+    updateStageOnePresetAvailability();
     renderConfigFields();
     renderRecentTasks();
     updateMirror();
@@ -92,6 +99,7 @@ function bindEvents() {
   $("#config-upload").addEventListener("change", (event) => uploadFile("config", event.target.files[0]));
   $("#run-m1").addEventListener("click", runM1);
   $("#new-task").addEventListener("click", resetTask);
+  $("#stage-one-five-spot").addEventListener("click", prepareStageOneFiveSpot);
   $("#download-bundle").addEventListener("click", downloadBundle);
   $("#copy-bundle-note").addEventListener("click", copyBundleNote);
   $$(".tab").forEach((tab) => tab.addEventListener("click", () => selectTab(tab.dataset.tab)));
@@ -100,6 +108,42 @@ function bindEvents() {
 function populateSelect(selector, values, placeholder) {
   const select = $(selector);
   select.replaceChildren(new Option(placeholder, ""), ...values.map((value) => new Option(value, value)));
+}
+
+function updateStageOnePresetAvailability() {
+  const button = $("#stage-one-five-spot");
+  const calibrationReady = state.bootstrap.files.calibration.includes(stageOneFiveSpotPreset.calibration);
+  const measurementReady = state.bootstrap.files.measurement.includes(stageOneFiveSpotPreset.measurement);
+  button.disabled = !(calibrationReady && measurementReady);
+  button.title = button.disabled ? "项目中缺少第一阶段五光斑 mock 图片" : "自动填充第一阶段联调输入";
+}
+
+function prepareStageOneFiveSpot() {
+  const calibrationReady = state.bootstrap?.files.calibration.includes(stageOneFiveSpotPreset.calibration);
+  const measurementReady = state.bootstrap?.files.measurement.includes(stageOneFiveSpotPreset.measurement);
+  if (!calibrationReady || !measurementReady) {
+    return showMessage("缺少第一阶段五光斑 mock 图片，无法准备联调任务。");
+  }
+
+  state.result = null;
+  state.calibration = stageOneFiveSpotPreset.calibration;
+  state.measurement = stageOneFiveSpotPreset.measurement;
+  state.config = structuredClone(state.bootstrap.default_config);
+  state.config.recognition.expected_spot_count = 5;
+  state.configPath = stageOneFiveSpotPreset.config;
+
+  $("#task-id").value = createTaskId();
+  $("#notes").value = "第一阶段五光斑软件联调；不代表真实计量验证完成。";
+  $("#calibration-existing").value = state.calibration;
+  $("#measurement-existing").value = state.measurement;
+  $("#config-existing").value = state.configPath;
+  $("#calibration-current").textContent = state.calibration;
+  $("#measurement-current").textContent = state.measurement;
+  updateBundleActions(null);
+  renderConfigFields();
+  updateMirror();
+  goToStep(5, true);
+  showMessage("五光斑联调输入已填充，请确认后运行 M1。", "success");
 }
 
 function validateStep(step) {

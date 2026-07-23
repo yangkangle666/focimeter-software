@@ -295,6 +295,17 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("function downloadBundle", script)
         self.assertIn("function copyBundleNote", script)
 
+    def test_page_can_prepare_stage_one_five_spot_bundle(self):
+        html = (self.static / "index.html").read_text(encoding="utf-8")
+        script = (self.static / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="stage-one-five-spot"', html)
+        self.assertIn("第一阶段五光斑联调包", html)
+        self.assertIn("data/samples/calibration/calib_mock_001.jpg", script)
+        self.assertIn("data/samples/measurement/meas_mock_001.jpg", script)
+        self.assertIn("function prepareStageOneFiveSpot", script)
+        self.assertIn("state.config.recognition.expected_spot_count = 5", script)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -37,6 +37,15 @@
         <div class="panel-kicker">任务起点</div>
         <h1 id="step-1-title">建立本次测量记录</h1>
         <p class="lead">任务编号用于隔离输出，成功运行后不会覆盖。</p>
+        <section class="stage-one-preset" aria-labelledby="stage-one-title">
+          <div class="five-spot-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="stage-one-copy">
+            <span>Phase 01 · Mock contract</span>
+            <strong id="stage-one-title">第一阶段五光斑联调包</strong>
+            <p>自动使用五光斑标定图、测量图和 expected_spot_count=5，仅用于 M1 → M2 软件联调。</p>
+          </div>
+          <button id="stage-one-five-spot" class="secondary" type="button" disabled>准备五光斑任务 →</button>
+        </section>
         <div class="form-grid two">
           <label class="field"><span>任务编号</span><input id="task-id" autocomplete="off" maxlength="64"><small>字母、数字、下划线或短横线</small></label>
           <label class="field"><span>操作员</span><input id="operator" autocomplete="name" placeholder="选填"></label>

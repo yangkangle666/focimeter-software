@@ -74,6 +74,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .panel-kicker { margin-bottom: 10px; color: var(--signal-dark); font-size: 12px; font-weight: 700; }
 h1 { margin: 0; font-size: clamp(26px, 3vw, 38px); line-height: 1.2; font-weight: 700; }
 .lead { margin: 12px 0 34px; color: var(--muted); font-size: 15px; }
+.stage-one-preset { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 18px; margin: -8px 0 30px; padding: 18px 20px; border: 1px solid #9dbbb5; border-left: 4px solid var(--signal); background: linear-gradient(100deg, #edf7f4 0%, #f8fbfa 72%); }
+.five-spot-mark { width: 58px; height: 58px; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); place-items: center; border: 1px solid #9bc4bb; border-radius: 50%; background: #fff; }
+.five-spot-mark i { width: 7px; height: 7px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 3px rgba(0,137,121,.09); }
+.five-spot-mark i:nth-child(1) { grid-area: 1 / 2; }
+.five-spot-mark i:nth-child(2) { grid-area: 2 / 1; }
+.five-spot-mark i:nth-child(3) { grid-area: 2 / 2; width: 10px; height: 10px; }
+.five-spot-mark i:nth-child(4) { grid-area: 2 / 3; }
+.five-spot-mark i:nth-child(5) { grid-area: 3 / 2; }
+.stage-one-copy { min-width: 0; }
+.stage-one-copy > span { display: block; margin-bottom: 4px; color: var(--signal-dark); font: 10px Consolas, monospace; text-transform: uppercase; }
+.stage-one-copy strong { display: block; font-size: 15px; }
+.stage-one-copy p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.stage-one-preset button { white-space: nowrap; }
 .form-grid { display: grid; gap: 22px; }
 .form-grid.two { grid-template-columns: 1fr 1fr; }
 .field { display: grid; gap: 8px; min-width: 0; }
@@ -205,6 +218,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .step-index { width: 30px; height: 30px; font-size: 10px; }
   .workspace { min-height: calc(100vh - 123px); padding: 28px 18px 92px; }
   .form-grid.two, .source-layout, .config-fields, .config-toolbar { grid-template-columns: 1fr; }
+  .stage-one-preset { grid-template-columns: 52px 1fr; padding: 16px; }
+  .five-spot-mark { width: 48px; height: 48px; }
+  .stage-one-preset button { grid-column: 1 / -1; width: 100%; }
   .source-divider { height: 28px; }
   .source-divider::before { left: 0; right: 0; top: 50%; bottom: auto; width: auto; height: 1px; }
   .source-divider span { padding: 0 8px; }
