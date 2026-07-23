@@ -120,6 +120,19 @@ def _role_issues(document: Mapping[str, object], prefix: str) -> list[Validation
     return issues
 
 
+def _pairing_role_issues(document: Mapping[str, object], prefix: str) -> list[ValidationIssue]:
+    roles = [spot["role"] for spot in document["spots"]]
+    if "unknown" in roles or len(set(roles)) != len(roles):
+        return [
+            ValidationIssue(
+                path=f"{prefix}.spots",
+                code="COORDINATE_SYSTEM_INVALID",
+                message="Calculation requires unique, known spot roles.",
+            )
+        ]
+    return []
+
+
 def _spot_id_issues(document: Mapping[str, object], prefix: str) -> list[ValidationIssue]:
     spot_ids = [spot["spot_id"] for spot in document["spots"]]
     if len(spot_ids) == len(set(spot_ids)):
@@ -216,6 +229,8 @@ def validate_inputs(
             )
 
     if mode == "calculation-ready":
+        for document, prefix in ((calibration, "calibration"), (measurement, "measurement")):
+            issues.extend(_pairing_role_issues(document, prefix))
         for section, field in READY_PARAMETERS:
             value = config[section][field]
             if (

@@ -9,14 +9,16 @@ import numpy as np
 from .types import CoordinateSystemError, GeometryFit
 
 
-def _spots_by_id(document: Mapping[str, object]) -> dict[int, Mapping[str, object]]:
+def _spots_by_role(document: Mapping[str, object]) -> dict[str, Mapping[str, object]]:
     try:
         spots = document["spots"]
-        mapped = {int(spot["spot_id"]): spot for spot in spots}
-    except (KeyError, TypeError, ValueError) as error:
+        mapped = {str(spot["role"]): spot for spot in spots}
+    except (KeyError, TypeError) as error:
         raise CoordinateSystemError(f"Invalid spot collection: {error}") from error
     if len(mapped) != len(spots):
-        raise CoordinateSystemError("spot_id values must be unique.")
+        raise CoordinateSystemError("Spot roles must be unique for pairing.")
+    if "unknown" in mapped:
+        raise CoordinateSystemError("Unknown spot roles cannot be paired.")
     return mapped
 
 
@@ -39,15 +41,15 @@ def _orthonormal_basis(calibration: Mapping[str, object]) -> tuple[np.ndarray, n
     x_hint = _point(_spot_by_role(calibration, "x_positive")) - center
     y_hint = _point(_spot_by_role(calibration, "y_positive")) - center
     scale = max(float(np.linalg.norm(x_hint)), float(np.linalg.norm(y_hint)), 1.0)
-    if np.linalg.norm(x_hint) <= np.finfo(float).eps * scale:
-        raise CoordinateSystemError("x_positive cannot define the calibration X axis.")
-    ex = x_hint / np.linalg.norm(x_hint)
-    y_orthogonal = y_hint - np.dot(y_hint, ex) * ex
-    if np.linalg.norm(y_orthogonal) <= np.finfo(float).eps * scale * 100:
-        raise CoordinateSystemError("x_positive and y_positive are collinear.")
-    ey = y_orthogonal / np.linalg.norm(y_orthogonal)
-    if np.dot(ey, y_hint) < 0:
-        ey = -ey
+    if np.linalg.norm(y_hint) <= np.finfo(float).eps * scale:
+        raise CoordinateSystemError("y_positive cannot define the calibration Y axis.")
+    ey = y_hint / np.linalg.norm(y_hint)
+    ex = np.asarray([-ey[1], ey[0]], dtype=float)
+    x_projection = float(np.dot(x_hint, ex))
+    if abs(x_projection) <= np.finfo(float).eps * scale * 100:
+        raise CoordinateSystemError("x_positive cannot validate the calibration X axis.")
+    if x_projection < 0:
+        ex = -ex
     return center, np.column_stack([ex, ey])
 
 
@@ -57,28 +59,24 @@ def fit_spot_transform(
 ) -> GeometryFit:
     """Fit `measurement ~= transform @ calibration` after removing each center."""
 
-    calibration_spots = _spots_by_id(calibration)
-    measurement_spots = _spots_by_id(measurement)
+    calibration_spots = _spots_by_role(calibration)
+    measurement_spots = _spots_by_role(measurement)
     if set(calibration_spots) != set(measurement_spots):
-        raise CoordinateSystemError("Calibration and measurement spot_id sets must match.")
-    for spot_id in calibration_spots:
-        if calibration_spots[spot_id]["role"] != measurement_spots[spot_id]["role"]:
-            raise CoordinateSystemError(f"Role changed for spot_id {spot_id}.")
+        raise CoordinateSystemError("Calibration and measurement spot role sets must match.")
 
     calibration_center, basis = _orthonormal_basis(calibration)
     measurement_center = _point(_spot_by_role(measurement, "center"))
-    center_id = int(_spot_by_role(calibration, "center")["spot_id"])
-    outer_ids = sorted(spot_id for spot_id in calibration_spots if spot_id != center_id)
-    if len(outer_ids) < 3:
+    outer_roles = sorted(role for role in calibration_spots if role != "center")
+    if len(outer_roles) < 3:
         raise CoordinateSystemError("At least three paired non-center spots are required.")
 
     x_rows: list[np.ndarray] = []
     y_rows: list[np.ndarray] = []
     weights: list[float] = []
     shifts: dict[str, tuple[float, float]] = {}
-    for spot_id in outer_ids:
-        calib_spot = calibration_spots[spot_id]
-        meas_spot = measurement_spots[spot_id]
+    for role in outer_roles:
+        calib_spot = calibration_spots[role]
+        meas_spot = measurement_spots[role]
         calib_vector = _point(calib_spot) - calibration_center
         meas_vector = _point(meas_spot) - measurement_center
         x_rows.append(basis.T @ calib_vector)
@@ -87,9 +85,8 @@ def fit_spot_transform(
         if not np.isfinite(confidence) or confidence <= 0:
             raise CoordinateSystemError("Paired spot confidence must be positive and finite.")
         weights.append(confidence)
-        role = str(calib_spot["role"])
         if role in {"x_positive", "y_positive"}:
-            shift = meas_vector - calib_vector
+            shift = basis.T @ (meas_vector - calib_vector)
             shifts[role] = (float(shift[0]), float(shift[1]))
 
     x = np.asarray(x_rows, dtype=float)
@@ -109,13 +106,17 @@ def fit_spot_transform(
     condition_number = float(np.linalg.cond(weighted_x))
     if not np.all(np.isfinite(transform)) or not np.isfinite(condition_number):
         raise CoordinateSystemError("Spot transform is numerically invalid.")
+    if np.linalg.det(transform) <= 0:
+        raise CoordinateSystemError("Spot transform reverses orientation.")
+    if any(float(np.dot(source, target)) <= 0 for source, target in zip(x, y, strict=True)):
+        raise CoordinateSystemError("A paired outer spot reverses direction.")
     minimum_confidence = min(
-        float(calibration_spots[spot_id]["confidence"])
-        for spot_id in calibration_spots
+        float(calibration_spots[role]["confidence"])
+        for role in calibration_spots
     )
     minimum_confidence = min(
         minimum_confidence,
-        *(float(measurement_spots[spot_id]["confidence"]) for spot_id in measurement_spots),
+        *(float(measurement_spots[role]["confidence"]) for role in measurement_spots),
     )
     return GeometryFit(
         transform=transform,

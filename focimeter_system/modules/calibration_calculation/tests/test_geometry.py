@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from modules.calibration_calculation.algorithm.geometry import fit_spot_transform
+from modules.calibration_calculation.algorithm.geometry import _orthonormal_basis, fit_spot_transform
 from modules.calibration_calculation.algorithm.types import CoordinateSystemError
 
 
@@ -20,9 +20,10 @@ def transformed_measurement(calibration: dict, transform: np.ndarray, translatio
     center = np.array([by_role["center"]["x"], by_role["center"]["y"]], dtype=float)
     x_hint = np.array([by_role["x_positive"]["x"], by_role["x_positive"]["y"]]) - center
     y_hint = np.array([by_role["y_positive"]["x"], by_role["y_positive"]["y"]]) - center
-    ex = x_hint / np.linalg.norm(x_hint)
-    ey = y_hint - np.dot(y_hint, ex) * ex
-    ey /= np.linalg.norm(ey)
+    ey = y_hint / np.linalg.norm(y_hint)
+    ex = np.array([-ey[1], ey[0]])
+    if np.dot(x_hint, ex) < 0:
+        ex = -ex
     basis = np.column_stack([ex, ey])
     new_center = center + np.asarray(translation)
     for spot in measurement["spots"]:
@@ -56,11 +57,12 @@ class GeometryTests(unittest.TestCase):
         np.testing.assert_allclose((0.0, 0.0), fit.shifts["x_positive"], atol=1e-12)
         np.testing.assert_allclose((0.0, 0.0), fit.shifts["y_positive"], atol=1e-12)
 
-    def test_mismatched_spot_ids_are_rejected(self) -> None:
+    def test_permuted_spot_ids_are_paired_by_role(self) -> None:
         measurement = transformed_measurement(self.calibration, np.eye(2))
-        measurement["spots"][1]["spot_id"] = 99
-        with self.assertRaises(CoordinateSystemError):
-            fit_spot_transform(self.calibration, measurement)
+        for spot, spot_id in zip(measurement["spots"], (4, 2, 0, 3, 1), strict=True):
+            spot["spot_id"] = spot_id
+        fit = fit_spot_transform(self.calibration, measurement)
+        np.testing.assert_allclose(np.eye(2), fit.transform, atol=1e-12)
 
     def test_changed_role_is_rejected(self) -> None:
         measurement = transformed_measurement(self.calibration, np.eye(2))
@@ -79,6 +81,39 @@ class GeometryTests(unittest.TestCase):
         measurement["image_type"] = "measurement"
         with self.assertRaises(CoordinateSystemError):
             fit_spot_transform(calibration, measurement)
+
+    def test_reflected_transform_is_rejected(self) -> None:
+        measurement = transformed_measurement(self.calibration, np.diag([-1.0, 1.0]))
+        with self.assertRaises(CoordinateSystemError):
+            fit_spot_transform(self.calibration, measurement)
+
+    def test_direction_reversing_transform_is_rejected(self) -> None:
+        measurement = transformed_measurement(self.calibration, -np.eye(2))
+        with self.assertRaises(CoordinateSystemError):
+            fit_spot_transform(self.calibration, measurement)
+
+    def test_basis_uses_y_positive_like_cpp_reference(self) -> None:
+        calibration = copy.deepcopy(self.calibration)
+        center = calibration["spots"][0]
+        calibration["spots"][1].update(x=center["x"] + 20.0, y=center["y"] - 60.0)
+        calibration["spots"][4].update(x=center["x"] + 38.0, y=center["y"] + 40.0)
+        _, basis = _orthonormal_basis(calibration)
+        expected_y = np.array([20.0, -60.0]) / np.hypot(20.0, 60.0)
+        expected_x = np.array([-expected_y[1], expected_y[0]])
+        np.testing.assert_allclose(expected_x, basis[:, 0], atol=1e-12)
+        np.testing.assert_allclose(expected_y, basis[:, 1], atol=1e-12)
+
+    def test_shifts_are_expressed_in_calibration_basis(self) -> None:
+        measurement = transformed_measurement(self.calibration, np.eye(2))
+        for spot in measurement["spots"]:
+            if spot["role"] != "center":
+                spot["x"] += 3.0
+                spot["y"] += 4.0
+        _, basis = _orthonormal_basis(self.calibration)
+        expected = basis.T @ np.array([3.0, 4.0])
+        fit = fit_spot_transform(self.calibration, measurement)
+        np.testing.assert_allclose(expected, fit.shifts["x_positive"], atol=1e-12)
+        np.testing.assert_allclose(expected, fit.shifts["y_positive"], atol=1e-12)
 
 
 if __name__ == "__main__":

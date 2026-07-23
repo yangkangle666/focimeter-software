@@ -112,6 +112,52 @@ class AlgorithmCliTests(unittest.TestCase):
         model = json.loads(output_path.read_text(encoding="utf-8"))
         self.assertEqual("simulation_only", model["validation_status"])
         np.testing.assert_allclose(np.eye(3), model["correction"]["matrix"], atol=1e-10)
+        self.assertEqual([0.0, 2.5], model["quality_limits"]["validated_sphere_range_D"])
+        self.assertEqual(1.5, model["quality_limits"]["validated_abs_cylinder_max_D"])
+
+        duplicate_id = copy.deepcopy(samples)
+        duplicate_id[1]["sample_id"] = duplicate_id[0]["sample_id"]
+        duplicate_id_path = self.project / "duplicate_id_dataset.json"
+        duplicate_id_path.write_text(
+            json.dumps({"schema_version": "1.0", "dataset_id": "duplicate-id", "data_kind": "simulation", "samples": duplicate_id}),
+            encoding="utf-8",
+        )
+        duplicate_id_result = self.run_cli(
+            "fit-model", "--dataset", duplicate_id_path, "--config", self.config_path,
+            "--project-root", self.project, "--output", self.project / "duplicate_id_model.json",
+        )
+        self.assertEqual(2, duplicate_id_result.returncode, duplicate_id_result.stderr or duplicate_id_result.stdout)
+
+        reused_measurement = copy.deepcopy(samples)
+        reused_measurement[4]["spots_meas_path"] = reused_measurement[0]["spots_meas_path"]
+        reused_measurement_path = self.project / "reused_measurement_dataset.json"
+        reused_measurement_path.write_text(
+            json.dumps({"schema_version": "1.0", "dataset_id": "reused-measurement", "data_kind": "simulation", "samples": reused_measurement}),
+            encoding="utf-8",
+        )
+        reused_measurement_result = self.run_cli(
+            "fit-model", "--dataset", reused_measurement_path, "--config", self.config_path,
+            "--project-root", self.project, "--output", self.project / "reused_measurement_model.json",
+        )
+        self.assertEqual(2, reused_measurement_result.returncode, reused_measurement_result.stderr or reused_measurement_result.stdout)
+
+        copied_measurement = copy.deepcopy(samples)
+        copied_relative = "data/copied_measurement.json"
+        (self.project / copied_relative).write_text(
+            (self.project / copied_measurement[0]["spots_meas_path"]).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        copied_measurement[4]["spots_meas_path"] = copied_relative
+        copied_measurement_path = self.project / "copied_measurement_dataset.json"
+        copied_measurement_path.write_text(
+            json.dumps({"schema_version": "1.0", "dataset_id": "copied-measurement", "data_kind": "simulation", "samples": copied_measurement}),
+            encoding="utf-8",
+        )
+        copied_measurement_result = self.run_cli(
+            "fit-model", "--dataset", copied_measurement_path, "--config", self.config_path,
+            "--project-root", self.project, "--output", self.project / "copied_measurement_model.json",
+        )
+        self.assertEqual(2, copied_measurement_result.returncode, copied_measurement_result.stderr or copied_measurement_result.stdout)
 
 
 if __name__ == "__main__":

@@ -63,6 +63,16 @@ class InputContractTests(unittest.TestCase):
         self.calibration["spots"][3]["role"] = "center"
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "COORDINATE_SYSTEM_INVALID")
 
+    def test_unknown_role_is_rejected_for_calculation(self) -> None:
+        self.measurement["spots"][3]["role"] = "unknown"
+        report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
+        self.assert_issue(report, "COORDINATE_SYSTEM_INVALID")
+
+    def test_duplicate_non_axis_role_is_rejected_for_calculation(self) -> None:
+        self.measurement["spots"][3]["role"] = "left_or_negative"
+        report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
+        self.assert_issue(report, "COORDINATE_SYSTEM_INVALID")
+
     def test_duplicate_spot_id_is_rejected(self) -> None:
         self.calibration["spots"][1]["spot_id"] = 0
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "CONFIG_INVALID")
