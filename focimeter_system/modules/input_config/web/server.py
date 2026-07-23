@@ -26,6 +26,10 @@ class M1RequestHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path == "/api/bootstrap":
                 self._json(HTTPStatus.OK, self.application.bootstrap())
+            elif parsed.path.startswith("/api/task/") and parsed.path.endswith("/bundle"):
+                task_id = unquote(parsed.path[len("/api/task/"):-len("/bundle")].rstrip("/"))
+                bundle = self.application.integration_bundle(task_id)
+                self._download(bundle["data"], bundle["filename"])
             elif parsed.path.startswith("/api/task/"):
                 task_id = unquote(parsed.path.removeprefix("/api/task/"))
                 self._json(HTTPStatus.OK, self.application.task_result(task_id))
@@ -99,6 +103,16 @@ class M1RequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", cache)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _download(self, data: bytes, filename: str):
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(data)

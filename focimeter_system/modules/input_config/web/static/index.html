@@ -101,6 +101,18 @@
           <span id="result-status" class="result-status neutral">等待运行</span>
         </div>
         <div id="result-summary" class="result-summary"></div>
+        <section id="bundle-summary" class="bundle-summary" hidden aria-live="polite">
+          <div class="bundle-copy">
+            <div class="bundle-kicker">M1 → M2 交付包</div>
+            <strong>完整文件包已准备</strong>
+            <p>包含输入 JSON、标定图、测量图、配置文件和使用说明。</p>
+            <span id="bundle-status" class="bundle-status">等待运行结果</span>
+          </div>
+          <div class="bundle-actions">
+            <button id="download-bundle" class="primary" type="button" disabled>↓ 下载完整联调包</button>
+            <button id="copy-bundle-note" class="secondary" type="button" disabled>复制联调说明</button>
+          </div>
+        </section>
         <div class="tabs" role="tablist" aria-label="结果视图">
           <button class="tab active" data-tab="result" role="tab" type="button">输入包</button>
           <button class="tab" data-tab="log" role="tab" type="button">运行日志</button>

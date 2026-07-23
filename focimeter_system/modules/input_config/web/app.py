@@ -1,7 +1,9 @@
+import io
 import json
 import os
 import re
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import BinaryIO, Mapping
 
@@ -127,6 +129,117 @@ class WebApplication:
             "result": self._read_json(package) if package.is_file() else None,
             "log": self._read_json(log) if log.is_file() else None,
         }
+
+    def integration_bundle(self, task_id: str):
+        if not safe_task_id(task_id):
+            raise WebError("任务编号无效。")
+
+        package_path = self.root / "outputs/results" / task_id / "input_package.json"
+        if not package_path.is_file():
+            log_path = self.root / "outputs/logs" / f"{task_id}_input_config.json"
+            if log_path.is_file():
+                raise WebError("任务尚未生成可交付的输入包。", status=409, code="TASK_NOT_READY")
+            raise WebError("没有找到该任务。", status=404, code="TASK_NOT_FOUND")
+
+        try:
+            package_bytes = package_path.read_bytes()
+            package = json.loads(package_bytes.decode("utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise WebError(f"无法读取输入包：{exc}", status=500, code="BUNDLE_BUILD_FAILED") from exc
+
+        if not isinstance(package, dict) or package.get("status") != "ok":
+            raise WebError("任务输入包未成功生成，不能下载联调包。", status=409, code="TASK_NOT_READY")
+
+        quality = package.get("quality")
+        required_checks = ("paths_checked", "config_checked", "is_usable")
+        if not isinstance(quality, dict) or any(quality.get(key) is not True for key in required_checks):
+            raise WebError("输入包尚未通过路径和配置检查，不能下载联调包。", status=409, code="TASK_NOT_READY")
+
+        data = package.get("data")
+        if not isinstance(data, dict):
+            raise WebError("输入包缺少 data 文件清单。", status=500, code="BUNDLE_BUILD_FAILED")
+        references = [
+            ("calibration_image", data.get("calibration_image")),
+            ("measurement_image", data.get("measurement_image")),
+            ("config_path", data.get("config_path")),
+        ]
+
+        files = []
+        for field, relative in references:
+            if not isinstance(relative, str) or not relative:
+                raise WebError(
+                    f"输入包缺少有效的 {field} 路径。",
+                    status=422,
+                    code="BUNDLE_FILE_MISSING",
+                )
+            files.append((field, relative, self._resolve_bundle_file(relative)))
+
+        readme = self._integration_readme(task_id)
+        output = io.BytesIO()
+        try:
+            with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("input_package.json", package_bytes)
+                written = {"input_package.json"}
+                for _, relative, path in files:
+                    if relative not in written:
+                        archive.write(path, arcname=relative)
+                        written.add(relative)
+                archive.writestr("README_M1_M2_INTEGRATION.md", readme)
+        except OSError as exc:
+            raise WebError(f"联调包生成失败：{exc}", status=500, code="BUNDLE_BUILD_FAILED") from exc
+
+        return {
+            "filename": f"m1_{task_id}_m2_integration_bundle.zip",
+            "data": output.getvalue(),
+        }
+
+    def _resolve_bundle_file(self, relative: str) -> Path:
+        value = Path(relative)
+        if (
+            value.is_absolute()
+            or value.drive
+            or not value.parts
+            or value.parts[0] not in ALLOWED_FILE_ROOTS
+            or ".." in value.parts
+            or "\\" in relative
+        ):
+            raise WebError(
+                f"联调包文件路径不允许：{relative}",
+                status=403,
+                code="PATH_FORBIDDEN",
+            )
+
+        candidate = (self.root / value).resolve(strict=False)
+        try:
+            candidate.relative_to(self.root)
+        except ValueError as exc:
+            raise WebError(
+                f"联调包文件必须位于项目目录内：{relative}",
+                status=403,
+                code="PATH_FORBIDDEN",
+            ) from exc
+        if not candidate.is_file():
+            raise WebError(
+                f"联调包引用的文件不存在：{relative}",
+                status=422,
+                code="BUNDLE_FILE_MISSING",
+            )
+        return candidate
+
+    @staticmethod
+    def _integration_readme(task_id: str) -> str:
+        return (
+            "# M1 -> M2 软件联调包\n\n"
+            f"任务编号：`{task_id}`\n\n"
+            "## 使用步骤\n\n"
+            "1. 解压本 ZIP 文件，并将解压目录作为 M2 的 `project_root`。\n"
+            "2. 读取根目录的 `input_package.json`。\n"
+            "3. 按 JSON 中 `data` 的相对路径读取标定图、测量图和配置文件。\n\n"
+            "## 检查结论\n\n"
+            "本包由 M1 在生成时完成路径和配置检查，下载前又重新确认了引用文件存在且位于项目目录内。\n"
+            "`camera.image_width`、`camera.image_height` 和 `optical.hartmann_spacing_mm` 未知时可以保留 warning。\n\n"
+            "> 重要：本包表示软件联调可用，不代表真实计量验证完成。\n"
+        )
 
     def open_project_file(self, relative: str) -> Path:
         value = Path(relative)

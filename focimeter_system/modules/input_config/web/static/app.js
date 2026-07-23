@@ -92,6 +92,8 @@ function bindEvents() {
   $("#config-upload").addEventListener("change", (event) => uploadFile("config", event.target.files[0]));
   $("#run-m1").addEventListener("click", runM1);
   $("#new-task").addEventListener("click", resetTask);
+  $("#download-bundle").addEventListener("click", downloadBundle);
+  $("#copy-bundle-note").addEventListener("click", copyBundleNote);
   $$(".tab").forEach((tab) => tab.addEventListener("click", () => selectTab(tab.dataset.tab)));
 }
 
@@ -293,7 +295,94 @@ function renderResult(response) {
   } else {
     $("#result-summary").innerHTML = `<div class="summary-line error">${escapeHtml(result.error?.message || "运行失败。")}</div>`;
   }
+  updateBundleActions(response);
   selectTab("result");
+}
+
+function bundleTaskId(response = state.result) {
+  const taskId = response?.result?.task_id || $("#task-id")?.value.trim();
+  return /^[A-Za-z0-9_-]{1,64}$/.test(taskId || "") ? taskId : "";
+}
+
+function bundleFilename(taskId) {
+  return `m1_${taskId}_m2_integration_bundle.zip`;
+}
+
+function bundleNote(taskId) {
+  return [
+    `M1→M2 联调包：${bundleFilename(taskId)}`,
+    "请解压后将解压目录作为 project_root，",
+    "读取根目录 input_package.json。",
+    "包内文件已经过路径和配置检查，仅用于软件联调，",
+    "不代表真实计量验证完成。",
+  ].join("\n");
+}
+
+function updateBundleActions(response) {
+  const result = response?.result || {};
+  const taskId = bundleTaskId(response);
+  const ready = result.status === "ok" && Boolean(taskId);
+  const summary = $("#bundle-summary");
+  const download = $("#download-bundle");
+  const copy = $("#copy-bundle-note");
+  summary.hidden = !response;
+  download.disabled = !ready;
+  copy.disabled = !ready;
+  $("#bundle-status").textContent = ready
+    ? `可下载：${bundleFilename(taskId)}`
+    : "当前结果不可生成联调包";
+}
+
+async function downloadBundle() {
+  const taskId = bundleTaskId();
+  if (!taskId) return showMessage("当前没有可下载的成功任务。");
+  const button = $("#download-bundle");
+  button.disabled = true;
+  try {
+    const response = await fetch(`/api/task/${encodeURIComponent(taskId)}/bundle`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error?.message || `联调包下载失败（${response.status}）。`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = bundleFilename(taskId);
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showMessage("完整 M1 → M2 联调包已开始下载。", "success");
+  } catch (error) {
+    showMessage(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function copyBundleNote() {
+  const taskId = bundleTaskId();
+  if (!taskId) return showMessage("当前没有可复制说明的成功任务。");
+  const note = bundleNote(taskId);
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(note);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = note;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.append(textarea);
+      textarea.select();
+      if (!document.execCommand("copy")) throw new Error("浏览器拒绝了复制操作。");
+      textarea.remove();
+    }
+    showMessage("联调说明已复制，可直接发送给 M2。", "success");
+  } catch (error) {
+    showMessage(error.message || "复制失败，请手动复制页面中的文件名。");
+  }
 }
 
 function selectTab(tab) {
@@ -348,6 +437,7 @@ function resetTask() {
   $("#config-existing").value = state.configPath;
   $("#calibration-current").textContent = "尚未选择";
   $("#measurement-current").textContent = "尚未选择";
+  updateBundleActions(null);
   renderConfigFields();
   goToStep(1);
 }

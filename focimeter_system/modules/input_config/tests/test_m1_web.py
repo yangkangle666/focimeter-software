@@ -2,6 +2,7 @@ import json
 import tempfile
 import threading
 import unittest
+import zipfile
 from io import BytesIO
 from pathlib import Path
 from urllib.error import HTTPError
@@ -89,6 +90,39 @@ class WebApplicationTests(unittest.TestCase):
 
         self.assertEqual(duplicate["result"]["error"]["code"], "TASK_CONFLICT")
 
+    def test_bundle_contains_input_package_and_referenced_files(self):
+        payload = {
+            "task_id": "web_case_bundle",
+            "calibration_image": "data/samples/calibration/reference.png",
+            "measurement_image": "data/samples/measurement/lens.png",
+            "config_path": "config/default_config.json",
+        }
+        self.assertEqual(self.app.run(payload)["result"]["status"], "ok")
+
+        bundle = self.app.integration_bundle("web_case_bundle")
+
+        self.assertEqual(bundle["filename"], "m1_web_case_bundle_m2_integration_bundle.zip")
+        with zipfile.ZipFile(BytesIO(bundle["data"])) as archive:
+            names = set(archive.namelist())
+            self.assertIn("input_package.json", names)
+            self.assertIn("README_M1_M2_INTEGRATION.md", names)
+            package = json.loads(archive.read("input_package.json").decode("utf-8"))
+            for key in ("calibration_image", "measurement_image", "config_path"):
+                self.assertIn(package["data"][key], names)
+
+    def test_bundle_rejects_missing_referenced_file(self):
+        payload = {
+            "task_id": "web_case_missing_bundle_file",
+            "calibration_image": "data/samples/calibration/reference.png",
+            "measurement_image": "data/samples/measurement/lens.png",
+            "config_path": "config/default_config.json",
+        }
+        self.assertEqual(self.app.run(payload)["result"]["status"], "ok")
+        (self.root / "config/default_config.json").unlink()
+
+        with self.assertRaisesRegex(WebError, "config/default_config.json"):
+            self.app.integration_bundle("web_case_missing_bundle_file")
+
 
 class WebServerTests(unittest.TestCase):
     def setUp(self):
@@ -97,6 +131,8 @@ class WebServerTests(unittest.TestCase):
         (self.root / "config").mkdir()
         (self.root / "data/samples/calibration").mkdir(parents=True)
         (self.root / "data/samples/measurement").mkdir(parents=True)
+        (self.root / "data/samples/calibration/reference.png").write_bytes(b"calibration")
+        (self.root / "data/samples/measurement/lens.png").write_bytes(b"measurement")
         source = PROJECT_ROOT / "config/default_config.json"
         (self.root / "config/default_config.json").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
         self.server = make_server(self.root, "127.0.0.1", 0)
@@ -115,6 +151,10 @@ class WebServerTests(unittest.TestCase):
         request = Request(self.base_url + path, data=data, method=method, headers=headers or {})
         with urlopen(request, timeout=3) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
+
+    def request_bytes(self, path):
+        with urlopen(self.base_url + path, timeout=3) as response:
+            return response.status, response.headers, response.read()
 
     def test_bootstrap_endpoint_returns_file_groups(self):
         status, body = self.request_json("/api/bootstrap")
@@ -160,6 +200,34 @@ class WebServerTests(unittest.TestCase):
         body = json.loads(caught.exception.read().decode("utf-8"))
         caught.exception.close()
         self.assertEqual(body["error"]["code"], "NOT_FOUND")
+
+    def test_bundle_endpoint_returns_downloadable_zip(self):
+        payload = {
+            "task_id": "http_bundle",
+            "calibration_image": "data/samples/calibration/reference.png",
+            "measurement_image": "data/samples/measurement/lens.png",
+            "config_path": "config/default_config.json",
+        }
+        status, body = self.request_json(
+            "/api/run",
+            method="POST",
+            body=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(body["result"]["status"], "ok")
+
+        status, headers, data = self.request_bytes("/api/task/http_bundle/bundle")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "application/zip")
+        self.assertIn("m1_http_bundle_m2_integration_bundle.zip", headers.get("Content-Disposition"))
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            names = set(archive.namelist())
+            self.assertIn("input_package.json", names)
+            package = json.loads(archive.read("input_package.json").decode("utf-8"))
+            for key in ("calibration_image", "measurement_image", "config_path"):
+                self.assertIn(package["data"][key], names)
 
 
 class StaticContractTests(unittest.TestCase):
@@ -216,6 +284,16 @@ class StaticContractTests(unittest.TestCase):
 
         self.assertIn("function goToStep(nextStep, force = false)", script)
         self.assertIn("goToStep(6, true)", script)
+
+    def test_result_page_can_download_and_copy_integration_bundle(self):
+        html = (self.static / "index.html").read_text(encoding="utf-8")
+        script = (self.static / "app.js").read_text(encoding="utf-8")
+
+        for element_id in ("download-bundle", "copy-bundle-note", "bundle-summary", "bundle-status"):
+            self.assertIn(f'id="{element_id}"', html)
+        self.assertIn("/bundle", script)
+        self.assertIn("function downloadBundle", script)
+        self.assertIn("function copyBundleNote", script)
 
 
 if __name__ == "__main__":
