@@ -1,4 +1,4 @@
-"""Fit and apply standard-lens calibration models."""
+"""Build and apply standard-lens calibration parameter artifacts."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def calibration_dataset_sha256(
     dataset: Mapping[str, object],
     sample_documents: Sequence[Mapping[str, object]],
 ) -> str:
-    """Fingerprint the manifest and the parsed spot data used to fit the model."""
+    """Fingerprint the manifest and parsed spot data used to build the artifact."""
 
     return canonical_sha256(
         {
@@ -170,7 +170,7 @@ def _validation_metrics(
             repeatability.append(max(item.C for item in values) - min(item.C for item in values))
 
     metrics: dict[str, object] = {
-        "validation_sample_count": len(predicted),
+        "evaluation_sample_count": len(predicted),
         "rmse_power_vector_D": float(np.sqrt(np.mean(np.square(vector_errors)))) if vector_errors else None,
         "max_sphere_error_D": max(sphere_errors, default=None),
         "max_cylinder_error_D": max(cylinder_errors, default=None),
@@ -187,28 +187,62 @@ def _validation_metrics(
         and metrics["max_repeatability_D"] <= 0.03
     )
     metrics["jjg_first_class_gates_passed"] = bool(passes)
-    metrics["validation_coverage_complete"] = bool(coverage)
+    metrics["coverage_complete"] = bool(coverage)
     return metrics, bool(passes)
 
 
 def _validate_partition_integrity(
     records: Sequence[Mapping[str, object]],
-    training: Sequence[Mapping[str, object]],
-    validation: Sequence[Mapping[str, object]],
 ) -> None:
     sample_ids = [str(record["sample"]["sample_id"]) for record in records]
     if len(sample_ids) != len(set(sample_ids)):
         raise CalibrationDataError("Calibration sample_id values must be unique.")
 
-    training_paths = {str(record["sample"]["spots_meas_path"]) for record in training}
-    validation_paths = {str(record["sample"]["spots_meas_path"]) for record in validation}
-    if training_paths & validation_paths:
-        raise CalibrationDataError("Training and validation measurement paths must be independent.")
+    partition_by_serial: dict[str, str] = {}
+    partition_by_path: dict[str, str] = {}
+    partition_by_hash: dict[str, str] = {}
+    for record in records:
+        sample = record["sample"]
+        partition = str(sample["partition"])
+        checks = (
+            (partition_by_serial, str(sample["serial_number"]), "Standard-lens serial numbers"),
+            (partition_by_path, str(sample["spots_meas_path"]), "Measurement paths"),
+            (partition_by_hash, canonical_sha256(record["measurement"]), "Measurement content"),
+        )
+        for seen, value, label in checks:
+            previous = seen.setdefault(value, partition)
+            if previous != partition:
+                raise CalibrationDataError(f"{label} must not cross dataset partitions.")
 
-    training_hashes = {canonical_sha256(record["measurement"]) for record in training}
-    validation_hashes = {canonical_sha256(record["measurement"]) for record in validation}
-    if training_hashes & validation_hashes:
-        raise CalibrationDataError("Training and validation measurement content must be independent.")
+
+def _validated_operating_range(
+    validation: Sequence[Mapping[str, object]],
+) -> tuple[list[float], float]:
+    certified = [record["certified"] for record in validation]
+    sphere_values = [item.S for item in certified if item.C == 0]
+    if len(sphere_values) < 2 or min(sphere_values) >= max(sphere_values):
+        raise CalibrationDataError("Validation samples must cover an increasing spherical power range.")
+    cylinder_max = max(abs(item.C) for item in certified)
+    if cylinder_max <= 0:
+        raise CalibrationDataError("Validation samples must include a nonzero cylinder power.")
+    return [min(sphere_values), max(sphere_values)], cylinder_max
+
+
+def _validate_final_test_coverage(
+    test_records: Sequence[Mapping[str, object]],
+    sphere_range: Sequence[float],
+    cylinder_max: float,
+) -> None:
+    certified = [record["certified"] for record in test_records]
+    test_spheres = [item.S for item in certified if item.C == 0]
+    if (
+        len(test_spheres) < 2
+        or min(test_spheres) > sphere_range[0]
+        or max(test_spheres) < sphere_range[1]
+    ):
+        raise CalibrationDataError("Final test samples must cover the validated spherical power range.")
+    if max((abs(item.C) for item in certified), default=0.0) < cylinder_max:
+        raise CalibrationDataError("Final test samples must cover the validated cylinder power range.")
 
 
 def fit_calibration_model(
@@ -216,7 +250,7 @@ def fit_calibration_model(
     project_root: Path,
     config: Mapping[str, object],
 ) -> CalibrationModel:
-    """Fit a hybrid model from explicit train/validation standard-lens samples."""
+    """Build calibration parameters from separate calibration, validation, and test samples."""
 
     _validate_dataset(dataset)
     try:
@@ -259,36 +293,36 @@ def fit_calibration_model(
             }
         )
 
-    training = [record for record in records if record["sample"]["partition"] == "train"]
+    calibration_records = [record for record in records if record["sample"]["partition"] == "train"]
     validation = [record for record in records if record["sample"]["partition"] == "validation"]
-    if not training or not validation:
-        raise CalibrationDataError("Both train and validation samples are required.")
-    _validate_partition_integrity(records, training, validation)
-    raw_array = np.asarray([record["raw"].as_array() for record in training])
+    final_test = [record for record in records if record["sample"]["partition"] == "test"]
+    if not calibration_records or not validation or not final_test:
+        raise CalibrationDataError("Calibration, validation, and final test partitions are required.")
+    _validate_partition_integrity(records)
+    raw_array = np.asarray([record["raw"].as_array() for record in calibration_records])
     certified_array = np.asarray(
-        [prescription_to_power_vector(record["certified"]).as_array() for record in training]
+        [prescription_to_power_vector(record["certified"]).as_array() for record in calibration_records]
     )
-    weights = np.asarray([record["weight"] for record in training])
+    weights = np.asarray([record["weight"] for record in calibration_records])
     matrix, bias = fit_linear_correction(raw_array, certified_array, weights)
 
     pseudo_cylinders = []
-    for record in training:
+    for record in calibration_records:
         if record["certified"].C == 0:
             corrected = matrix @ record["raw"].as_array() + bias
             pseudo_cylinders.append(2.0 * math.hypot(corrected[1], corrected[2]))
     cylinder_threshold = max(1e-8, max(pseudo_cylinders, default=0.0) + 3.0 * float(np.std(pseudo_cylinders)))
 
-    validation_certified = [record["certified"] for record in validation]
-    sphere_values = [item.S for item in validation_certified if item.C == 0]
-    if len(sphere_values) < 2 or min(sphere_values) >= max(sphere_values):
-        raise CalibrationDataError("Validation samples must cover an increasing spherical power range.")
-    validated_abs_cylinder_max_D = max(abs(item.C) for item in validation_certified)
-    if validated_abs_cylinder_max_D <= 0:
-        raise CalibrationDataError("Validation samples must include a nonzero cylinder power.")
+    validated_sphere_range_D, validated_abs_cylinder_max_D = _validated_operating_range(validation)
+    _validate_final_test_coverage(
+        final_test,
+        validated_sphere_range_D,
+        validated_abs_cylinder_max_D,
+    )
     quality_values = {
-        "max_fit_rmse_pixel": max(1e-6, 1.5 * max(record["geometry"].rmse_pixel for record in training)),
-        "max_condition_number": max(1.0, 1.5 * max(record["geometry"].condition_number for record in training)),
-        "max_skew_power_D": max(1e-6, 1.5 * max(float(record["skew"]) for record in training)),
+        "max_fit_rmse_pixel": max(1e-6, 1.5 * max(record["geometry"].rmse_pixel for record in calibration_records)),
+        "max_condition_number": max(1.0, 1.5 * max(record["geometry"].condition_number for record in calibration_records)),
+        "max_skew_power_D": max(1e-6, 1.5 * max(float(record["skew"]) for record in calibration_records)),
     }
 
     dataset_hash = calibration_dataset_sha256(dataset, sample_documents)
@@ -301,7 +335,7 @@ def fit_calibration_model(
         "hardware": {"distance_m": distance_m, "expected_spot_count": expected_spot_count},
         "correction": {"matrix": matrix.tolist(), "bias": bias.tolist()},
         "quality_limits": {
-            "validated_sphere_range_D": [min(sphere_values), max(sphere_values)],
+            "validated_sphere_range_D": validated_sphere_range_D,
             "validated_abs_cylinder_max_D": validated_abs_cylinder_max_D,
             "cylinder_threshold_D": cylinder_threshold,
             **quality_values,
@@ -312,36 +346,59 @@ def fit_calibration_model(
         "standard_lenses": [],
     }
     temporary_model = CalibrationModel.from_dict(temporary_dict)
-    predicted = [
+    validation_predicted = [
         power_vector_to_prescription(
             apply_correction(record["raw"], temporary_model),
             cylinder_threshold,
         )
         for record in validation
     ]
-    expected = [record["certified"] for record in validation]
-    metrics, gates_passed = _validation_metrics(
-        predicted,
-        expected,
+    validation_metrics, validation_gates_passed = _validation_metrics(
+        validation_predicted,
+        [record["certified"] for record in validation],
         [record["sample"] for record in validation],
     )
+    validation_metrics["evaluation_partition"] = "validation"
     error_ratios = [
-        (metrics["max_sphere_error_D"] or 0.0) / 0.06,
-        (metrics["max_cylinder_error_D"] or 0.0) / 0.03,
-        (metrics["max_axis_error_degree"] or 0.0) / 1.0,
-        (metrics["max_zero_error_D"] or 0.0) / 0.03,
-        (metrics["max_repeatability_D"] or 0.0) / 0.03,
+        (validation_metrics["max_sphere_error_D"] or 0.0) / 0.06,
+        (validation_metrics["max_cylinder_error_D"] or 0.0) / 0.03,
+        (validation_metrics["max_axis_error_degree"] or 0.0) / 1.0,
+        (validation_metrics["max_zero_error_D"] or 0.0) / 0.03,
+        (validation_metrics["max_repeatability_D"] or 0.0) / 0.03,
     ]
     validation_confidence = max(0.0, min(1.0, 1.0 - max(error_ratios)))
+
+    final_test_predicted = [
+        power_vector_to_prescription(
+            apply_correction(record["raw"], temporary_model),
+            cylinder_threshold,
+        )
+        for record in final_test
+    ]
+    final_test_metrics, final_test_gates_passed = _validation_metrics(
+        final_test_predicted,
+        [record["certified"] for record in final_test],
+        [record["sample"] for record in final_test],
+    )
+    final_test_metrics["evaluation_partition"] = "test"
     model_dict = temporary_model.to_dict()
     model_dict["model_id"] = f"{dataset['dataset_id']}-{dataset_hash[:12]}"
     model_dict["validation_status"] = (
-        "metrology_validated" if dataset["data_kind"] == "metrology" and gates_passed else "simulation_only"
+        "metrology_validated"
+        if dataset["data_kind"] == "metrology" and validation_gates_passed and final_test_gates_passed
+        else "simulation_only"
     )
     model_dict["quality_limits"]["validation_confidence"] = validation_confidence
-    model_dict["fit_metrics"] = metrics
+    model_dict["fit_metrics"] = {
+        "validation": validation_metrics,
+        "final_test": final_test_metrics,
+    }
     model_dict["standard_lenses"] = [
-        {"sample_id": sample["sample_id"], "serial_number": sample["serial_number"]}
+        {
+            "sample_id": sample["sample_id"],
+            "serial_number": sample["serial_number"],
+            "partition": sample["partition"],
+        }
         for sample in dataset["samples"]
     ]
     return CalibrationModel.from_dict(model_dict)

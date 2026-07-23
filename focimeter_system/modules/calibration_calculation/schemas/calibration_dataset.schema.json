@@ -32,7 +32,7 @@
       "required": ["sample_id", "partition", "serial_number", "spots_calib_path", "spots_meas_path", "certified", "uncertainty_D"],
       "properties": {
         "sample_id": {"type": "string", "minLength": 1},
-        "partition": {"enum": ["train", "validation"]},
+        "partition": {"enum": ["train", "validation", "test"]},
         "serial_number": {"type": "string", "minLength": 1},
         "spots_calib_path": {"$ref": "#/$defs/relativePath"},
         "spots_meas_path": {"$ref": "#/$defs/relativePath"},

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://focimeter.local/schemas/calibration_model.schema.json",
-  "title": "M3 hybrid power-matrix calibration model",
+  "title": "M3 hybrid power-matrix calibration parameter artifact",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "model_type", "model_id", "validation_status", "source_dataset_sha256", "hardware", "correction", "quality_limits", "fit_metrics", "standard_lenses"],

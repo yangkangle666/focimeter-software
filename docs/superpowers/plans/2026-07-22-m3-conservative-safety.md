@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make M3 reject unreliable correspondence and preserve an independent calibration validation set without changing shared JSON fields.
+**Goal:** Make M3 reject unreliable correspondence and preserve independent calibration, validation, and final test sets without changing shared M2/M3 fields.
 
-**Architecture:** M3 pairs spots by unique semantic `role`, uses the C++ Y-first basis, and rejects reflected or direction-reversing transforms. Only training records fit operating limits; validation records evaluate the model and define the exported validated range.
+**Architecture:** M3 pairs spots by unique semantic `role`, uses the C++ Y-first basis, and rejects reflected or direction-reversing transforms. The legacy `train` partition is the calibration set, validation records define the proposed operating range, and an independent final test set evaluates the frozen algorithm version.
 
 **Tech Stack:** Python 3.11, NumPy, jsonschema, unittest.
 
@@ -67,19 +67,19 @@ basis = np.column_stack([ex, ey])
 - [ ] Project shift output with `basis.T @ (meas_vector - calib_vector)`.
 - [ ] Run `python -m unittest modules.calibration_calculation.tests.test_geometry modules.calibration_calculation.tests.test_calculator -v`; commit with `fix: align M3 geometry with reference basis`.
 
-### Task 3: Independent validation fitting
+### Task 3: Independent metrology partitions
 
 **Files:**
 - Modify: `focimeter_system/modules/calibration_calculation/algorithm/calibration.py`
 - Test: `focimeter_system/modules/calibration_calculation/tests/test_algorithm_cli.py`
 - Test: `focimeter_system/modules/calibration_calculation/tests/test_calibration_algorithm.py`
 
-**Interfaces:** `fit_calibration_model(dataset, project_root, config)` rejects duplicate sample IDs and measurement reuse across partitions. Its correction, cylinder threshold, and geometry limits use only training records; exported range metadata uses validation records.
+**Interfaces:** `fit_calibration_model(dataset, project_root, config)` rejects duplicate sample IDs and serial-number, path, or measurement-content reuse across partitions. Its correction, cylinder threshold, and geometry limits use only calibration records; exported range metadata uses validation records; final gate metrics use test records.
 
-- [ ] Write failing synthetic-dataset tests for duplicate `sample_id`, a training `spots_meas_path` reused by validation, and validation-only range metadata `[0.0, 2.5]` when training spans `[-5.0, 5.0]`.
+- [ ] Write failing synthetic-dataset tests for duplicate `sample_id`, cross-partition serial/path/content reuse, and validation-only range metadata `[0.0, 2.5]` when the calibration set spans `[-5.0, 5.0]`.
 - [ ] Run `python -m unittest modules.calibration_calculation.tests.test_algorithm_cli modules.calibration_calculation.tests.test_calibration_algorithm -v`; verify failures.
-- [ ] Store each parsed measurement in its record, reject duplicate IDs, shared measurement paths, and shared `canonical_sha256(measurement)` values across train/validation.
-- [ ] Derive `pseudo_cylinders` and `quality_values` from `training`; derive `validated_sphere_range_D` and `validated_abs_cylinder_max_D` from `validation`, rejecting insufficient validation coverage.
+- [ ] Store each parsed measurement in its record; reject duplicate IDs and serial/path/content leakage across calibration, validation, and test partitions.
+- [ ] Derive `pseudo_cylinders` and `quality_values` from the calibration set; derive the validated range from validation; evaluate final gates only on test records.
 - [ ] Rerun focused calibration tests; commit with `fix: isolate M3 calibration validation`.
 
 ### Task 4: Documentation and complete verification

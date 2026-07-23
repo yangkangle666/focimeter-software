@@ -40,23 +40,31 @@ The reported `shift_x_positive` and `shift_y_positive` values will be projected
 into that basis. They will therefore match the existing `calibration_pixel`
 output label rather than raw image-pixel coordinates.
 
-## Calibration Isolation
+## Metrology Data Isolation
 
-Only training samples may determine the correction matrix, cylinder threshold,
-and geometry quality limits. Validation samples may only evaluate the fitted
-model. The exported usable sphere/cylinder range will be the range independently
-covered by validation samples.
+M3 is a formula-based algorithm with calibration parameters, not a machine-learning
+model. The legacy machine value `partition=train` denotes the calibration set.
+Only that set may determine the correction matrix, cylinder threshold, and geometry
+quality limits. The independent validation set determines the proposed operating
+range. A final test set evaluates the frozen algorithm version against the gates.
 
-Sample IDs must be unique. A measurement JSON path or canonical measurement JSON
-content cannot occur in both train and validation partitions. Repeated captures
-within the same partition remain permitted.
+Sample IDs must be unique. A lens `serial_number`, measurement JSON path, or
+canonical measurement JSON content cannot occur across the calibration,
+validation, and final test partitions. Repeated captures remain permitted only
+within the single partition assigned to that physical lens.
+
+The calibration artifact retains the existing `model_*` names and
+`validation_status=metrology_validated` token for file-format compatibility. That
+status means the algorithm version has passed metrology validation; it is not a
+claim that M3 is a trained machine-learning model.
 
 ## Tests
 
 Add regression coverage for role-based pairing, invalid/unknown roles, reflected
 or reversed geometry, C++-aligned non-orthogonal basis construction, calibrated
-shift coordinates, cross-partition data leakage, and validation-only range
-metadata. Existing JSON contract tests and full M3 tests must remain green.
+shift coordinates, serial-number and measurement leakage across all three
+partitions, validation-only range metadata, and final-test evaluation. Existing
+JSON contract tests and full M3 tests must remain green.
 
 ## Known Limit
 

@@ -61,7 +61,7 @@ def calculate(
     try:
         parsed_model = model if isinstance(model, CalibrationModel) else CalibrationModel.from_dict(model)
         if parsed_model.validation_status != "metrology_validated" and not allow_simulation_model:
-            raise ModelError("Production calculation requires a metrology_validated model.")
+            raise ModelError("Production calculation requires a metrology-validated algorithm version.")
 
         report = validate_inputs(calibration, measurement, config, mode="calculation-ready")
         if not report.valid:
@@ -78,9 +78,9 @@ def calculate(
         distance_m = float(config["optical"]["distance_m"])
         expected_count = int(config["recognition"]["expected_spot_count"])
         if not math.isclose(distance_m, parsed_model.distance_m, rel_tol=1e-12, abs_tol=1e-15):
-            raise ModelError("Configuration distance_m does not match the model hardware fingerprint.")
+            raise ModelError("Configuration distance_m does not match the calibration artifact hardware fingerprint.")
         if expected_count != parsed_model.expected_spot_count:
-            raise ModelError("Configured expected_spot_count does not match the model hardware fingerprint.")
+            raise ModelError("Configured expected_spot_count does not match the calibration artifact hardware fingerprint.")
 
         geometry = fit_spot_transform(calibration, measurement)
         limits = parsed_model.quality_limits
@@ -107,7 +107,7 @@ def calculate(
             return _error(
                 task_id,
                 "CALCULATION_FAILED",
-                "Calculated power is outside the model's validated range.",
+                "Calculated power is outside the algorithm version's validated range.",
                 False,
                 "RESULT_OUTSIDE_VALIDATED_RANGE",
                 principal_powers_D=list(principal_powers),

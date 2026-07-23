@@ -1,4 +1,4 @@
-"""Command-line tools for fitting and running the M3 algorithm."""
+"""Command-line tools for building calibration parameters and running M3."""
 
 from __future__ import annotations
 
@@ -15,10 +15,15 @@ from .types import CalibrationDataError, CalibrationModel, ModelError
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Fit and run the M3 focimeter calculation algorithm.")
+    parser = argparse.ArgumentParser(
+        description="Build calibration parameters and run the M3 focimeter calculation algorithm."
+    )
     commands = parser.add_subparsers(dest="command", required=True)
 
-    fit = commands.add_parser("fit-model", help="Fit a model from standard-lens spot data.")
+    fit = commands.add_parser(
+        "fit-model",
+        help="Build a calibration parameter artifact from standard-lens spot data.",
+    )
     fit.add_argument("--dataset", required=True, type=Path)
     fit.add_argument("--config", required=True, type=Path)
     fit.add_argument("--project-root", required=True, type=Path)

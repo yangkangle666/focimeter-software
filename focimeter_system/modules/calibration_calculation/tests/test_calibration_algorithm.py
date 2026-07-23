@@ -39,7 +39,7 @@ class CalibrationAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(expected_w, fitted_w, atol=1e-12)
         np.testing.assert_allclose(expected_b, fitted_b, atol=1e-12)
 
-    def test_rank_deficient_training_set_is_rejected(self) -> None:
+    def test_rank_deficient_calibration_set_is_rejected(self) -> None:
         deficient = np.column_stack([self.raw[:, 0], self.raw[:, 0], self.raw[:, 0]])
         with self.assertRaises(CalibrationDataError):
             fit_linear_correction(deficient, self.raw, self.weights)
