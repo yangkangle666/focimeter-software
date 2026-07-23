@@ -13,20 +13,23 @@ It does not change the shared M2/M3 interface or add a new M2 tracking field.
 
 ## Correspondence Policy
 
-`spot_id` is a per-image M2 slot number, not a cross-image physical-ray ID.
-M3 will therefore pair spots by `role`, which is the only cross-image semantic
-label currently provided by the contract.
+Within the current M2 protocol, `spot_id` is inherited from the calibration
+image only after a unique constrained geometric match succeeds. M3 will
+therefore pair calibration and measurement spots by `spot_id`, then require the
+paired `role` values to agree. Array detection order has no identity meaning.
 
 Calculation-ready inputs must contain exactly five unique, known roles:
 `center`, `y_positive`, `left_or_negative`, `other`, and `x_positive`.
-Inputs with duplicate or `unknown` roles are rejected. This permits harmless
-per-image `spot_id` renumbering but does not assert physical-ray tracking.
+Inputs with duplicate or `unknown` roles, different ID sets, or an ID whose role
+changes across inputs are rejected. This consumes M2's current identity evidence
+without claiming that a software-generated ID proves physical-ray tracking.
 
 M3 will additionally reject fitted transforms that are reflected or reverse a
 paired outer spot direction. These checks catch obvious slot swaps. They cannot
 prove physical correspondence, so the README will state that the module is
-limited to mock and stable small-displacement integration until M2 supplies a
-stable `ray_id` or a project-approved matching protocol.
+limited to mock and synthetic integration until the current matching protocol is
+approved and validated with paired real-device images, or another hardware or
+tracking identity mechanism is approved.
 
 ## Geometry and Output Semantics
 
@@ -60,7 +63,7 @@ claim that M3 is a trained machine-learning model.
 
 ## Tests
 
-Add regression coverage for role-based pairing, invalid/unknown roles, reflected
+Add regression coverage for ID-based pairing, invalid/unknown roles, reflected
 or reversed geometry, C++-aligned non-orthogonal basis construction, calibrated
 shift coordinates, serial-number and measurement leakage across all three
 partitions, validation-only range metadata, and final-test evaluation. Existing
@@ -69,5 +72,6 @@ JSON contract tests and full M3 tests must remain green.
 ## Known Limit
 
 The design deliberately favors false rejection over potentially wrong S/C/A.
-It cannot establish physical-ray identity without a stable M2 `ray_id` or an
-approved cross-image matching protocol and real-device validation data.
+It cannot establish real-device physical-ray identity from a software field name
+alone. That claim requires approval of the geometric protocol and paired
+real-device validation data, or a separately approved hardware/tracking mechanism.

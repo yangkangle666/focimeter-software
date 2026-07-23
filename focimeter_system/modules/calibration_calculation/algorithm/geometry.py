@@ -9,16 +9,14 @@ import numpy as np
 from .types import CoordinateSystemError, GeometryFit
 
 
-def _spots_by_role(document: Mapping[str, object]) -> dict[str, Mapping[str, object]]:
+def _spots_by_id(document: Mapping[str, object]) -> dict[int, Mapping[str, object]]:
     try:
         spots = document["spots"]
-        mapped = {str(spot["role"]): spot for spot in spots}
+        mapped = {int(spot["spot_id"]): spot for spot in spots}
     except (KeyError, TypeError) as error:
         raise CoordinateSystemError(f"Invalid spot collection: {error}") from error
     if len(mapped) != len(spots):
-        raise CoordinateSystemError("Spot roles must be unique for pairing.")
-    if "unknown" in mapped:
-        raise CoordinateSystemError("Unknown spot roles cannot be paired.")
+        raise CoordinateSystemError("Spot IDs must be unique for pairing.")
     return mapped
 
 
@@ -59,24 +57,35 @@ def fit_spot_transform(
 ) -> GeometryFit:
     """Fit `measurement ~= transform @ calibration` after removing each center."""
 
-    calibration_spots = _spots_by_role(calibration)
-    measurement_spots = _spots_by_role(measurement)
+    calibration_spots = _spots_by_id(calibration)
+    measurement_spots = _spots_by_id(measurement)
     if set(calibration_spots) != set(measurement_spots):
-        raise CoordinateSystemError("Calibration and measurement spot role sets must match.")
+        raise CoordinateSystemError("Calibration and measurement spot ID sets must match.")
+    for spot_id in calibration_spots:
+        calibration_role = str(calibration_spots[spot_id]["role"])
+        measurement_role = str(measurement_spots[spot_id]["role"])
+        if calibration_role == "unknown" or calibration_role != measurement_role:
+            raise CoordinateSystemError(
+                f"Spot ID {spot_id} must preserve a known role across calibration and measurement."
+            )
 
     calibration_center, basis = _orthonormal_basis(calibration)
-    measurement_center = _point(_spot_by_role(measurement, "center"))
-    outer_roles = sorted(role for role in calibration_spots if role != "center")
-    if len(outer_roles) < 3:
+    center_id = next(
+        spot_id for spot_id, spot in calibration_spots.items() if spot["role"] == "center"
+    )
+    measurement_center = _point(measurement_spots[center_id])
+    outer_ids = sorted(spot_id for spot_id in calibration_spots if spot_id != center_id)
+    if len(outer_ids) < 3:
         raise CoordinateSystemError("At least three paired non-center spots are required.")
 
     x_rows: list[np.ndarray] = []
     y_rows: list[np.ndarray] = []
     weights: list[float] = []
     shifts: dict[str, tuple[float, float]] = {}
-    for role in outer_roles:
-        calib_spot = calibration_spots[role]
-        meas_spot = measurement_spots[role]
+    for spot_id in outer_ids:
+        calib_spot = calibration_spots[spot_id]
+        meas_spot = measurement_spots[spot_id]
+        role = str(calib_spot["role"])
         calib_vector = _point(calib_spot) - calibration_center
         meas_vector = _point(meas_spot) - measurement_center
         x_rows.append(basis.T @ calib_vector)
@@ -111,12 +120,12 @@ def fit_spot_transform(
     if any(float(np.dot(source, target)) <= 0 for source, target in zip(x, y, strict=True)):
         raise CoordinateSystemError("A paired outer spot reverses direction.")
     minimum_confidence = min(
-        float(calibration_spots[role]["confidence"])
-        for role in calibration_spots
+        float(spot["confidence"])
+        for spot in calibration_spots.values()
     )
     minimum_confidence = min(
         minimum_confidence,
-        *(float(measurement_spots[role]["confidence"]) for role in measurement_spots),
+        *(float(spot["confidence"]) for spot in measurement_spots.values()),
     )
     return GeometryFit(
         transform=transform,

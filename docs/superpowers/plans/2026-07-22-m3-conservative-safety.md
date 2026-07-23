@@ -4,7 +4,7 @@
 
 **Goal:** Make M3 reject unreliable correspondence and preserve independent calibration, validation, and final test sets without changing shared M2/M3 fields.
 
-**Architecture:** M3 pairs spots by unique semantic `role`, uses the C++ Y-first basis, and rejects reflected or direction-reversing transforms. The legacy `train` partition is the calibration set, validation records define the proposed operating range, and an independent final test set evaluates the frozen algorithm version.
+**Architecture:** M3 pairs spots by M2-preserved `spot_id`, verifies paired roles, uses the C++ Y-first basis, and rejects reflected or direction-reversing transforms. The legacy `train` partition is the calibration set, validation records define the proposed operating range, and an independent final test set evaluates the frozen algorithm version.
 
 **Tech Stack:** Python 3.11, NumPy, jsonschema, unittest.
 
@@ -17,7 +17,7 @@
 
 ---
 
-### Task 1: Safe role pairing
+### Task 1: Safe ID and role pairing
 
 **Files:**
 - Modify: `focimeter_system/modules/calibration_calculation/validator/contract_validator.py`
@@ -25,12 +25,12 @@
 - Test: `focimeter_system/modules/calibration_calculation/tests/test_input_contract.py`
 - Test: `focimeter_system/modules/calibration_calculation/tests/test_geometry.py`
 
-**Interfaces:** `validate_inputs(..., mode="calculation-ready")` rejects duplicate or `unknown` roles. `fit_spot_transform` pairs each unique role and raises `CoordinateSystemError` for reflected or reversed geometry.
+**Interfaces:** `validate_inputs(..., mode="calculation-ready")` rejects duplicate or `unknown` roles, different ID sets, and role changes for the same ID. `fit_spot_transform` pairs by `spot_id` and raises `CoordinateSystemError` for reflected or reversed geometry.
 
-- [ ] Write failing tests: an `unknown` role and a duplicate `left_or_negative` role return `COORDINATE_SYSTEM_INVALID`; permuted measurement `spot_id` values with unchanged roles still recover identity; a `diag(-1, 1)` transform is rejected.
+- [ ] Write failing tests: an `unknown` role, a duplicate `left_or_negative` role, an ID/role mismatch, and a `diag(-1, 1)` transform return `COORDINATE_SYSTEM_INVALID`; reordered arrays with preserved IDs still recover identity.
 - [ ] Run `python -m unittest modules.calibration_calculation.tests.test_input_contract modules.calibration_calculation.tests.test_geometry -v`; verify the new tests fail.
 - [ ] Add `_pairing_role_issues` to reject `unknown` and duplicate roles only in calculation-ready mode.
-- [ ] Replace ID maps in `fit_spot_transform` with role maps and add:
+- [ ] Pair by M2-preserved IDs, verify paired roles, and add:
 
 ```python
 if np.linalg.det(transform) <= 0:
@@ -87,7 +87,7 @@ basis = np.column_stack([ex, ey])
 **Files:**
 - Modify: `focimeter_system/modules/calibration_calculation/README.md`
 
-**Interfaces:** README states that role pairing tolerates ID renumbering but is not physical-ray tracking; real-device use requires M2 `ray_id` or an approved matching protocol plus standard-lens validation.
+**Interfaces:** README states that array reordering is allowed but IDs and roles must remain stable; the current geometric protocol still requires real-device validation and does not become physical evidence merely by renaming an ID field.
 
 - [ ] Update the capability and limitation sections without changing interface terminology.
 - [ ] Run `python -m unittest discover -s modules/calibration_calculation/tests -v` from `focimeter_system`; expect all tests to pass.

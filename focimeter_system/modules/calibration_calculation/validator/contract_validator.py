@@ -146,6 +146,36 @@ def _spot_id_issues(document: Mapping[str, object], prefix: str) -> list[Validat
     ]
 
 
+def _spot_pairing_issues(
+    calibration: Mapping[str, object],
+    measurement: Mapping[str, object],
+) -> list[ValidationIssue]:
+    calibration_by_id = {spot["spot_id"]: spot for spot in calibration["spots"]}
+    measurement_by_id = {spot["spot_id"]: spot for spot in measurement["spots"]}
+    if set(calibration_by_id) != set(measurement_by_id):
+        return [
+            ValidationIssue(
+                path="measurement.spots",
+                code="COORDINATE_SYSTEM_INVALID",
+                message="Calibration and measurement spot_id sets must match.",
+            )
+        ]
+    mismatched_ids = [
+        spot_id
+        for spot_id in sorted(calibration_by_id)
+        if calibration_by_id[spot_id]["role"] != measurement_by_id[spot_id]["role"]
+    ]
+    if mismatched_ids:
+        return [
+            ValidationIssue(
+                path="measurement.spots",
+                code="COORDINATE_SYSTEM_INVALID",
+                message=f"spot_id values must preserve roles across inputs; mismatched IDs: {mismatched_ids}.",
+            )
+        ]
+    return []
+
+
 def _count_issues(
     document: Mapping[str, object],
     prefix: str,
@@ -231,6 +261,7 @@ def validate_inputs(
     if mode == "calculation-ready":
         for document, prefix in ((calibration, "calibration"), (measurement, "measurement")):
             issues.extend(_pairing_role_issues(document, prefix))
+        issues.extend(_spot_pairing_issues(calibration, measurement))
         for section, field in READY_PARAMETERS:
             value = config[section][field]
             if (

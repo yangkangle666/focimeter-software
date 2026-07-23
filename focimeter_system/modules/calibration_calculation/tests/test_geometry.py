@@ -57,12 +57,18 @@ class GeometryTests(unittest.TestCase):
         np.testing.assert_allclose((0.0, 0.0), fit.shifts["x_positive"], atol=1e-12)
         np.testing.assert_allclose((0.0, 0.0), fit.shifts["y_positive"], atol=1e-12)
 
-    def test_permuted_spot_ids_are_paired_by_role(self) -> None:
+    def test_detection_order_may_change_when_spot_ids_are_preserved(self) -> None:
+        measurement = transformed_measurement(self.calibration, np.eye(2))
+        measurement["spots"].reverse()
+        fit = fit_spot_transform(self.calibration, measurement)
+        np.testing.assert_allclose(np.eye(2), fit.transform, atol=1e-12)
+
+    def test_reassigned_spot_ids_are_rejected(self) -> None:
         measurement = transformed_measurement(self.calibration, np.eye(2))
         for spot, spot_id in zip(measurement["spots"], (4, 2, 0, 3, 1), strict=True):
             spot["spot_id"] = spot_id
-        fit = fit_spot_transform(self.calibration, measurement)
-        np.testing.assert_allclose(np.eye(2), fit.transform, atol=1e-12)
+        with self.assertRaises(CoordinateSystemError):
+            fit_spot_transform(self.calibration, measurement)
 
     def test_changed_role_is_rejected(self) -> None:
         measurement = transformed_measurement(self.calibration, np.eye(2))

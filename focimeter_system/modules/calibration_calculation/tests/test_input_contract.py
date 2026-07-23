@@ -77,6 +77,18 @@ class InputContractTests(unittest.TestCase):
         self.calibration["spots"][1]["spot_id"] = 0
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "CONFIG_INVALID")
 
+    def test_cross_image_spot_id_set_mismatch_is_rejected_for_calculation(self) -> None:
+        self.measurement["spots"][1]["spot_id"] = 99
+        report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
+        self.assert_issue(report, "COORDINATE_SYSTEM_INVALID")
+
+    def test_cross_image_spot_id_must_preserve_role(self) -> None:
+        first = self.measurement["spots"][1]
+        second = self.measurement["spots"][4]
+        first["spot_id"], second["spot_id"] = second["spot_id"], first["spot_id"]
+        report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
+        self.assert_issue(report, "COORDINATE_SYSTEM_INVALID")
+
     def test_coordinate_unit_change_is_rejected(self) -> None:
         self.measurement["coordinate_type"] = "millimeter"
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "UNIT_MISMATCH")
