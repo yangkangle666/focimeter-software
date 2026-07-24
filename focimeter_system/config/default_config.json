@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "config_name": "default_config",
   "camera": {
-    "pixel_size_um": 4.0,
+    "pixel_size_um": "TODO_CONFIRM",
     "image_width": null,
     "image_height": null
   },
@@ -31,5 +31,24 @@
   "path_policy": {
     "path_type": "relative_to_project_root",
     "allow_absolute_path": false
+  },
+  "light_source": {
+    "type": "green_led",
+    "notes": "TEMP_PARAMETER: 等待硬件组提供具体波长（如 520nm、525nm等〉。波长影响相机啎应和滤光条件，最终计量验证前必须捷换为数值。"
+  },
+  "measurement_range": {
+    "notes": "REFERENCE_ONLY: 以下范围參考宁波法里奥 FL-8600/FL-800 竹品指标，仅用于代码范围校檌，不作为项目正式测量目标。最终指标以甲方诊程/项目验收要求为准。",
+    "sphere_diopter_min": -25,
+    "sphere_diopter_max": 25,
+    "cylinder_diopter_min": -10,
+    "cylinder_diopter_max": 10,
+    "axis_degree_min": 0,
+    "axis_degree_max": 180,
+    "prism_diopter_min": 0,
+    "prism_diopter_max": 15,
+    "addition_diopter_min": 0,
+    "addition_diopter_max": 10,
+    "lens_diameter_mm_min": 15,
+    "lens_diameter_mm_max": 100
   }
 }

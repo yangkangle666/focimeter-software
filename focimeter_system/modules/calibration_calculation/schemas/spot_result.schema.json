@@ -25,7 +25,11 @@
       "additionalProperties": false,
       "required": ["spot_id", "role", "x", "y", "confidence"],
       "properties": {
-        "spot_id": {"type": "integer", "minimum": 0},
+        "spot_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Physical ray identity within the same task_id. The same spot_id in calibration and measurement files must refer to the same physical light ray, not detection order."
+        },
         "role": {"enum": ["center", "y_positive", "x_positive", "left_or_negative", "other", "unknown"]},
         "x": {"type": "number"},
         "y": {"type": "number"},
