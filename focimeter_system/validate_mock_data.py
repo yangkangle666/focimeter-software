@@ -101,6 +101,8 @@ def validate_mock_marker(path: Path, data: dict) -> None:
         value = value[field]
     if not isinstance(value, list) or "MOCK_DATA_ONLY" not in value:
         raise ValueError(f"{path} must be marked MOCK_DATA_ONLY at {'.'.join(warning_path)}")
+    if "m3_calibration_calculation" in str(path) and "software_verified" not in value:
+        raise ValueError(f"{path} must be marked software_verified at {chr(46).join(warning_path)}")
 
 
 def main() -> int:

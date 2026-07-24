@@ -14,7 +14,11 @@
   "quality": {
     "is_usable": true,
     "confidence": 0.89,
-    "warnings": ["MOCK_DATA_ONLY", "mock_result_for_interface_test_only"]
+    "warnings": [
+      "MOCK_DATA_ONLY",
+      "mock_result_for_interface_test_only",
+      "software_verified"
+    ]
   },
   "intermediate": {
     "coordinate_system_valid": true,

@@ -131,6 +131,7 @@ def calculate(
         }
         if "MOCK_DATA_ONLY" in input_warnings:
             warnings.append("MOCK_DATA_ONLY")
+            warnings.append("software_verified")
         if parsed_model.validation_status == "simulation_only":
             warnings.append("simulation_model_allowed_for_test_only")
         intermediate: dict[str, object] = {

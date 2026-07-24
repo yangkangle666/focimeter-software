@@ -46,6 +46,7 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual(0.0, result["result"]["C"])
         self.assertIsNone(result["result"]["A"])
         self.assertIn("MOCK_DATA_ONLY", result["quality"]["warnings"])
+        self.assertIn("software_verified", result["quality"]["warnings"])
         self.assertTrue(validate_result(result).valid)
 
     def test_cylindrical_axis_is_recovered(self) -> None:
