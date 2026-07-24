@@ -41,6 +41,34 @@
         },
         "image_height": {
           "$ref": "#/$defs/unknownPositiveInteger"
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sensor_width_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sensor_height_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bit_depth": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "color_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exposure_ms_min": {
+          "type": "number",
+          "minimum": 0
+        },
+        "exposure_ms_max": {
+          "type": "number",
+          "minimum": 0
         }
       }
     },

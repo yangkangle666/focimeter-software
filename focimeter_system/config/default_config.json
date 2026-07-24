@@ -2,9 +2,16 @@
   "schema_version": "1.0",
   "config_name": "default_config",
   "camera": {
-    "pixel_size_um": "TODO_CONFIRM",
-    "image_width": null,
-    "image_height": null
+    "notes": "SIMULATION_ONLY: 初步直接使用网络公开工业書机参数，但作为秬一阶段开发模拟。全部标寸为模拟值，硬件后提供真实硬件参数后替换。",
+    "pixel_size_um": 4.8,
+    "image_width": 1280,
+    "image_height": 1024,
+    "sensor_width_mm": 6.1,
+    "sensor_height_mm": 4.9,
+    "bit_depth": 8,
+    "color_mode": "monochrome",
+    "exposure_ms_min": 0.01,
+    "exposure_ms_max": 100
   },
   "optical": {
     "distance_m": 0.03,
@@ -34,7 +41,7 @@
   },
   "light_source": {
     "type": "green_led",
-    "notes": "TEMP_PARAMETER: 等待硬件组提供具体波长（如 520nm、525nm等〉。波长影响相机啎应和滤光条件，最终计量验证前必须捷换为数值。"
+    "notes": "TEMP_PARAMETER: 网站公开工业相机参数（以下具体沢长、功率、亮量稳定性待确件组提供）。以都标注为临时参数，硬件后揠换。"
   },
   "measurement_range": {
     "notes": "REFERENCE_ONLY: 以下范围參考宁波法里奥 FL-8600/FL-800 竹品指标，仅用于代码范围校檌，不作为项目正式测量目标。最终指标以甲方诊程/项目验收要求为准。",
