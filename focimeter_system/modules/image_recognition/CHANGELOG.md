@@ -25,7 +25,11 @@
 ### 验证状态
 
 - 当前状态仅为 `software_verified` / `synthetic_verified`，不是 `metrology_validated`。
-- 构建、CTest、mock 校验、合成数据复现、M1 补充输入和 M3/M4 联调检查结果以本次提交最终测试报告为准。
+- Visual Studio 2022/CMake 的 Debug 与 Release 构建均通过，两个配置各 `8/8` 项 CTest 通过；关闭 CLI、测试和工具后的核心静态库 Release 独立构建通过。
+- 仓库统一 mock 校验 `22/22` 个 JSON 通过；合成生成器产出的 `22/22` 个受管理文件与提交版本 SHA-256 一致。
+- 最终 synthetic CLI 成功样例输出两组各五个 spots，M3 当前任务分支 validator 的 `contract` 与 `calculation-ready` 模式均通过，共 `2/2`。
+- M1 补充 bundle 退出码为 `2`，双输出为 `CONFIG_INVALID`，诊断记录其配置声明 `12 x 12`、实际 TIFF 为 `1280 x 1024`；该结果只证明配置错误链路。
+- M4 尚无可运行实现，本阶段只完成固定成功/失败材料和消费边界文档，未宣称四模块端到端运行通过。
 
 ### 已知限制
 
