@@ -36,6 +36,13 @@ namespace focimeter::m2 {
     const ErrorInfo& module_error,
     ErrorInfo& write_error);
 
+[[nodiscard]] bool writeImageDiagnostics(
+    const std::filesystem::path& path,
+    const std::string& task_id,
+    const std::string& image_type,
+    const ImageAnalysis& analysis,
+    ErrorInfo& write_error);
+
 [[nodiscard]] bool writeRunLog(
     const std::filesystem::path& path,
     const InputPackage* input,

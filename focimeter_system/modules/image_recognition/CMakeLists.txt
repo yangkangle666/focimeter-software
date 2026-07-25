@@ -101,7 +101,7 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
         add_test(NAME m2_cli_help COMMAND focimeter_m2 --help)
         list(APPEND M2_REGISTERED_TESTS m2_cli_help)
 
-        foreach(case_name IN ITEMS transform noise affine)
+        foreach(case_name IN ITEMS transform noise affine uneven)
             add_test(
                 NAME m2_cli_synthetic_${case_name}
                 COMMAND focimeter_m2
@@ -113,12 +113,13 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
         endforeach()
         add_test(
             NAME m2_cli_synthetic_missing
-            COMMAND focimeter_m2
-                --input "${M2_SYNTHETIC_ROOT}/input_package_missing.json"
-                --output "$ENV{TEMP}/focimeter-m2-cli-missing"
-                --project-root "${M2_SYSTEM_ROOT}"
+            COMMAND ${CMAKE_COMMAND}
+                "-DM2_EXECUTABLE=$<TARGET_FILE:focimeter_m2>"
+                "-DM2_INPUT=${M2_SYNTHETIC_ROOT}/input_package_missing.json"
+                "-DM2_OUTPUT=$ENV{TEMP}/focimeter-m2-cli-missing"
+                "-DM2_PROJECT_ROOT=${M2_SYSTEM_ROOT}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_cli_failure.cmake"
         )
-        set_tests_properties(m2_cli_synthetic_missing PROPERTIES WILL_FAIL TRUE)
         list(APPEND M2_REGISTERED_TESTS m2_cli_synthetic_missing)
     endif()
     if(M2_BUILD_TOOLS)

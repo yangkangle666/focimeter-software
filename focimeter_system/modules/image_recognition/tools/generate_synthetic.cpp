@@ -1,3 +1,4 @@
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -60,13 +61,18 @@ PointList transformAnisotropic(
     return result;
 }
 
-cv::Mat render(const PointList& points, const int brightness = 235, const double noise_sigma = 0.0) {
-    cv::Mat image(768, 1024, CV_8UC3, cv::Scalar(5, 5, 5));
+cv::Mat render(
+    const PointList& points,
+    const int brightness = 235,
+    const double noise_sigma = 0.0,
+    const int background = 5,
+    const int radius = 14) {
+    cv::Mat image(768, 1024, CV_8UC3, cv::Scalar(background, background, background));
     for (const auto& point : points) {
         cv::circle(
             image,
             cv::Point(cvRound(point.x), cvRound(point.y)),
-            14,
+            radius,
             cv::Scalar(brightness, brightness, brightness),
             cv::FILLED,
             cv::LINE_AA);
@@ -84,6 +90,40 @@ cv::Mat render(const PointList& points, const int brightness = 235, const double
         image.convertTo(signed_image, CV_16SC3);
         signed_image += noise;
         signed_image.convertTo(image, CV_8UC3);
+    }
+    return image;
+}
+
+cv::Mat renderGradient(const PointList& points) {
+    cv::Mat image(768, 1024, CV_8UC3);
+    for (int row = 0; row < image.rows; ++row) {
+        const int background = 5 + (35 * row) / (image.rows - 1);
+        image.row(row).setTo(cv::Scalar(background, background, background));
+    }
+    for (const auto& point : points) {
+        cv::circle(
+            image,
+            cv::Point(cvRound(point.x), cvRound(point.y)),
+            14,
+            cv::Scalar(215, 215, 215),
+            cv::FILLED,
+            cv::LINE_AA);
+    }
+    return image;
+}
+
+cv::Mat renderUnevenSpots(const PointList& points) {
+    const std::array<int, 5> brightness{235, 220, 205, 225, 210};
+    const std::array<int, 5> radii{14, 12, 13, 14, 13};
+    cv::Mat image(768, 1024, CV_8UC3, cv::Scalar(8, 8, 8));
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        cv::circle(
+            image,
+            cv::Point(cvRound(points[index].x), cvRound(points[index].y)),
+            radii[index],
+            cv::Scalar(brightness[index], brightness[index], brightness[index]),
+            cv::FILLED,
+            cv::LINE_AA);
     }
     return image;
 }
@@ -145,6 +185,12 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
     ok = writePng(output / "measurement" / "brightness_only.png", render(transform(base, 1.0, 0.0, {3.0, -4.0}), 155)) && ok;
     ok = writePng(output / "measurement" / "noise_only.png", render(transform(base, 1.0, 0.0, {-4.0, 3.0}), 235, 7.0)) && ok;
     ok = writePng(output / "measurement" / "brightness_noise.png", render(transform(base, 0.98, -6.0, {-5.0, 9.0}), 195, 7.0)) && ok;
+    ok = writePng(output / "measurement" / "low_contrast.png", render(base, 155, 0.0, 60)) && ok;
+    cv::Mat blurred;
+    cv::GaussianBlur(render(base), blurred, cv::Size(7, 7), 1.5);
+    ok = writePng(output / "measurement" / "gaussian_blur.png", blurred) && ok;
+    ok = writePng(output / "measurement" / "background_gradient.png", renderGradient(base)) && ok;
+    ok = writePng(output / "measurement" / "uneven_spots.png", renderUnevenSpots(base)) && ok;
 
     PointList missing{base.begin(), base.begin() + 3};
     ok = writePng(output / "failure" / "missing_spots_3.png", render(missing)) && ok;
@@ -159,6 +205,22 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
     ok = writePng(
         output / "failure" / "ambiguous_pairing_45deg.png",
         render(transform(base, 1.0, 45.0, {0.0, 0.0}))) && ok;
+    ok = writePng(
+        output / "failure" / "blank_dark.png",
+        cv::Mat::zeros(768, 1024, CV_8UC1)) && ok;
+    ok = writePng(
+        output / "failure" / "blank_bright.png",
+        cv::Mat(768, 1024, CV_8UC1, cv::Scalar(255))) && ok;
+    PointList array_points;
+    for (int row = 0; row < 5; ++row) {
+        for (int column = 0; column < 5; ++column) {
+            array_points.emplace_back(352.0 + column * 80.0, 224.0 + row * 80.0);
+        }
+    }
+    ok = writePng(output / "failure" / "hartmann_array_25.png", render(array_points)) && ok;
+    PointList boundary = base;
+    boundary[1] = {512.0, 35.0};
+    ok = writePng(output / "failure" / "roi_boundary_clipped.png", render(boundary)) && ok;
 
     const std::string manifest = R"({
   "schema_version": "1.0",
@@ -166,6 +228,8 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
   "module": "m2_image_recognition",
   "status": "ok",
   "kind": "synthetic_mock",
+  "validation_status": "synthetic_verified",
+  "metrology_validated": false,
   "image_size": {"width": 1024, "height": 768},
   "calibration_spots": [
     {"spot_id": 0, "role": "center", "x": 512.0, "y": 384.0},
@@ -182,11 +246,19 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
     "measurement/brightness_only.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [3.0, -4.0], "brightness": 155},
     "measurement/noise_only.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [-4.0, 3.0], "noise_sigma": 7.0},
     "measurement/brightness_noise.png": {"expected": "ok", "scale": 0.98, "rotation_degrees": -6.0, "translation": [-5.0, 9.0], "brightness": 195, "noise_sigma": 7.0},
+    "measurement/low_contrast.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "background": 60, "brightness": 155},
+    "measurement/gaussian_blur.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "gaussian_kernel": 7, "gaussian_sigma": 1.5},
+    "measurement/background_gradient.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "background_range": [5, 40]},
+    "measurement/uneven_spots.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "brightness_range": [205, 235], "radius_range": [12, 14]},
     "failure/missing_spots_3.png": {"expected": "SPOT_COUNT_MISMATCH"},
     "failure/extra_spot_6.png": {"expected": "SPOT_COUNT_MISMATCH"},
     "failure/merged_spots.png": {"expected": "CENTROID_FAILED"},
     "failure/ambiguous_roles.png": {"expected": "COORDINATE_SYSTEM_INVALID"},
-    "failure/ambiguous_pairing_45deg.png": {"expected": "COORDINATE_SYSTEM_INVALID", "reason": "symmetric cross has multiple plausible identities"}
+    "failure/ambiguous_pairing_45deg.png": {"expected": "COORDINATE_SYSTEM_INVALID", "reason": "symmetric cross has multiple plausible identities"},
+    "failure/blank_dark.png": {"expected": "SPOT_COUNT_MISMATCH", "expected_warning": "IMAGE_UNDEREXPOSED"},
+    "failure/blank_bright.png": {"expected": "SPOT_COUNT_MISMATCH", "expected_warning": "IMAGE_OVEREXPOSED"},
+    "failure/hartmann_array_25.png": {"expected": "SPOT_COUNT_MISMATCH", "expected_warning": "POSSIBLE_HARTMANN_ARRAY_INPUT"},
+    "failure/roi_boundary_clipped.png": {"expected": "SPOT_COUNT_MISMATCH", "reason": "one spot lies outside the configured ROI"}
   },
   "error": null
 }

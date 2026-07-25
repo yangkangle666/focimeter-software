@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,8 @@ struct ErrorInfo {
 };
 
 struct ProcessingConfig {
+    std::optional<int> declared_image_width;
+    std::optional<int> declared_image_height;
     double roi_width_ratio{0.9};
     double roi_height_ratio{0.9};
     int median_kernel{3};
@@ -53,8 +56,24 @@ struct Spot {
     double confidence{0.0};
 };
 
+struct ImageDiagnostics {
+    int image_width{0};
+    int image_height{0};
+    int channels{0};
+    int source_depth_bits{0};
+    double mean_intensity{0.0};
+    double intensity_stddev{0.0};
+    double minimum_intensity{0.0};
+    double maximum_intensity{0.0};
+    double dark_pixel_ratio{0.0};
+    double bright_pixel_ratio{0.0};
+    int candidate_count{0};
+    std::vector<std::string> warnings;
+};
+
 struct ImageAnalysis {
     std::vector<SpotObservation> observations;
+    ImageDiagnostics diagnostics;
     cv::Rect roi_rect;
     cv::Mat original;
     cv::Mat gray;

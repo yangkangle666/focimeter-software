@@ -29,7 +29,7 @@ void printUsage() {
         << "  focimeter_m2 --input <input_package.json> --output <output_dir> [options]\n\n"
         << "Options:\n"
         << "  --project-root <dir>     Explicit root used to resolve M1 relative paths.\n"
-        << "  --save-intermediate       Save gray, enhanced, binary, and annotated images.\n"
+        << "  --save-intermediate       Save available processing images and diagnostic JSON.\n"
         << "  --show                    Display final annotations with OpenCV windows.\n"
         << "  --help                    Show this help.\n";
 }

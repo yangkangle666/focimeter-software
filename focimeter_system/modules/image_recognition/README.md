@@ -1,6 +1,8 @@
 # M2 图像识别模块
 
-当前阶段版本：`0.1.0`
+当前阶段版本：`0.2.0`
+
+当前验证状态：`software_verified`。这表示接口、算法逻辑、错误链路和合成数据测试已经完成软件验证，不表示真实设备识别、光学参数或 S/C/A 计量准确性已经通过。达到 `metrology_validated` 前必须完成真实成对图像、硬件参数和标准镜片验证。
 
 M2 读取 M1 的 `input_package.json`，对标定图和测量图执行同一套图像处理流程，输出 M3 可直接读取的 `spots_calib.json` 和 `spots_meas.json`。本模块不计算 S/C/A，也不连接相机或其他硬件。
 
@@ -16,7 +18,7 @@ focimeter_m2_core（静态库）
   ├─ 轮廓筛选与亮度加权质心
   ├─ 标定图角色分配
   ├─ 受约束仿射变换枚举与跨图一一配对
-  └─ 结果、错误、日志和中间图输出
+  └─ 结果、错误、质量诊断、日志和中间图输出
 ```
 
 CLI 只负责参数解析和结果提示，核心算法可被后续 Visual Studio/C++ 工程直接链接。
@@ -72,7 +74,7 @@ focimeter_m2.exe `
 ```
 
 - `--project-root`：M1 相对路径的解析根。当前仓库 mock 需要指向 `focimeter_system/`。
-- `--save-intermediate`：保存灰度、增强、二值和编号标注图。
+- `--save-intermediate`：保存灰度、增强、二值、编号标注图和结构化诊断 JSON。
 - `--show`：先保存最终编号图，再通过 CLI 的 OpenCV 窗口显示；默认不弹窗，便于 M4 与自动测试调用。
 - `--help`：显示参数说明。
 
@@ -80,10 +82,10 @@ focimeter_m2.exe `
 
 ## 输入与输出
 
-正式输入为 M1 输出，成功示例：
+正式输入来自 M1。仓库当前 M1 mock 输入只验证包结构和路径，引用的 JPG 不是五光斑成功图；可实际跑通识别的 synthetic 示例为：
 
 ```text
-../../data/mock/m1_input_config/input_package_ok.json
+../../data/mock/m2_image_recognition/synthetic/input_package_uneven.json
 ```
 
 输出固定写入指定目录：
@@ -96,9 +98,11 @@ m2_run_log.json
 intermediate/          使用 --save-intermediate 时存在
 ```
 
+`intermediate/` 中每张图对应可获得的 `*_gray.png`、`*_enhanced.png`、`*_binary.png`、`*_spots.png` 和始终可写时生成的 `*_diagnostics.json`。成功和图像识别失败都会保留已经完成的中间阶段；图片不存在等早期失败没有可用图像，因此只生成诊断 JSON。诊断 JSON 记录图片尺寸、通道、源位深、归一化 8 位 ROI 的灰度统计、候选数和启发式 warning，并明确标记 `validation_status=software_verified`、`metrology_validated=false`。它是调试产物，不属于统一 spots 契约。
+
 每个 `task_id` 必须使用独立输出目录。M2 会锁定该目录并拒绝第二个并发写者；输入包、统一配置和两张图片也不得与上述输出文件重叠。
 
-M4/M3 调用方必须等待 CLI 结束，并且仅在退出码为 `0` 时读取两份 spots。成功运行中 `m2_run_log.json` 最后发布，可作为本次运行完成的辅助信号；不要通过监视某一份 spots 文件出现就提前读取另一份。
+M4/M3 调用方必须等待 CLI 正常结束，并且仅在退出码为 `0` 时读取两份 spots。成功运行中 `m2_run_log.json` 最后发布，可作为辅助审计信号，但它尚未进入统一接口；不要通过监视某一份 spots 文件出现就提前读取另一份。
 
 输出字段严格对齐：
 
@@ -130,7 +134,7 @@ M4/M3 调用方必须等待 CLI 结束，并且仅在退出码为 `0` 时读取�
 ../../data/mock/m2_image_recognition/synthetic/
 ```
 
-其中包含平移、旋转、缩放、亮度、噪声、缺失、额外光斑、粘连和角色歧义案例，以及 `manifest.json` 真值说明。它们只用于软件逻辑验证。
+其中包含平移、旋转、缩放、亮度、噪声、低对比度、模糊、背景梯度、适度光斑差异、缺失、多点阵列、ROI 边界、粘连和角色歧义案例，以及 `manifest.json` 真值说明。它们只用于软件逻辑验证。
 
 仓库原有两张 `data/samples/*.jpg` 是同一张光学系统示意图，不是五光斑照片，运行 M2 时应返回识别错误。
 
@@ -146,6 +150,8 @@ python focimeter_system/validate_mock_data.py
 - 五点检测、原图坐标恢复、置信度范围、8 位/16 位输入和非法配置；
 - 测量点输入顺序变化后的稳定配对；
 - 平移、旋转、等比例缩放、各向异性仿射形变、亮度和噪声；
+- 低对比度、轻度高斯模糊、背景梯度、适度光斑亮度和半径变化；
+- 欠曝、过曝、25 点 Hartmann-like 阵列和 ROI 边界诊断；
 - 三点、六点、粘连和角色歧义；
 - 缺失光斑由伪点补足、逐点/中心残差和配对后置信度失败；
 - 输入 JSON 不存在/损坏/含非标准注释、字段缺失、上游错误、绝对路径和父目录穿越；
@@ -167,10 +173,20 @@ python focimeter_system/validate_mock_data.py
 - `COORDINATE_SYSTEM_INVALID`
 - `UNKNOWN_ERROR`
 
+当识别失败时，现有错误对象的 `details` 会附带可获得的图像诊断数据。曝光、对比度和“可能是整张阵列”的判断只提供 warning，不新增统一错误码，也不替代五光斑识别结果。当前启发式阈值未经真实设备标定。
+
+## 第二阶段联调与真实数据准备
+
+- [REAL_DATA_REQUIREMENTS.md](REAL_DATA_REQUIREMENTS.md)：硬件图片、相机参数、光学参数和计量升级条件。
+- [INTEGRATION_NOTES_M2_M3_M4.md](INTEGRATION_NOTES_M2_M3_M4.md)：M1 输入、M3 消费、M4 完成边界和展示建议。
+- `data/mock/m2_image_recognition/spots_calib_ok.json` 与 `spots_meas_ok.json`：M3/M4 固定成功格式样例。
+- `data/mock/m2_image_recognition/error_spot_count_mismatch.json`：固定失败格式样例。
+- `data/mock/m2_image_recognition/synthetic/input_package_uneven.json`：可直接运行的第二阶段合成 CLI 样例。
+
 ## 当前限制与 TODO_CONFIRM
 
 1. 真实标定图、测量图和专用配置尚未提供，只有合成数据完成成功路径验证。
-2. M1 补充 `input_package.json` 引用的 TIFF 和配置文件未随样例提供，目前只能验证 `CONFIG_NOT_FOUND` 错误链路。
+2. M1 补充 bundle 的配置声明 `12 x 12`，实际 TIFF 为 `1280 x 1024`，当前先返回 `CONFIG_INVALID`；M1 修正配置后，这组 AI 生成的整张阵列类图片仍不是第一阶段五光斑成功样例，预期继续返回 `SPOT_COUNT_MISMATCH`。两种结果都不能当作真实识别成功。
 3. 仓库没有正式定义 `relative_to_project_root` 的根目录；当前按 `focimeter_system/` 解释，负责人需确认。
 4. `spot_id` 跨图同物理光线要求来自 M3 实际实现和团队确认，尚未写入统一接口契约。
 5. 完整 M2 错误码表和“一图失败时双输出”的规则尚未写入统一接口契约。
@@ -181,5 +197,9 @@ python focimeter_system/validate_mock_data.py
 10. 标定角色目前以方向角和中心/半径稳定性判定，尚未用真实设备数据标定更严格的对边、正交和半径一致性门限。
 11. 当前二值化使用原半成品思路改造后的区域自适应 Otsu；真实不均匀照明样例到位后仍需重新校准参数。
 12. M3 当前 validator 的 `calculation-ready` 模式已经检查两个文件的 `spot_id` 集合和同 ID role 映射，三组合成输出共 `6/6` 次验证通过；该检查能发现接口不一致，但不能独立证明同 ID 在真实图像中确实对应同一条物理光线。
-13. 两份 spots 是两个独立文件，无法在普通文件系统上完成一次跨文件原子重命名；正常返回路径会回滚第二次发布失败，但进程被强制终止时仍可能留下半组文件。调用方必须以 CLI 退出成功和最后发布的运行日志为完成边界。
+13. 两份 spots 是两个独立文件，无法在普通文件系统上完成一次跨文件原子重命名；正常返回路径会回滚第二次发布失败，但进程被强制终止时仍可能留下半组文件。调用方必须等待 CLI 正常结束且退出码为 `0`，运行日志只作为可选辅助审计信号。
 14. `TODO_CONFIRM`：负责人已选择方案 C，并要求身份不确定时报错；硬件侧暂时无法确认真实相对旋转范围。当前实现能拒绝直接超过 `35` 度的候选和已检测到的多解，但无法识别完全对称十字的 90 度隐藏别名；仓库外 `+60` 度探针当前会错误成功。负责人审查后仍需决定采用非对称标记、稳定外观特征还是硬件身份锚点，不能仅调整角度阈值后宣称问题已解决。
+15. 图像诊断的灰度统计基于转换后的 8 位 ROI；对于 16 位原图，这些数值不能替代原始传感器曝光分析。
+16. 当前顶帽核来自统一配置。合成测试已表明光斑直径接近或大于核尺寸时可能被削弱，真实图到位后必须按真实光斑尺度重新标定。
+17. 标定图和测量图必须具有相同像素尺寸；否则两个文件的像素坐标不能直接配对，M2 返回 `COORDINATE_SYSTEM_INVALID`。
+18. 统一配置中的相机宽高若为已知整数，必须与两张解码图片一致；不一致返回 `CONFIG_INVALID`。使用 `null` 或 `TODO_CONFIRM` 时只执行两图彼此尺寸一致性检查。

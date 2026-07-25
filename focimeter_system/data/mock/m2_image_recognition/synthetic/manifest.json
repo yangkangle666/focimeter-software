@@ -4,6 +4,8 @@
   "module": "m2_image_recognition",
   "status": "ok",
   "kind": "synthetic_mock",
+  "validation_status": "synthetic_verified",
+  "metrology_validated": false,
   "image_size": {"width": 1024, "height": 768},
   "calibration_spots": [
     {"spot_id": 0, "role": "center", "x": 512.0, "y": 384.0},
@@ -20,11 +22,19 @@
     "measurement/brightness_only.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [3.0, -4.0], "brightness": 155},
     "measurement/noise_only.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [-4.0, 3.0], "noise_sigma": 7.0},
     "measurement/brightness_noise.png": {"expected": "ok", "scale": 0.98, "rotation_degrees": -6.0, "translation": [-5.0, 9.0], "brightness": 195, "noise_sigma": 7.0},
+    "measurement/low_contrast.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "background": 60, "brightness": 155},
+    "measurement/gaussian_blur.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "gaussian_kernel": 7, "gaussian_sigma": 1.5},
+    "measurement/background_gradient.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "background_range": [5, 40]},
+    "measurement/uneven_spots.png": {"expected": "ok", "scale": 1.0, "rotation_degrees": 0.0, "translation": [0.0, 0.0], "brightness_range": [205, 235], "radius_range": [12, 14]},
     "failure/missing_spots_3.png": {"expected": "SPOT_COUNT_MISMATCH"},
     "failure/extra_spot_6.png": {"expected": "SPOT_COUNT_MISMATCH"},
     "failure/merged_spots.png": {"expected": "CENTROID_FAILED"},
     "failure/ambiguous_roles.png": {"expected": "COORDINATE_SYSTEM_INVALID"},
-    "failure/ambiguous_pairing_45deg.png": {"expected": "COORDINATE_SYSTEM_INVALID", "reason": "symmetric cross has multiple plausible identities"}
+    "failure/ambiguous_pairing_45deg.png": {"expected": "COORDINATE_SYSTEM_INVALID", "reason": "symmetric cross has multiple plausible identities"},
+    "failure/blank_dark.png": {"expected": "SPOT_COUNT_MISMATCH", "expected_warning": "IMAGE_UNDEREXPOSED"},
+    "failure/blank_bright.png": {"expected": "SPOT_COUNT_MISMATCH", "expected_warning": "IMAGE_OVEREXPOSED"},
+    "failure/hartmann_array_25.png": {"expected": "SPOT_COUNT_MISMATCH", "expected_warning": "POSSIBLE_HARTMANN_ARRAY_INPUT"},
+    "failure/roi_boundary_clipped.png": {"expected": "SPOT_COUNT_MISMATCH", "reason": "one spot lies outside the configured ROI"}
   },
   "error": null
 }

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <chrono>
 #include <filesystem>
@@ -233,6 +234,15 @@ void testImagePipeline(TestContext& test) {
     const auto analysis = processor.processMat(render(basePoints()), config);
     test.expect(analysis.ok(), "five synthetic circles should pass the image pipeline");
     test.expect(analysis.observations.size() == 5, "image pipeline should find exactly five circles");
+    test.expect(
+        analysis.diagnostics.image_width == 1024 &&
+            analysis.diagnostics.image_height == 768 &&
+            analysis.diagnostics.channels == 3 &&
+            analysis.diagnostics.source_depth_bits == 8,
+        "image diagnostics must preserve source shape and bit depth");
+    test.expect(
+        analysis.diagnostics.candidate_count == 5,
+        "image diagnostics must report the filtered candidate count");
     if (analysis.observations.size() == 5) {
         bool found_center = false;
         for (const auto& observation : analysis.observations) {
@@ -246,6 +256,9 @@ void testImagePipeline(TestContext& test) {
     render(basePoints()).convertTo(sixteen_bit, CV_16U, 257.0);
     const auto sixteen_bit_analysis = processor.processMat(sixteen_bit, config);
     test.expect(sixteen_bit_analysis.ok(), "unsigned 16-bit input should be normalized and processed");
+    test.expect(
+        sixteen_bit_analysis.diagnostics.source_depth_bits == 16,
+        "image diagnostics must retain the original unsigned 16-bit depth");
 
     cv::Mat unsupported_float;
     render(basePoints()).convertTo(unsupported_float, CV_32F, 1.0 / 255.0);
@@ -275,6 +288,59 @@ void testImagePipeline(TestContext& test) {
     cv::circle(merged, cv::Point(485, 384), 22, cv::Scalar(235, 235, 235), cv::FILLED, cv::LINE_AA);
     const auto merged_result = processor.processMat(merged, config);
     test.expect(!merged_result.ok(), "merged spots must fail rather than fabricate five centroids");
+
+    const auto underexposed = processor.processMat(cv::Mat::zeros(768, 1024, CV_8UC1), config);
+    test.expect(
+        !underexposed.ok() && underexposed.error.code == "SPOT_COUNT_MISMATCH",
+        "an underexposed image must fail through the existing contract error code");
+    test.expect(
+        std::find(
+            underexposed.diagnostics.warnings.begin(),
+            underexposed.diagnostics.warnings.end(),
+            "IMAGE_UNDEREXPOSED") != underexposed.diagnostics.warnings.end(),
+        "underexposed images must carry a diagnostic warning");
+    test.expect(
+        underexposed.error.number_details.count("mean_intensity") == 1 &&
+            underexposed.error.number_details.count("candidate_count") == 1,
+        "recognition failures must include image diagnostics in error details");
+
+    cv::Mat sparse_bright = cv::Mat::zeros(768, 1024, CV_8UC1);
+    for (const auto& point : basePoints()) {
+        cv::circle(sparse_bright, point, 2, cv::Scalar(255), cv::FILLED, cv::LINE_8);
+    }
+    const auto sparse_bright_analysis = processor.processMat(sparse_bright, config);
+    test.expect(
+        std::find(
+            sparse_bright_analysis.diagnostics.warnings.begin(),
+            sparse_bright_analysis.diagnostics.warnings.end(),
+            "IMAGE_UNDEREXPOSED") == sparse_bright_analysis.diagnostics.warnings.end(),
+        "small saturated spots on a black background must not imply whole-image underexposure");
+
+    const auto overexposed = processor.processMat(
+        cv::Mat(768, 1024, CV_8UC1, cv::Scalar(255)), config);
+    test.expect(
+        std::find(
+            overexposed.diagnostics.warnings.begin(),
+            overexposed.diagnostics.warnings.end(),
+            "IMAGE_OVEREXPOSED") != overexposed.diagnostics.warnings.end(),
+        "overexposed images must carry a diagnostic warning");
+
+    std::vector<cv::Point2d> array_points;
+    for (int row = 0; row < 5; ++row) {
+        for (int column = 0; column < 5; ++column) {
+            array_points.emplace_back(352.0 + column * 80.0, 224.0 + row * 80.0);
+        }
+    }
+    const auto array_analysis = processor.processMat(render(array_points), config);
+    test.expect(
+        !array_analysis.ok() && array_analysis.error.code == "SPOT_COUNT_MISMATCH",
+        "a full Hartmann-like array must not be accepted by the five-spot contract");
+    test.expect(
+        std::find(
+            array_analysis.diagnostics.warnings.begin(),
+            array_analysis.diagnostics.warnings.end(),
+            "POSSIBLE_HARTMANN_ARRAY_INPUT") != array_analysis.diagnostics.warnings.end(),
+        "many filtered candidates must be diagnosed as a possible full array input");
 }
 
 void testPairing(TestContext& test) {
@@ -473,6 +539,10 @@ void testSyntheticFixtures(
         "measurement/brightness_only.png",
         "measurement/noise_only.png",
         "measurement/brightness_noise.png",
+        "measurement/low_contrast.png",
+        "measurement/gaussian_blur.png",
+        "measurement/background_gradient.png",
+        "measurement/uneven_spots.png",
     };
     for (const auto& relative_path : success_cases) {
         const bool case_exists = manifest.at("cases").contains(relative_path);
@@ -542,8 +612,13 @@ void testSyntheticFixtures(
     const std::vector<std::string> count_failures{
         "missing_spots_3.png",
         "extra_spot_6.png",
+        "blank_dark.png",
+        "blank_bright.png",
+        "hartmann_array_25.png",
+        "roi_boundary_clipped.png",
     };
     for (const auto& filename : count_failures) {
+        const std::string relative_path = "failure/" + filename;
         const auto analysis = processor.processFile(
             synthetic_root / "failure" / filename, config);
         test.expect(
@@ -551,6 +626,16 @@ void testSyntheticFixtures(
             filename + " should fail with SPOT_COUNT_MISMATCH (actual=" +
                 analysis.error.code + ", detected=" +
                 std::to_string(analysis.observations.size()) + ")");
+        const auto& case_spec = manifest.at("cases").at(relative_path);
+        if (case_spec.contains("expected_warning")) {
+            const auto expected_warning = case_spec.at("expected_warning").get<std::string>();
+            test.expect(
+                std::find(
+                    analysis.diagnostics.warnings.begin(),
+                    analysis.diagnostics.warnings.end(),
+                    expected_warning) != analysis.diagnostics.warnings.end(),
+                filename + " must emit manifest warning " + expected_warning);
+        }
     }
 
     const auto merged = processor.processFile(
@@ -624,13 +709,29 @@ void testModuleIntegration(TestContext& test, const std::filesystem::path& temp)
     test.expect(std::filesystem::is_regular_file(result.calibration_output), "calibration JSON should exist");
     test.expect(std::filesystem::is_regular_file(result.measurement_output), "measurement JSON should exist");
     test.expect(std::filesystem::is_regular_file(options.output_directory / "intermediate" / "calibration_binary.png"), "intermediate binary image should exist");
+    test.expect(std::filesystem::is_regular_file(options.output_directory / "intermediate" / "calibration_diagnostics.json"), "calibration diagnostics JSON should exist");
+    test.expect(std::filesystem::is_regular_file(options.output_directory / "intermediate" / "measurement_diagnostics.json"), "measurement diagnostics JSON should exist");
 
     const auto calibration_json = readJson(result.calibration_output);
     const auto measurement_json = readJson(result.measurement_output);
     const auto run_log_json = readJson(result.log_output);
+    const auto calibration_diagnostics = readJson(
+        options.output_directory / "intermediate" / "calibration_diagnostics.json");
     expectSuccessJsonShape(test, calibration_json, "synthetic_integration", "calibration");
     expectSuccessJsonShape(test, measurement_json, "synthetic_integration", "measurement");
     test.expect(run_log_json.at("status") == "ok", "a successful paired publication must include a successful run log");
+    test.expect(
+        run_log_json.at("validation_status") == "software_verified" &&
+            !run_log_json.at("metrology_validated").get<bool>(),
+        "run logs must not imply real metrology validation");
+    test.expect(
+        calibration_diagnostics.at("task_id") == "synthetic_integration" &&
+            calibration_diagnostics.at("validation_status") == "software_verified" &&
+            !calibration_diagnostics.at("metrology_validated").get<bool>() &&
+            calibration_diagnostics.at("image").at("width") == 1024 &&
+            calibration_diagnostics.at("intensity").at("domain") == "normalized_8bit_roi" &&
+            calibration_diagnostics.at("detection").at("candidate_count") == 5,
+        "intermediate diagnostics must be structured and explicitly software-only");
     for (std::size_t index = 0; index < 5; ++index) {
         const auto& calibration_spot = calibration_json.at("spots").at(index);
         const auto& measurement_spot = measurement_json.at("spots").at(index);
@@ -639,6 +740,58 @@ void testModuleIntegration(TestContext& test, const std::filesystem::path& temp)
         test.expect(measurement_spot.at("role") == calibration_spot.at("role"), "same spot ID must retain the same role");
         test.expect(measurement_spot.at("confidence").get<double>() >= 0.0 && measurement_spot.at("confidence").get<double>() <= 1.0, "confidence must stay in the closed interval zero to one");
     }
+
+    const auto mismatched_size_path =
+        root / "data" / "samples" / "measurement" / "mismatched_size.png";
+    const cv::Mat mismatched_size_image =
+        render(basePoints())(cv::Rect(0, 0, 900, 768)).clone();
+    test.expect(
+        writePng(mismatched_size_path, mismatched_size_image),
+        "different-size measurement image should be written");
+    const std::string mismatched_size_input = R"({
+  "schema_version": "1.0", "task_id": "mismatched_size", "module": "m1_input_config", "status": "ok",
+  "data": {"calibration_image": "data/samples/calibration/calibration.png", "measurement_image": "data/samples/measurement/mismatched_size.png", "config_path": "config/default_config.json", "run_mode": "local_image"},
+  "quality": {"is_usable": true}, "error": null
+})";
+    test.expect(
+        writeText(root / "mismatched_size_input.json", mismatched_size_input),
+        "different-size input package should be written");
+    options.input_package = root / "mismatched_size_input.json";
+    options.output_directory = temp / "mismatched-size-output";
+    const auto mismatched_size_result = module.run(options);
+    test.expect(
+        !mismatched_size_result.ok() &&
+            mismatched_size_result.error.code == "COORDINATE_SYSTEM_INVALID" &&
+            mismatched_size_result.error.number_details.at("calibration_width") == 1024.0 &&
+            mismatched_size_result.error.number_details.at("measurement_width") == 900.0,
+        "different image dimensions must fail before pixel-coordinate matching");
+
+    auto declared_size_config = nlohmann::json::parse(config);
+    declared_size_config["camera"]["image_width"] = 12;
+    declared_size_config["camera"]["image_height"] = 12;
+    test.expect(
+        writeText(
+            root / "config" / "declared_size.json",
+            declared_size_config.dump(2)),
+        "declared-size config should be written");
+    const std::string declared_size_input = R"({
+  "schema_version": "1.0", "task_id": "declared_size", "module": "m1_input_config", "status": "ok",
+  "data": {"calibration_image": "data/samples/calibration/calibration.png", "measurement_image": "data/samples/measurement/measurement.png", "config_path": "config/declared_size.json", "run_mode": "local_image"},
+  "quality": {"is_usable": true}, "error": null
+})";
+    test.expect(
+        writeText(root / "declared_size_input.json", declared_size_input),
+        "declared-size input package should be written");
+    options.input_package = root / "declared_size_input.json";
+    options.output_directory = temp / "declared-size-output";
+    const auto declared_size_result = module.run(options);
+    test.expect(
+        !declared_size_result.ok() &&
+            declared_size_result.exit_code == 2 &&
+            declared_size_result.error.code == "CONFIG_INVALID" &&
+            declared_size_result.error.number_details.at("declared_width") == 12.0 &&
+            declared_size_result.error.number_details.at("actual_width") == 1024.0,
+        "known camera dimensions must match decoded image dimensions");
 
     const std::string bad_input = R"({
   "schema_version": "1.0", "task_id": "missing_image", "module": "m1_input_config", "status": "ok",
@@ -654,6 +807,16 @@ void testModuleIntegration(TestContext& test, const std::filesystem::path& temp)
     test.expect(missing_error_json.at("status") == "error" && missing_error_json.at("error").at("code") == "IMAGE_NOT_FOUND", "missing image failure must be written as the shared error object");
     expectErrorJsonShape(test, readJson(missing_result.calibration_output), "missing_image", "calibration");
     expectErrorJsonShape(test, missing_error_json, "missing_image", "measurement");
+    test.expect(
+        std::filesystem::is_regular_file(
+            options.output_directory / "intermediate" / "calibration_diagnostics.json") &&
+            std::filesystem::is_regular_file(
+                options.output_directory / "intermediate" / "measurement_diagnostics.json"),
+        "save-intermediate must preserve available diagnostics for recognition failures");
+    test.expect(
+        readJson(options.output_directory / "intermediate" / "measurement_diagnostics.json")
+                .at("status") == "error",
+        "failed-image diagnostics must preserve the image-analysis error status");
 
     options.input_package = root / "input_package_does_not_exist.json";
     options.output_directory = temp / "missing-input-output";
@@ -821,6 +984,30 @@ void testModuleIntegration(TestContext& test, const std::filesystem::path& temp)
         std::filesystem::is_regular_file(config_alias_path) &&
             readJson(config_alias_path).at("config_name") == "test_config",
         "config/output alias rejection must preserve the unified config file");
+
+    const auto semantic_alias_directory = root / "config" / "semantic-alias-output";
+    const auto semantic_alias_path = semantic_alias_directory / "spots_calib.json";
+    const std::string semantic_alias_input = R"({
+  "schema_version": "1.0", "task_id": "semantic_alias", "module": "m1_input_config", "status": "ok",
+  "data": {"calibration_image": "data/samples/calibration/calibration.png", "measurement_image": "data/samples/measurement/measurement.png", "config_path": "config/semantic-alias-output/spots_calib.json", "run_mode": "local_image"},
+  "quality": {"is_usable": false}, "error": null
+})";
+    test.expect(
+        writeText(semantic_alias_path, unifiedConfigJson()),
+        "semantic-failure alias sentinel should be written");
+    test.expect(
+        writeText(root / "semantic_alias_input.json", semantic_alias_input),
+        "semantic-failure alias input should be written");
+    options.input_package = root / "semantic_alias_input.json";
+    options.output_directory = semantic_alias_directory;
+    const auto semantic_alias_result = module.run(options);
+    test.expect(
+        !semantic_alias_result.ok() && semantic_alias_result.exit_code == 4,
+        "partially parsed semantic failures must reject managed-output aliases before cleanup");
+    test.expect(
+        std::filesystem::is_regular_file(semantic_alias_path) &&
+            readJson(semantic_alias_path).at("config_name") == "test_config",
+        "semantic-failure alias rejection must preserve the declared input sentinel");
 
     const std::string malformed = "{ this is not JSON";
     test.expect(writeText(root / "malformed.json", malformed), "malformed input should be written");

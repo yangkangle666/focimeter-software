@@ -32,6 +32,42 @@ ErrorInfo makeError(
     return error;
 }
 
+void addWarning(ImageDiagnostics& diagnostics, const std::string& warning) {
+    if (std::find(diagnostics.warnings.begin(), diagnostics.warnings.end(), warning) ==
+        diagnostics.warnings.end()) {
+        diagnostics.warnings.push_back(warning);
+    }
+}
+
+std::string joinWarnings(const std::vector<std::string>& warnings) {
+    std::string result;
+    for (const auto& warning : warnings) {
+        if (!result.empty()) {
+            result += ',';
+        }
+        result += warning;
+    }
+    return result;
+}
+
+void appendDiagnostics(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
+    error.string_details["intensity_domain"] = "normalized_8bit_roi";
+    error.number_details["image_width"] = diagnostics.image_width;
+    error.number_details["image_height"] = diagnostics.image_height;
+    error.number_details["channels"] = diagnostics.channels;
+    error.number_details["source_depth_bits"] = diagnostics.source_depth_bits;
+    error.number_details["mean_intensity"] = diagnostics.mean_intensity;
+    error.number_details["intensity_stddev"] = diagnostics.intensity_stddev;
+    error.number_details["minimum_intensity"] = diagnostics.minimum_intensity;
+    error.number_details["maximum_intensity"] = diagnostics.maximum_intensity;
+    error.number_details["dark_pixel_ratio"] = diagnostics.dark_pixel_ratio;
+    error.number_details["bright_pixel_ratio"] = diagnostics.bright_pixel_ratio;
+    error.number_details["candidate_count"] = diagnostics.candidate_count;
+    if (!diagnostics.warnings.empty()) {
+        error.string_details["quality_warnings"] = joinWarnings(diagnostics.warnings);
+    }
+}
+
 bool validateImageConfig(const ProcessingConfig& config, ErrorInfo& error) {
     if (!std::isfinite(config.roi_width_ratio) ||
         !std::isfinite(config.roi_height_ratio) ||
@@ -268,17 +304,23 @@ ImageAnalysis ImageProcessor::processMat(
             true);
         return analysis;
     }
+    analysis.diagnostics.image_width = image.cols;
+    analysis.diagnostics.image_height = image.rows;
+    analysis.diagnostics.channels = image.channels();
+    analysis.diagnostics.source_depth_bits = static_cast<int>(image.elemSize1() * 8U);
     if (image.channels() != 1 && image.channels() != 3 && image.channels() != 4) {
         analysis.error = makeError(
             "IMAGE_LOAD_FAILED",
             "Only 1-channel, 3-channel, or 4-channel images are supported.",
             false);
         analysis.error.number_details["channels"] = image.channels();
+        appendDiagnostics(analysis.error, analysis.diagnostics);
         return analysis;
     }
 
     cv::Mat working_image;
     if (!convertToEightBit(image, working_image, analysis.error)) {
+        appendDiagnostics(analysis.error, analysis.diagnostics);
         return analysis;
     }
     analysis.original = working_image.clone();
@@ -305,6 +347,43 @@ ImageAnalysis ImageProcessor::processMat(
         cv::cvtColor(roi, analysis.gray, cv::COLOR_BGR2GRAY);
     } else {
         cv::cvtColor(roi, analysis.gray, cv::COLOR_BGRA2GRAY);
+    }
+
+    cv::Scalar mean;
+    cv::Scalar standard_deviation;
+    cv::meanStdDev(analysis.gray, mean, standard_deviation);
+    analysis.diagnostics.mean_intensity = mean[0];
+    analysis.diagnostics.intensity_stddev = standard_deviation[0];
+    cv::minMaxLoc(
+        analysis.gray,
+        &analysis.diagnostics.minimum_intensity,
+        &analysis.diagnostics.maximum_intensity);
+
+    cv::Mat dark_mask;
+    cv::Mat bright_mask;
+    cv::compare(analysis.gray, 2, dark_mask, cv::CMP_LE);
+    cv::compare(analysis.gray, 253, bright_mask, cv::CMP_GE);
+    const double pixel_count = static_cast<double>(analysis.gray.total());
+    analysis.diagnostics.dark_pixel_ratio = cv::countNonZero(dark_mask) / pixel_count;
+    analysis.diagnostics.bright_pixel_ratio = cv::countNonZero(bright_mask) / pixel_count;
+
+    // 这些阈值只用于软件诊断和日志提示，不作为真实设备计量门限。
+    if ((analysis.diagnostics.mean_intensity <= 5.0 &&
+         analysis.diagnostics.intensity_stddev < 4.0 &&
+         analysis.diagnostics.maximum_intensity <= 32.0) ||
+        (analysis.diagnostics.dark_pixel_ratio >= 0.98 &&
+         analysis.diagnostics.maximum_intensity <= 32.0)) {
+        addWarning(analysis.diagnostics, "IMAGE_UNDEREXPOSED");
+    }
+    if ((analysis.diagnostics.mean_intensity >= 250.0 &&
+         analysis.diagnostics.intensity_stddev < 4.0) ||
+        (analysis.diagnostics.bright_pixel_ratio >= 0.98 &&
+         analysis.diagnostics.minimum_intensity >= 223.0)) {
+        addWarning(analysis.diagnostics, "IMAGE_OVEREXPOSED");
+    }
+    if (analysis.diagnostics.intensity_stddev < 4.0 &&
+        analysis.diagnostics.maximum_intensity - analysis.diagnostics.minimum_intensity < 32.0) {
+        addWarning(analysis.diagnostics, "IMAGE_LOW_CONTRAST");
     }
 
     cv::Mat filtered;
@@ -392,6 +471,10 @@ ImageAnalysis ImageProcessor::processMat(
         observation.mean_intensity = cv::mean(analysis.gray, mask)[0];
         analysis.observations.push_back(observation);
     }
+    analysis.diagnostics.candidate_count = static_cast<int>(analysis.observations.size());
+    if (analysis.diagnostics.candidate_count > config.expected_spot_count * 4) {
+        addWarning(analysis.diagnostics, "POSSIBLE_HARTMANN_ARRAY_INPUT");
+    }
 
     if (!analysis.observations.empty()) {
         const double median_area = medianArea(analysis.observations);
@@ -439,6 +522,7 @@ ImageAnalysis ImageProcessor::processMat(
         analysis.error.number_details["expected_count"] = config.expected_spot_count;
         analysis.error.number_details["detected_count"] =
             static_cast<double>(analysis.observations.size());
+        appendDiagnostics(analysis.error, analysis.diagnostics);
         return analysis;
     }
 
@@ -455,6 +539,7 @@ ImageAnalysis ImageProcessor::processMat(
             true);
         analysis.error.number_details["min_confidence"] = config.min_confidence;
         analysis.error.number_details["detected_confidence"] = low_confidence->confidence;
+        appendDiagnostics(analysis.error, analysis.diagnostics);
     }
     return analysis;
 } catch (const cv::Exception& exception) {

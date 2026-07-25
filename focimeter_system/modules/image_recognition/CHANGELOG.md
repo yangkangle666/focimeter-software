@@ -1,5 +1,39 @@
 # M2 更新日志
 
+## 0.2.0 - 2026-07-25
+
+### 新增
+
+- 新增结构化图像诊断，记录尺寸、通道、源位深、归一化 8 位 ROI 灰度统计、过滤后候选数和启发式 warning。
+- 新增欠曝、过曝、低对比度和疑似完整 Hartmann 阵列提示；识别失败时把可获得的诊断附加到既有错误 `details`，未扩展统一错误码。
+- `--save-intermediate` 新增 `calibration_diagnostics.json` 与 `measurement_diagnostics.json`，成功及图像识别失败都会保留可获得的中间阶段；运行日志明确标记 `software_verified` 和 `metrology_validated=false`。
+- 合成数据新增低对比度、高斯模糊、背景梯度、适度光斑差异、全暗、全亮、25 点阵列和 ROI 边界案例。
+- 新增 [REAL_DATA_REQUIREMENTS.md](REAL_DATA_REQUIREMENTS.md) 和 [INTEGRATION_NOTES_M2_M3_M4.md](INTEGRATION_NOTES_M2_M3_M4.md)，分别说明真实数据验收条件与模块联调边界。
+
+### 修复与强化
+
+- 调整曝光提示条件，避免把正常的暗背景五光斑图误报为整图欠曝。
+- 标定图与测量图像素尺寸不一致时，在匹配前返回 `COORDINATE_SYSTEM_INVALID`，避免比较不在同一像素坐标空间中的点。
+- 配置已声明相机宽高时校验解码尺寸，并在语义无效输入包的错误清理前保护已解析的输入路径别名。
+- 合成图生成器继续使用固定随机种子，并由 manifest 明确区分 `synthetic_verified` 与真实计量验证。
+
+### 接口
+
+- `spots_calib.json`、`spots_meas.json` 和统一配置没有字段变化。
+- 新增内容只位于 M2 私有运行日志、中间诊断产物、测试数据和 M2 文档。
+
+### 验证状态
+
+- 当前状态仅为 `software_verified` / `synthetic_verified`，不是 `metrology_validated`。
+- 构建、CTest、mock 校验、合成数据复现、M1 补充输入和 M3/M4 联调检查结果以本次提交最终测试报告为准。
+
+### 已知限制
+
+- 完全对称五点十字仍有 90 度周期的几何身份别名；真实物理 `spot_id` 需要非对称标记、稳定外观特征或硬件身份锚点。
+- 图像质量阈值、顶帽核、检测和配对门限均未用真实设备图标定。
+- 没有真实成对图片、相机/光学参数和标准镜片结果，不能评价真实识别率、物理配对正确率或计量精度。
+- 当前 M1 补充 bundle 的配置声明 `12 x 12`，与两张 `1280 x 1024` TIFF 不一致；该输入只能验证 `CONFIG_INVALID` 错误链路。修正配置后，其 AI 阵列图仍不满足第一阶段五点合同。
+
 ## 0.1.0 - 2026-07-23
 
 ### 新增

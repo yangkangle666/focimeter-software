@@ -168,6 +168,7 @@ cv::Mat annotateSpots(const ImageAnalysis& analysis, const std::vector<Spot>& sp
 
 bool saveArtifacts(
     const std::filesystem::path& directory,
+    const std::string& task_id,
     const std::string& prefix,
     const ImageAnalysis& analysis,
     const std::vector<Spot>& spots,
@@ -182,7 +183,9 @@ bool saveArtifacts(
     return writeImage(directory / (prefix + "_gray.png"), analysis.gray, error) &&
            writeImage(directory / (prefix + "_enhanced.png"), analysis.enhanced, error) &&
            writeImage(directory / (prefix + "_binary.png"), analysis.binary, error) &&
-           writeImage(directory / (prefix + "_spots.png"), annotated, error);
+           writeImage(directory / (prefix + "_spots.png"), annotated, error) &&
+           writeImageDiagnostics(
+               directory / (prefix + "_diagnostics.json"), task_id, prefix, analysis, error);
 }
 
 void replaceImagePathDetail(ErrorInfo& error, const std::filesystem::path& relative_path) {
@@ -366,10 +369,12 @@ std::vector<std::filesystem::path> intermediateOutputPaths(
         directory / "calibration_enhanced.png",
         directory / "calibration_binary.png",
         directory / "calibration_spots.png",
+        directory / "calibration_diagnostics.json",
         directory / "measurement_gray.png",
         directory / "measurement_enhanced.png",
         directory / "measurement_binary.png",
         directory / "measurement_spots.png",
+        directory / "measurement_diagnostics.json",
     };
 }
 
@@ -467,7 +472,8 @@ bool stageSuccessPair(
     const std::vector<Spot>& calibration_spots,
     const std::vector<Spot>& measurement_spots,
     const int expected_count,
-    const std::vector<std::string>& warnings,
+    const std::vector<std::string>& calibration_warnings,
+    const std::vector<std::string>& measurement_warnings,
     ErrorInfo& write_error) {
     const auto calibration_pending = pendingPath(result.calibration_output);
     const auto measurement_pending = pendingPath(result.measurement_output);
@@ -478,7 +484,7 @@ bool stageSuccessPair(
             "calibration",
             calibration_spots,
             expected_count,
-            warnings,
+            calibration_warnings,
             write_error) ||
         !writeSpotSuccess(
             measurement_pending,
@@ -487,7 +493,7 @@ bool stageSuccessPair(
             "measurement",
             measurement_spots,
             expected_count,
-            warnings,
+            measurement_warnings,
             write_error)) {
         std::error_code ignored;
         std::filesystem::remove(calibration_pending, ignored);
@@ -598,12 +604,18 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
 
     InputPackage input;
     if (!readInputPackage(options.input_package, input, error)) {
+        const ErrorInfo input_error = error;
+        ErrorInfo alias_error;
+        if (!rejectRawInputOutputAliases(result, options, input, alias_error)) {
+            result.exit_code = 4;
+            result.error = alias_error;
+            return result;
+        }
         if (!prepareOutputTargets(result, error)) {
             result.exit_code = 4;
             result.error = error;
             return result;
         }
-        const ErrorInfo input_error = error;
         ErrorInfo write_error;
         const bool error_written = stageErrorPair(
             result, input, input_error, input_error, write_error);
@@ -746,6 +758,121 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
     replaceImagePathDetail(calibration.error, input.calibration_image);
     replaceImagePathDetail(measurement.error, input.measurement_image);
 
+    const auto save_processed_artifacts = [
+        &options,
+        &input,
+        &result,
+        &calibration,
+        &measurement](
+            const std::vector<Spot>& calibration_spots,
+            const std::vector<Spot>& measurement_spots,
+            ErrorInfo& artifact_error) {
+        if (!options.save_intermediate) {
+            return true;
+        }
+        const auto intermediate_directory = options.output_directory / "intermediate";
+        if (saveArtifacts(
+                intermediate_directory,
+                input.task_id,
+                "calibration",
+                calibration,
+                calibration_spots,
+                artifact_error) &&
+            saveArtifacts(
+                intermediate_directory,
+                input.task_id,
+                "measurement",
+                measurement,
+                measurement_spots,
+                artifact_error)) {
+            return true;
+        }
+        ErrorInfo ignored;
+        removeIntermediateOutputs(result, ignored);
+        return false;
+    };
+
+    const auto finish_processed_failure = [
+        &finish_pair_failure,
+        &save_processed_artifacts](
+            const int exit_code,
+            const ErrorInfo& calibration_error,
+            const ErrorInfo& measurement_error,
+            const ErrorInfo& primary_error,
+            const std::vector<Spot>& calibration_spots,
+            const std::vector<Spot>& measurement_spots) {
+        RunResult failure = finish_pair_failure(
+            exit_code, calibration_error, measurement_error, primary_error);
+        if (failure.exit_code != exit_code) {
+            return failure;
+        }
+        ErrorInfo artifact_error;
+        if (!save_processed_artifacts(
+                calibration_spots, measurement_spots, artifact_error)) {
+            return finish_pair_failure(
+                4, artifact_error, artifact_error, artifact_error);
+        }
+        return failure;
+    };
+
+    const std::vector<Spot> no_spots;
+
+    const auto reject_declared_dimensions = [
+        &config](const ImageAnalysis& analysis, const std::string& image_type) {
+        ErrorInfo dimension_error;
+        if (analysis.original.empty()) {
+            return dimension_error;
+        }
+        const bool width_mismatch = config.declared_image_width.has_value() &&
+            analysis.original.cols != *config.declared_image_width;
+        const bool height_mismatch = config.declared_image_height.has_value() &&
+            analysis.original.rows != *config.declared_image_height;
+        if (!width_mismatch && !height_mismatch) {
+            return dimension_error;
+        }
+        dimension_error = makeError(
+            "CONFIG_INVALID",
+            "Decoded image dimensions do not match the unified camera configuration.",
+            true);
+        dimension_error.string_details["image_type"] = image_type;
+        dimension_error.number_details["actual_width"] = analysis.original.cols;
+        dimension_error.number_details["actual_height"] = analysis.original.rows;
+        if (config.declared_image_width.has_value()) {
+            dimension_error.number_details["declared_width"] = *config.declared_image_width;
+        }
+        if (config.declared_image_height.has_value()) {
+            dimension_error.number_details["declared_height"] = *config.declared_image_height;
+        }
+        return dimension_error;
+    };
+
+    ErrorInfo calibration_dimension_error;
+    ErrorInfo measurement_dimension_error;
+    if (!calibration.original.empty() && !measurement.original.empty()) {
+        calibration_dimension_error =
+            reject_declared_dimensions(calibration, "calibration");
+        measurement_dimension_error =
+            reject_declared_dimensions(measurement, "measurement");
+    }
+    if (!calibration_dimension_error.empty() || !measurement_dimension_error.empty()) {
+        const ErrorInfo primary_error = calibration_dimension_error.empty()
+            ? measurement_dimension_error
+            : calibration_dimension_error;
+        const ErrorInfo calibration_error = calibration_dimension_error.empty()
+            ? primary_error
+            : calibration_dimension_error;
+        const ErrorInfo measurement_error = measurement_dimension_error.empty()
+            ? primary_error
+            : measurement_dimension_error;
+        return finish_processed_failure(
+            2,
+            calibration_error,
+            measurement_error,
+            primary_error,
+            no_spots,
+            no_spots);
+    }
+
     if (!calibration.ok() || !measurement.ok()) {
         const ErrorInfo primary_error = calibration.ok() ? measurement.error : calibration.error;
         ErrorInfo calibration_error = calibration.error;
@@ -762,13 +889,33 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
                 "Measurement output cannot be paired because calibration processing failed.",
                 true);
         }
-        return finish_pair_failure(3, calibration_error, measurement_error, primary_error);
+        return finish_processed_failure(
+            3,
+            calibration_error,
+            measurement_error,
+            primary_error,
+            no_spots,
+            no_spots);
+    }
+
+    if (calibration.original.size() != measurement.original.size()) {
+        error = makeError(
+            "COORDINATE_SYSTEM_INVALID",
+            "Calibration and measurement images must have identical pixel dimensions.",
+            true);
+        error.number_details["calibration_width"] = calibration.original.cols;
+        error.number_details["calibration_height"] = calibration.original.rows;
+        error.number_details["measurement_width"] = measurement.original.cols;
+        error.number_details["measurement_height"] = measurement.original.rows;
+        return finish_processed_failure(
+            3, error, error, error, no_spots, no_spots);
     }
 
     SpotMatcher matcher;
     std::vector<Spot> calibration_spots;
     if (!matcher.assignCalibrationRoles(calibration.observations, calibration_spots, error)) {
-        return finish_pair_failure(3, error, error, error);
+        return finish_processed_failure(
+            3, error, error, error, calibration_spots, no_spots);
     }
 
     std::vector<Spot> measurement_spots;
@@ -780,20 +927,28 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
             measurement_spots,
             diagnostics,
             error)) {
-        return finish_pair_failure(3, error, error, error);
+        return finish_processed_failure(
+            3, error, error, error, calibration_spots, measurement_spots);
     }
 
-    std::vector<std::string> warnings;
+    std::vector<std::string> calibration_warnings = calibration.diagnostics.warnings;
+    std::vector<std::string> measurement_warnings = measurement.diagnostics.warnings;
+    std::vector<std::string> run_warnings;
+    for (const auto& warning : calibration.diagnostics.warnings) {
+        run_warnings.push_back("CALIBRATION_" + warning);
+    }
+    for (const auto& warning : measurement.diagnostics.warnings) {
+        run_warnings.push_back("MEASUREMENT_" + warning);
+    }
     if (std::abs(diagnostics.rotation_degrees) > 20.0) {
-        warnings.push_back("MATCH_ROTATION_HIGH");
+        calibration_warnings.push_back("MATCH_ROTATION_HIGH");
+        measurement_warnings.push_back("MATCH_ROTATION_HIGH");
+        run_warnings.push_back("MATCH_ROTATION_HIGH");
     }
     if (options.save_intermediate) {
         ErrorInfo artifact_error;
-        const auto intermediate_directory = options.output_directory / "intermediate";
-        if (!saveArtifacts(intermediate_directory, "calibration", calibration, calibration_spots, artifact_error) ||
-            !saveArtifacts(intermediate_directory, "measurement", measurement, measurement_spots, artifact_error)) {
-            ErrorInfo ignored;
-            removeIntermediateOutputs(result, ignored);
+        if (!save_processed_artifacts(
+                calibration_spots, measurement_spots, artifact_error)) {
             return finish_pair_failure(4, artifact_error, artifact_error, artifact_error);
         }
     }
@@ -805,7 +960,8 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
             calibration_spots,
             measurement_spots,
             config.expected_spot_count,
-            warnings,
+            calibration_warnings,
+            measurement_warnings,
             write_error)) {
         result.exit_code = 4;
         result.error = write_error;
@@ -820,7 +976,7 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
             options,
             outputs,
             {},
-            warnings,
+            run_warnings,
             started_at,
             write_error)) {
         std::error_code ignored;

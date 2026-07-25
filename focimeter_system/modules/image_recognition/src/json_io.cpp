@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <initializer_list>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <string_view>
@@ -171,6 +172,38 @@ bool requirePositiveOrUnknown(
         error.string_details["field"] = field;
         return false;
     }
+    return true;
+}
+
+bool readOptionalPositiveInteger(
+    const Json& object,
+    const char* key,
+    std::optional<int>& destination,
+    ErrorInfo& error,
+    const std::string_view context) {
+    const auto iterator = object.find(key);
+    const std::string field = std::string(context) + "." + key;
+    if (iterator == object.end()) {
+        error = makeError("CONFIG_INVALID", "Required unified configuration field is missing.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    if (iterator->is_null() ||
+        (iterator->is_string() && iterator->get_ref<const std::string&>() == "TODO_CONFIRM")) {
+        destination.reset();
+        return true;
+    }
+    if ((!iterator->is_number_integer() && !iterator->is_number_unsigned()) ||
+        iterator->get<double>() < 1.0 ||
+        iterator->get<double>() > static_cast<double>(std::numeric_limits<int>::max())) {
+        error = makeError(
+            "CONFIG_INVALID",
+            "Configuration value must fit a positive integer or use an allowed unknown marker.",
+            true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    destination = iterator->get<int>();
     return true;
 }
 
@@ -370,8 +403,10 @@ bool readProcessingConfig(
         !requireExactKeys(calculation, {"pixel_threshold", "angle_unit", "diopter_unit"}, error, "calculation") ||
         !requireExactKeys(path_policy, {"path_type", "allow_absolute_path"}, error, "path_policy") ||
         !requirePositiveOrUnknown(camera, "pixel_size_um", false, error, "camera") ||
-        !requirePositiveOrUnknown(camera, "image_width", true, error, "camera") ||
-        !requirePositiveOrUnknown(camera, "image_height", true, error, "camera") ||
+        !readOptionalPositiveInteger(
+            camera, "image_width", config.declared_image_width, error, "camera") ||
+        !readOptionalPositiveInteger(
+            camera, "image_height", config.declared_image_height, error, "camera") ||
         !requirePositiveOrUnknown(optical, "distance_m", false, error, "optical") ||
         !requirePositiveOrUnknown(optical, "hartmann_spacing_mm", false, error, "optical")) {
         return false;
@@ -507,6 +542,53 @@ bool writeSpotError(
     return writeJson(path, document, write_error);
 }
 
+bool writeImageDiagnostics(
+    const std::filesystem::path& path,
+    const std::string& task_id,
+    const std::string& image_type,
+    const ImageAnalysis& analysis,
+    ErrorInfo& write_error) {
+    write_error = {};
+    if (task_id.empty() ||
+        (image_type != "calibration" && image_type != "measurement")) {
+        write_error = makeError(
+            "UNKNOWN_ERROR",
+            "M2 refused to serialize diagnostics for an unknown image type.",
+            false);
+        return false;
+    }
+
+    const auto& diagnostics = analysis.diagnostics;
+    const Json document = {
+        {"schema_version", "1.0"},
+        {"task_id", task_id},
+        {"module", "m2_image_recognition"},
+        {"image_type", image_type},
+        {"status", analysis.ok() ? "ok" : "error"},
+        {"validation_status", "software_verified"},
+        {"metrology_validated", false},
+        {"image", {
+            {"width", diagnostics.image_width},
+            {"height", diagnostics.image_height},
+            {"channels", diagnostics.channels},
+            {"source_depth_bits", diagnostics.source_depth_bits},
+        }},
+        {"intensity", {
+            {"domain", "normalized_8bit_roi"},
+            {"mean", diagnostics.mean_intensity},
+            {"standard_deviation", diagnostics.intensity_stddev},
+            {"minimum", diagnostics.minimum_intensity},
+            {"maximum", diagnostics.maximum_intensity},
+            {"dark_pixel_ratio", diagnostics.dark_pixel_ratio},
+            {"bright_pixel_ratio", diagnostics.bright_pixel_ratio},
+        }},
+        {"detection", {{"candidate_count", diagnostics.candidate_count}}},
+        {"warnings", diagnostics.warnings},
+        {"error", analysis.error.empty() ? Json(nullptr) : errorToJson(analysis.error)},
+    };
+    return writeJson(path, document, write_error);
+}
+
 bool writeRunLog(
     const std::filesystem::path& path,
     const InputPackage* input,
@@ -526,6 +608,8 @@ bool writeRunLog(
         {"schema_version", "1.0"},
         {"task_id", input == nullptr ? "unknown" : input->task_id},
         {"module", "m2_image_recognition"},
+        {"validation_status", "software_verified"},
+        {"metrology_validated", false},
         {"start_time", timestamp(started_at)},
         {"end_time", timestamp(ended_at)},
         {"duration_ms", std::chrono::duration_cast<std::chrono::milliseconds>(ended_at - started_at).count()},
