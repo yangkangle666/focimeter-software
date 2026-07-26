@@ -2,6 +2,8 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -30,6 +32,9 @@ void printUsage() {
         << "Options:\n"
         << "  --project-root <dir>     Explicit root used to resolve M1 relative paths.\n"
         << "  --save-intermediate       Save available processing images and diagnostic JSON.\n"
+        << "  --experimental-multispot  Run isolated Hartmann multispot experimental mode.\n"
+        << "  --experimental-16bit-white-level <code>\n"
+        << "                           Required for experimental 16-bit images (for example 4095).\n"
         << "  --show                    Display final annotations with OpenCV windows.\n"
         << "  --help                    Show this help.\n";
 }
@@ -46,6 +51,31 @@ bool takeValue(
     }
     destination = arguments[static_cast<std::size_t>(++index)];
     return true;
+}
+
+bool takePositiveInteger(
+    const int argc,
+    const std::vector<std::filesystem::path>& arguments,
+    int& index,
+    std::optional<int>& destination,
+    const char* option) {
+    if (index + 1 >= argc) {
+        std::cerr << "Missing value for " << option << ".\n";
+        return false;
+    }
+    const std::string text = arguments[static_cast<std::size_t>(++index)].generic_string();
+    try {
+        std::size_t parsed = 0;
+        const int value = std::stoi(text, &parsed);
+        if (parsed != text.size() || value <= 0) {
+            throw std::invalid_argument("not a positive integer");
+        }
+        destination = value;
+        return true;
+    } catch (const std::exception&) {
+        std::cerr << "Invalid positive integer for " << option << ": " << text << "\n";
+        return false;
+    }
 }
 
 int runCli(const std::vector<std::filesystem::path>& arguments) {
@@ -77,6 +107,18 @@ int runCli(const std::vector<std::filesystem::path>& arguments) {
             }
         } else if (argument == "--save-intermediate") {
             options.save_intermediate = true;
+        } else if (argument == "--experimental-multispot") {
+            options.recognition_mode =
+                focimeter::m2::RecognitionMode::HartmannMultispotExperimental;
+        } else if (argument == "--experimental-16bit-white-level") {
+            if (!takePositiveInteger(
+                    argc,
+                    arguments,
+                    index,
+                    options.experimental_16bit_white_level,
+                    "--experimental-16bit-white-level")) {
+                return 2;
+            }
         } else if (argument == "--show") {
             show = true;
             options.save_intermediate = true;
@@ -92,13 +134,19 @@ int runCli(const std::vector<std::filesystem::path>& arguments) {
         printUsage();
         return 2;
     }
+    if (options.experimental_16bit_white_level.has_value() &&
+        options.recognition_mode !=
+            focimeter::m2::RecognitionMode::HartmannMultispotExperimental) {
+        std::cerr << "--experimental-16bit-white-level requires --experimental-multispot.\n";
+        return 2;
+    }
 
     const focimeter::m2::ImageRecognitionModule module;
     const focimeter::m2::RunResult result = module.run(options);
     if (result.ok()) {
         if (show) {
             try {
-                const auto intermediate = options.output_directory / "intermediate";
+                const auto intermediate = result.calibration_output.parent_path() / "intermediate";
                 const cv::Mat calibration = readImageForDisplay(
                     intermediate / "calibration_spots.png");
                 const cv::Mat measurement = readImageForDisplay(

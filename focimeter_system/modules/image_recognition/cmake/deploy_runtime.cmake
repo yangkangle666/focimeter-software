@@ -9,7 +9,10 @@ endforeach()
 file(
     LOCK "${M2_LOCK_FILE}"
     GUARD PROCESS
-    TIMEOUT 60
+    # Several CLI/test/tool targets may finish linking together in a parallel
+    # Visual Studio build. Dependency scans stay serialized, but later targets
+    # need enough time to wait for the earlier scans to finish.
+    TIMEOUT 300
     RESULT_VARIABLE lock_result
 )
 if(NOT lock_result STREQUAL "0")

@@ -1,5 +1,52 @@
 # M2 更新日志
 
+## 0.3.0 - 2026-07-27
+
+### 新增
+
+- 新增显式 `--experimental-multispot` 模式；默认五点 v1 路径、正式文件名、`spot_id`/`role` 和 `SpotMatcher` 保持不变。
+- 新增独立 `MultispotDetector`：整图检测、中值滤波、顶帽局部背景残差、边缘背景估计、自动阈值、连通域、面积/边缘筛选和强度加权质心。
+- 新增隔离的 `experimental_multispot/` JSON 和运行日志，使用图内 `detection_id`，明确 `experimental=true`、`contract_status=proposed`、`validation_scope=simulation_only`、`physical_identity_guaranteed=false` 和 `metrology_validated=false`。
+- 新增点面积、原图峰值、残差峰值、残差积分、置信度、质量标记及候选筛选诊断。
+- 新增 25 点、94 点、平移、局部形变、独立亮度变化、低对比度、梯度、噪声、缺失、过多、粘连、边缘、全暗和全亮合成样例，以及固定种子生成器与真值 manifest。
+- 新增多光斑单元/模块/CLI 测试、公共失败链路测试和提交 fixture 对生成器的一致性校验。
+- 新增 [MULTISPOT_INTERFACE_PROPOSAL.md](MULTISPOT_INTERFACE_PROPOSAL.md) 与 [LM700_MULTISPOT_MIGRATION_NOTES.md](LM700_MULTISPOT_MIGRATION_NOTES.md)。
+
+### 修复与强化
+
+- 置信度信号分量统一使用顶帽残差域，避免用原图峰值减增强图阈值造成量纲混用。
+- 实验成功 JSON 二次校验点数范围；`quality.is_usable` 根据全部候选的最低可用置信度计算，不再固定为 `true`。
+- 实验错误 JSON 拒绝空错误对象；输出字段将残差积分明确命名为 `integrated_residual_8bit_pixel`。
+- 16 位实验输入必须显式提供白电平，支持例如 12 位数据装在 16 位容器的稳定缩放，并拒绝码值超过白电平的配置。
+- `data_source` 只在实验模式解析，不改变默认五点 v1 输入的接受行为。
+- 修复实验模式真实锁文件位于输出根目录、但别名保护错误检查子目录的问题。
+- 标定图与测量图像素尺寸不一致时，在检测错误之前统一返回 `COORDINATE_SYSTEM_INVALID`。
+- CTest 输出按构建目录和配置隔离，Windows 运行时 DLL 部署锁等待时间提高到 300 秒。
+
+### 接口
+
+- `interface_contract_v1.md`、`default_config.json`、M1/M3/M4 和正式五点输出无修改。
+- 多光斑输出是 M2 私有实验提案，不使用正式 `spot_id` 或五点 `role`，匹配所有者标为 `owner_status=unassigned`。
+- `--experimental-16bit-white-level` 是实验 CLI 参数，不是已批准的统一硬件配置字段。
+
+### 验证状态
+
+- 全新 Visual Studio 2022/CMake Debug 构建通过，Debug CTest `13/13` 通过。
+- 全新 Visual Studio 2022/CMake Release 构建通过，Release CTest `13/13` 通过。
+- 仓库统一 mock 校验 `36/36` 个 JSON 通过；多光斑生成器两次输出一致，且与提交的全部生成文件 SHA-256 一致。
+- 显式五点 CLI 成功样例输出 `5+5` 个 spots；缺失点样例退出码为 `3`，测量输出为 `SPOT_COUNT_MISMATCH`。
+- 显式 94 点多光斑 CLI 成功样例输出 `94+94` 个 detections，`physical_identity_guaranteed=false`；粘连样例退出码为 `3`，测量输出为 `CENTROID_FAILED`。
+- M3 当前分支 validator 源码已只读提取，但本机现有 Python 环境缺少 `jsonschema`，依赖策略禁止自动安装，因此本阶段未重新运行；PR #4 已记录的五点 validator 结果不等同于本次新执行。
+
+### 已知限制
+
+- 本阶段仅为 `software_verified` / `simulation_only`；没有 LM700 实拍图、Hartmann 标定表、相机标定或标准镜片计量结果。
+- 当前连通域检测没有实现老师网格原型中的局部极大值与最小间距去重，真实光斑碎裂、紧密多峰和不同间距仍需专项对比。
+- 多光斑参数仍是 M2 内部实验默认值，真实数据到位后需要公共配置提案。
+- 跨图多光斑匹配、位移场、波前和 S/C/A 均未实现，且匹配所有者尚未获负责人批准。
+- 五点完全对称十字的 90 度隐藏身份别名是 PR #4 已知限制，本阶段未改变也未声称解决。
+- 失败路径会先发布成对错误 JSON 再写运行日志；极端磁盘写入故障可能留下错误 JSON 已发布但日志缺失或不完整，调用方仍应以进程退出码和完整日志共同判断任务完成。
+
 ## 0.2.0 - 2026-07-25
 
 ### 新增

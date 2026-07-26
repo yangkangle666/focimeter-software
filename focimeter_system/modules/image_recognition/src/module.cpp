@@ -166,6 +166,21 @@ cv::Mat annotateSpots(const ImageAnalysis& analysis, const std::vector<Spot>& sp
     return annotated;
 }
 
+std::vector<Spot> makeExperimentalDisplaySpots(const ImageAnalysis& analysis) {
+    std::vector<Spot> spots;
+    spots.reserve(analysis.observations.size());
+    for (std::size_t index = 0; index < analysis.observations.size(); ++index) {
+        const auto& observation = analysis.observations[index];
+        spots.push_back({
+            static_cast<int>(index),
+            "detection",
+            observation.center,
+            observation.confidence,
+        });
+    }
+    return spots;
+}
+
 bool saveArtifacts(
     const std::filesystem::path& directory,
     const std::string& task_id,
@@ -197,9 +212,17 @@ void replaceImagePathDetail(ErrorInfo& error, const std::filesystem::path& relat
 
 RunResult makeRunResult(const RunOptions& options) {
     RunResult result;
-    result.calibration_output = options.output_directory / "spots_calib.json";
-    result.measurement_output = options.output_directory / "spots_meas.json";
-    result.log_output = options.output_directory / "m2_run_log.json";
+    result.recognition_mode = options.recognition_mode;
+    if (options.recognition_mode == RecognitionMode::HartmannMultispotExperimental) {
+        const auto experimental_directory = options.output_directory / "experimental_multispot";
+        result.calibration_output = experimental_directory / "spots_calib_multispot.json";
+        result.measurement_output = experimental_directory / "spots_meas_multispot.json";
+        result.log_output = experimental_directory / "m2_multispot_run_log.json";
+    } else {
+        result.calibration_output = options.output_directory / "spots_calib.json";
+        result.measurement_output = options.output_directory / "spots_meas.json";
+        result.log_output = options.output_directory / "m2_run_log.json";
+    }
     return result;
 }
 
@@ -212,13 +235,20 @@ std::filesystem::path pendingPath(const std::filesystem::path& final_path) {
 std::vector<std::filesystem::path> intermediateOutputPaths(
     const std::filesystem::path& output_directory);
 
+std::filesystem::path managedOutputRoot(const RunResult& result) {
+    const auto result_directory = result.calibration_output.parent_path();
+    return result.recognition_mode == RecognitionMode::HartmannMultispotExperimental
+        ? result_directory.parent_path()
+        : result_directory;
+}
+
 std::vector<std::filesystem::path> managedOutputPaths(const RunResult& result) {
     std::vector<std::filesystem::path> paths{
         result.calibration_output,
         result.measurement_output,
         result.log_output,
         result.calibration_output.parent_path() / "m2_error.json",
-        result.calibration_output.parent_path() / ".focimeter_m2.lock",
+        managedOutputRoot(result) / ".focimeter_m2.lock",
         pendingPath(result.calibration_output),
         pendingPath(result.measurement_output),
         pendingPath(result.log_output),
@@ -451,19 +481,59 @@ bool stageErrorPair(
     const ErrorInfo& calibration_error,
     const ErrorInfo& measurement_error,
     ErrorInfo& write_error) {
-    const std::string task = input.task_id.empty() ? "unknown" : input.task_id;
     const auto calibration_pending = pendingPath(result.calibration_output);
     const auto measurement_pending = pendingPath(result.measurement_output);
-    if (!writeSpotError(
-            calibration_pending, task, "calibration", calibration_error, write_error) ||
-        !writeSpotError(
-            measurement_pending, task, "measurement", measurement_error, write_error)) {
+    const bool experimental =
+        result.recognition_mode == RecognitionMode::HartmannMultispotExperimental;
+    ErrorInfo calibration_write_error;
+    ErrorInfo measurement_write_error;
+    const bool calibration_written = experimental
+        ? writeExperimentalMultispotError(
+            calibration_pending, &input, "calibration", calibration_error, calibration_write_error)
+        : writeSpotError(
+            calibration_pending,
+            input.task_id.empty() ? "unknown" : input.task_id,
+            "calibration",
+            calibration_error,
+            calibration_write_error);
+    const bool measurement_written = experimental
+        ? writeExperimentalMultispotError(
+            measurement_pending, &input, "measurement", measurement_error, measurement_write_error)
+        : writeSpotError(
+            measurement_pending,
+            input.task_id.empty() ? "unknown" : input.task_id,
+            "measurement",
+            measurement_error,
+            measurement_write_error);
+    if (!calibration_written || !measurement_written) {
+        write_error = calibration_written ? measurement_write_error : calibration_write_error;
         std::error_code ignored;
         std::filesystem::remove(calibration_pending, ignored);
         std::filesystem::remove(measurement_pending, ignored);
         return false;
     }
     return publishPair(calibration_pending, measurement_pending, result, write_error);
+}
+
+bool stageExperimentalMultispotSuccessPair(
+    const RunResult& result,
+    const InputPackage& input,
+    const ImageAnalysis& calibration,
+    const ImageAnalysis& measurement,
+    const ProcessingConfig& config,
+    ErrorInfo& write_error) {
+    const auto calibration_pending = pendingPath(result.calibration_output);
+    const auto measurement_pending = pendingPath(result.measurement_output);
+    if (!writeExperimentalMultispotSuccess(
+            calibration_pending, input, "calibration", calibration, config, write_error) ||
+        !writeExperimentalMultispotSuccess(
+            measurement_pending, input, "measurement", measurement, config, write_error)) {
+        std::error_code ignored;
+        std::filesystem::remove(calibration_pending, ignored);
+        std::filesystem::remove(measurement_pending, ignored);
+        return false;
+    }
+    return true;
 }
 
 bool stageSuccessPair(
@@ -603,7 +673,7 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
     }
 
     InputPackage input;
-    if (!readInputPackage(options.input_package, input, error)) {
+    if (!readInputPackage(options.input_package, input, error, options.recognition_mode)) {
         const ErrorInfo input_error = error;
         ErrorInfo alias_error;
         if (!rejectRawInputOutputAliases(result, options, input, alias_error)) {
@@ -742,11 +812,12 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
     }
 
     ProcessingConfig config;
+    config.recognition_mode = options.recognition_mode;
+    config.multispot_16bit_white_level = options.experimental_16bit_white_level;
     if (!readProcessingConfig(*config_path, config, error)) {
         error.string_details["config_path"] = input.config_path.generic_string();
         return finish_pair_failure(2, error, error, error);
     }
-
     ImageProcessor processor;
     if (!prepareOutputTargets(result, error)) {
         result.exit_code = 4;
@@ -770,7 +841,7 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
         if (!options.save_intermediate) {
             return true;
         }
-        const auto intermediate_directory = options.output_directory / "intermediate";
+        const auto intermediate_directory = result.calibration_output.parent_path() / "intermediate";
         if (saveArtifacts(
                 intermediate_directory,
                 input.task_id,
@@ -816,6 +887,25 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
     };
 
     const std::vector<Spot> no_spots;
+
+    if (!calibration.original.empty() && !measurement.original.empty() &&
+        calibration.original.size() != measurement.original.size()) {
+        ErrorInfo dimension_error = makeError(
+            "COORDINATE_SYSTEM_INVALID",
+            "Calibration and measurement images must have the same pixel dimensions.",
+            true);
+        dimension_error.number_details["calibration_width"] = calibration.original.cols;
+        dimension_error.number_details["calibration_height"] = calibration.original.rows;
+        dimension_error.number_details["measurement_width"] = measurement.original.cols;
+        dimension_error.number_details["measurement_height"] = measurement.original.rows;
+        return finish_processed_failure(
+            3,
+            dimension_error,
+            dimension_error,
+            dimension_error,
+            no_spots,
+            no_spots);
+    }
 
     const auto reject_declared_dimensions = [
         &config](const ImageAnalysis& analysis, const std::string& image_type) {
@@ -898,17 +988,57 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
             no_spots);
     }
 
-    if (calibration.original.size() != measurement.original.size()) {
-        error = makeError(
-            "COORDINATE_SYSTEM_INVALID",
-            "Calibration and measurement images must have identical pixel dimensions.",
-            true);
-        error.number_details["calibration_width"] = calibration.original.cols;
-        error.number_details["calibration_height"] = calibration.original.rows;
-        error.number_details["measurement_width"] = measurement.original.cols;
-        error.number_details["measurement_height"] = measurement.original.rows;
-        return finish_processed_failure(
-            3, error, error, error, no_spots, no_spots);
+    if (config.recognition_mode == RecognitionMode::HartmannMultispotExperimental) {
+        const std::vector<Spot> calibration_display = makeExperimentalDisplaySpots(calibration);
+        const std::vector<Spot> measurement_display = makeExperimentalDisplaySpots(measurement);
+        if (options.save_intermediate) {
+            ErrorInfo artifact_error;
+            if (!save_processed_artifacts(
+                    calibration_display, measurement_display, artifact_error)) {
+                return finish_pair_failure(4, artifact_error, artifact_error, artifact_error);
+            }
+        }
+
+        std::vector<std::string> run_warnings;
+        for (const auto& warning : calibration.diagnostics.warnings) {
+            run_warnings.push_back("CALIBRATION_" + warning);
+        }
+        for (const auto& warning : measurement.diagnostics.warnings) {
+            run_warnings.push_back("MEASUREMENT_" + warning);
+        }
+
+        ErrorInfo write_error;
+        if (!stageExperimentalMultispotSuccessPair(
+                result, input, calibration, measurement, config, write_error)) {
+            result.exit_code = 4;
+            result.error = write_error;
+            return result;
+        }
+        const std::vector<std::filesystem::path> outputs{
+            result.calibration_output, result.measurement_output};
+        if (!writeRunLog(
+                pendingPath(result.log_output),
+                &input,
+                options,
+                outputs,
+                {},
+                run_warnings,
+                started_at,
+                write_error)) {
+            std::error_code ignored;
+            std::filesystem::remove(pendingPath(result.calibration_output), ignored);
+            std::filesystem::remove(pendingPath(result.measurement_output), ignored);
+            result.exit_code = 4;
+            result.error = write_error;
+            return result;
+        }
+        if (!publishSuccessSet(result, write_error)) {
+            result.exit_code = 4;
+            result.error = write_error;
+            return result;
+        }
+        result.exit_code = 0;
+        return result;
     }
 
     SpotMatcher matcher;

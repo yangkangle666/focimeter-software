@@ -273,7 +273,8 @@ std::string timestamp(const std::chrono::system_clock::time_point time_point) {
 bool readInputPackage(
     const std::filesystem::path& path,
     InputPackage& input,
-    ErrorInfo& error) {
+    ErrorInfo& error,
+    const RecognitionMode recognition_mode) {
     input = {};
     error = {};
     Json root;
@@ -315,6 +316,15 @@ bool readInputPackage(
     input.calibration_image = std::filesystem::u8path(calibration);
     input.measurement_image = std::filesystem::u8path(measurement);
     input.config_path = std::filesystem::u8path(config);
+    const auto data_source = root.find("data_source");
+    if (recognition_mode == RecognitionMode::HartmannMultispotExperimental &&
+        data_source != root.end()) {
+        if (!data_source->is_string() || data_source->get_ref<const std::string&>().empty()) {
+            error = makeError("UNKNOWN_ERROR", "M1 data_source must be a non-empty string when present.", true);
+            return false;
+        }
+        input.data_source = data_source->get<std::string>();
+    }
 
     const auto quality = root.find("quality");
     if (quality != root.end()) {
@@ -346,7 +356,18 @@ bool readProcessingConfig(
     const std::filesystem::path& path,
     ProcessingConfig& config,
     ErrorInfo& error) {
+    const ProcessingConfig requested = config;
     config = {};
+    config.recognition_mode = requested.recognition_mode;
+    config.multispot_min_count = requested.multispot_min_count;
+    config.multispot_max_count = requested.multispot_max_count;
+    config.multispot_min_area_pixels = requested.multispot_min_area_pixels;
+    config.multispot_max_area_ratio = requested.multispot_max_area_ratio;
+    config.multispot_border_margin_pixels = requested.multispot_border_margin_pixels;
+    config.multispot_background_factor = requested.multispot_background_factor;
+    config.multispot_min_threshold = requested.multispot_min_threshold;
+    config.multispot_min_confidence = requested.multispot_min_confidence;
+    config.multispot_16bit_white_level = requested.multispot_16bit_white_level;
     error = {};
     Json root;
     if (!readJson(path, root, error, "CONFIG_NOT_FOUND", "CONFIG_INVALID")) {
@@ -430,7 +451,8 @@ bool readProcessingConfig(
         config.tophat_kernel < 1 || config.tophat_kernel > 4096 ||
         config.otsu_a <= 0.0 || config.otsu_a >= config.otsu_b ||
         config.otsu_b > 1.0 || config.max_depth < 0 || config.max_depth > 8 ||
-        config.expected_spot_count != 5 ||
+        (config.recognition_mode == RecognitionMode::FiveSpotCompat &&
+         config.expected_spot_count != 5) ||
         config.min_confidence < 0.0 || config.min_confidence > 1.0) {
         error = makeError("CONFIG_INVALID", "Processing configuration values are outside M2's supported range.", true);
         return false;
@@ -542,6 +564,168 @@ bool writeSpotError(
     return writeJson(path, document, write_error);
 }
 
+bool writeExperimentalMultispotSuccess(
+    const std::filesystem::path& path,
+    const InputPackage& input,
+    const std::string& image_type,
+    const ImageAnalysis& analysis,
+    const ProcessingConfig& config,
+    ErrorInfo& write_error) {
+    write_error = {};
+    if (!analysis.ok() || input.task_id.empty() ||
+        config.multispot_min_count < 1 ||
+        config.multispot_max_count < config.multispot_min_count ||
+        !std::isfinite(config.multispot_min_confidence) ||
+        config.multispot_min_confidence < 0.0 || config.multispot_min_confidence > 1.0 ||
+        analysis.diagnostics.image_width <= 0 || analysis.diagnostics.image_height <= 0 ||
+        analysis.observations.size() < static_cast<std::size_t>(config.multispot_min_count) ||
+        analysis.observations.size() > static_cast<std::size_t>(config.multispot_max_count) ||
+        (image_type != "calibration" && image_type != "measurement")) {
+        write_error = makeError(
+            "COORDINATE_SYSTEM_INVALID",
+            "M2 refused to serialize an invalid experimental multispot success result.",
+            false);
+        return false;
+    }
+
+    Json spots = Json::array();
+    for (std::size_t index = 0; index < analysis.observations.size(); ++index) {
+        const auto& observation = analysis.observations[index];
+        if (!std::isfinite(observation.center.x) || !std::isfinite(observation.center.y) ||
+            observation.center.x < 0.0 || observation.center.x >= analysis.diagnostics.image_width ||
+            observation.center.y < 0.0 || observation.center.y >= analysis.diagnostics.image_height ||
+            !std::isfinite(observation.area) || observation.area <= 0.0 ||
+            observation.area > static_cast<double>(analysis.diagnostics.image_width) *
+                analysis.diagnostics.image_height ||
+            !std::isfinite(observation.mean_intensity) || observation.mean_intensity < 0.0 ||
+            observation.mean_intensity > 255.0 ||
+            !std::isfinite(observation.peak_intensity) ||
+            observation.peak_intensity < observation.mean_intensity || observation.peak_intensity > 255.0 ||
+            !std::isfinite(observation.peak_residual_intensity) ||
+            observation.peak_residual_intensity < 0.0 || observation.peak_residual_intensity > 255.0 ||
+            !std::isfinite(observation.integrated_intensity) || observation.integrated_intensity <= 0.0 ||
+            observation.integrated_intensity > observation.area * 255.0 ||
+            !std::isfinite(observation.confidence) || observation.confidence < 0.0 ||
+            observation.confidence > 1.0) {
+            write_error = makeError(
+                "COORDINATE_SYSTEM_INVALID",
+                "Experimental multispot observation contains an invalid value.",
+                false);
+            write_error.number_details["detection_id"] = static_cast<double>(index);
+            return false;
+        }
+        spots.push_back({
+            {"detection_id", index},
+            {"x", observation.center.x},
+            {"y", observation.center.y},
+            {"confidence", observation.confidence},
+            {"area_pixel2", observation.area},
+            {"mean_intensity_8bit", observation.mean_intensity},
+            {"peak_intensity_8bit", observation.peak_intensity},
+            {"peak_residual_intensity_8bit", observation.peak_residual_intensity},
+            {"integrated_residual_8bit_pixel", observation.integrated_intensity},
+            {"quality_flags", observation.quality_flags},
+        });
+    }
+
+    const auto& diagnostics = analysis.diagnostics;
+    if (diagnostics.candidate_count != static_cast<int>(analysis.observations.size()) ||
+        diagnostics.raw_candidate_count < 0 || diagnostics.rejected_area_count < 0 ||
+        diagnostics.rejected_border_count < 0 ||
+        !std::isfinite(diagnostics.background_intensity) || diagnostics.background_intensity < 0.0 ||
+        diagnostics.background_intensity > 255.0 ||
+        !std::isfinite(diagnostics.detection_threshold) || diagnostics.detection_threshold < 0.0 ||
+        diagnostics.detection_threshold > 255.0) {
+        write_error = makeError(
+            "COORDINATE_SYSTEM_INVALID",
+            "Experimental multispot diagnostics contain an invalid value.",
+            false);
+        return false;
+    }
+    const bool is_usable = std::all_of(
+        analysis.observations.begin(),
+        analysis.observations.end(),
+        [&config](const SpotObservation& observation) {
+            return observation.confidence >= config.multispot_min_confidence;
+        });
+    const Json document = {
+        {"schema_version", "m2.multispot.experimental.1"},
+        {"task_id", input.task_id},
+        {"module", "m2_image_recognition"},
+        {"status", "ok"},
+        {"experimental", true},
+        {"contract_status", "proposed"},
+        {"data_source", input.data_source},
+        {"validation_status", "software_verified"},
+        {"validation_scope", "simulation_only"},
+        {"metrology_validated", false},
+        {"image_type", image_type},
+        {"coordinate_type", "image_pixel"},
+        {"spots", std::move(spots)},
+        {"quality", {
+            {"count_policy", "range"},
+            {"min_count", config.multispot_min_count},
+            {"max_count", config.multispot_max_count},
+            {"detected_count", analysis.observations.size()},
+            {"raw_candidate_count", diagnostics.raw_candidate_count},
+            {"rejected_area_count", diagnostics.rejected_area_count},
+            {"rejected_border_count", diagnostics.rejected_border_count},
+            {"background_intensity_8bit", diagnostics.background_intensity},
+            {"detection_threshold_8bit", diagnostics.detection_threshold},
+            {"minimum_usable_confidence", config.multispot_min_confidence},
+            {"is_usable", is_usable},
+            {"warnings", diagnostics.warnings},
+        }},
+        {"matching", {
+            {"status", "not_performed"},
+            {"id_scope", "image_local"},
+            {"physical_identity_guaranteed", false},
+            {"owner_status", "unassigned"},
+        }},
+        {"error", nullptr},
+    };
+    return writeJson(path, document, write_error);
+}
+
+bool writeExperimentalMultispotError(
+    const std::filesystem::path& path,
+    const InputPackage* input,
+    const std::string& image_type,
+    const ErrorInfo& module_error,
+    ErrorInfo& write_error) {
+    write_error = {};
+    if (module_error.empty() || module_error.message.empty() ||
+        (image_type != "calibration" && image_type != "measurement")) {
+        write_error = makeError(
+            "UNKNOWN_ERROR",
+            "M2 refused to serialize an invalid experimental multispot error result.",
+            false);
+        return false;
+    }
+    const Json document = {
+        {"schema_version", "m2.multispot.experimental.1"},
+        {"task_id", input == nullptr || input->task_id.empty() ? "unknown" : input->task_id},
+        {"module", "m2_image_recognition"},
+        {"status", "error"},
+        {"experimental", true},
+        {"contract_status", "proposed"},
+        {"data_source", input == nullptr ? "unknown" : input->data_source},
+        {"validation_status", "software_verified"},
+        {"validation_scope", "simulation_only"},
+        {"metrology_validated", false},
+        {"image_type", image_type},
+        {"coordinate_type", "image_pixel"},
+        {"matching", {
+            {"status", "not_performed"},
+            {"id_scope", "image_local"},
+            {"physical_identity_guaranteed", false},
+            {"owner_status", "unassigned"},
+        }},
+        {"error", errorToJson(module_error)},
+    };
+    return writeJson(path, document, write_error);
+}
+
 bool writeImageDiagnostics(
     const std::filesystem::path& path,
     const std::string& task_id,
@@ -572,6 +756,7 @@ bool writeImageDiagnostics(
             {"height", diagnostics.image_height},
             {"channels", diagnostics.channels},
             {"source_depth_bits", diagnostics.source_depth_bits},
+            {"normalization_white_level", diagnostics.normalization_white_level},
         }},
         {"intensity", {
             {"domain", "normalized_8bit_roi"},
@@ -582,7 +767,15 @@ bool writeImageDiagnostics(
             {"dark_pixel_ratio", diagnostics.dark_pixel_ratio},
             {"bright_pixel_ratio", diagnostics.bright_pixel_ratio},
         }},
-        {"detection", {{"candidate_count", diagnostics.candidate_count}}},
+        {"detection", {
+            {"candidate_count", diagnostics.candidate_count},
+            {"raw_candidate_count", diagnostics.raw_candidate_count},
+            {"rejected_area_count", diagnostics.rejected_area_count},
+            {"rejected_border_count", diagnostics.rejected_border_count},
+            {"background_intensity_8bit", diagnostics.background_intensity},
+            {"threshold_8bit", diagnostics.detection_threshold},
+            {"candidate_limit_exceeded", diagnostics.candidate_limit_exceeded},
+        }},
         {"warnings", diagnostics.warnings},
         {"error", analysis.error.empty() ? Json(nullptr) : errorToJson(analysis.error)},
     };
@@ -616,10 +809,21 @@ bool writeRunLog(
         {"status", run_error.empty() ? "ok" : "error"},
         {"input_files", Json::array({options.input_package.filename().generic_string()})},
         {"output_files", std::move(output_files)},
-        {"parameters", {{"save_intermediate", options.save_intermediate}}},
+        {"parameters", {
+            {"save_intermediate", options.save_intermediate},
+            {"recognition_mode", options.recognition_mode == RecognitionMode::HartmannMultispotExperimental
+                ? "hartmann_multispot_experimental"
+                : "five_spot_compat"},
+        }},
         {"warnings", warnings},
         {"error", run_error.empty() ? Json(nullptr) : errorToJson(run_error)},
     };
+    if (options.recognition_mode == RecognitionMode::HartmannMultispotExperimental) {
+        document["experimental"] = true;
+        document["contract_status"] = "proposed";
+        document["data_source"] = input == nullptr ? "unknown" : input->data_source;
+        document["validation_scope"] = "simulation_only";
+    }
     return writeJson(path, document, write_error);
 }
 

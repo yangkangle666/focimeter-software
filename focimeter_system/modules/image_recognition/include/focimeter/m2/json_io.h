@@ -12,7 +12,8 @@ namespace focimeter::m2 {
 [[nodiscard]] bool readInputPackage(
     const std::filesystem::path& path,
     InputPackage& input,
-    ErrorInfo& error);
+    ErrorInfo& error,
+    RecognitionMode recognition_mode = RecognitionMode::FiveSpotCompat);
 
 [[nodiscard]] bool readProcessingConfig(
     const std::filesystem::path& path,
@@ -32,6 +33,21 @@ namespace focimeter::m2 {
 [[nodiscard]] bool writeSpotError(
     const std::filesystem::path& path,
     const std::string& task_id,
+    const std::string& image_type,
+    const ErrorInfo& module_error,
+    ErrorInfo& write_error);
+
+[[nodiscard]] bool writeExperimentalMultispotSuccess(
+    const std::filesystem::path& path,
+    const InputPackage& input,
+    const std::string& image_type,
+    const ImageAnalysis& analysis,
+    const ProcessingConfig& config,
+    ErrorInfo& write_error);
+
+[[nodiscard]] bool writeExperimentalMultispotError(
+    const std::filesystem::path& path,
+    const InputPackage* input,
     const std::string& image_type,
     const ErrorInfo& module_error,
     ErrorInfo& write_error);

@@ -1,10 +1,26 @@
 # M2 图像识别模块
 
-当前阶段版本：`0.2.0`
+当前阶段版本：`0.3.0`
 
 当前验证状态：`software_verified`。这表示接口、算法逻辑、错误链路和合成数据测试已经完成软件验证，不表示真实设备识别、光学参数或 S/C/A 计量准确性已经通过。达到 `metrology_validated` 前必须完成真实成对图像、硬件参数和标准镜片验证。
 
-M2 读取 M1 的 `input_package.json`，对标定图和测量图执行同一套图像处理流程，输出 M3 可直接读取的 `spots_calib.json` 和 `spots_meas.json`。本模块不计算 S/C/A，也不连接相机或其他硬件。
+M2 读取 M1 的 `input_package.json`，对标定图和测量图执行同一套图像处理流程。默认的五点兼容模式输出 M3 当前可直接读取的 `spots_calib.json` 和 `spots_meas.json`；实验性的 Hartmann 多光斑模式输出隔离的检测结果，供后续接口升级讨论。本模块不计算 S/C/A，也不连接相机或其他硬件。
+
+## 第三阶段：Hartmann 多光斑准备
+
+本阶段以老师提供的 LM700/Hartmann MATLAB 原型资料为检测思路参考，新增**实验性**多光斑检测路径。它解决的是“从一张离线图里找出任意数量的候选光斑，并给出质量信息”，不是 LM700 实机等价实现，更不是计量验证。
+
+| 模式 | 启用方式 | 输出 | ID 含义 | 对接状态 |
+| --- | --- | --- | --- | --- |
+| `five_spot_compat` | 默认 | `spots_calib.json`、`spots_meas.json` | 正式 v1 `spot_id`；同任务内代表同一物理光线，受当前五点配对限制约束 | PR #4 的五点兼容基线，M3 当前使用 |
+| `hartmann_multispot_experimental` | `--experimental-multispot` | `experimental_multispot/spots_*_multispot.json` | `detection_id` 仅表示单张输出中的稳定排序号，**不是**跨图物理身份 | `proposed`，不属于统一 v1 契约 |
+
+实验模式使用整张图像作为检测区域，执行中值滤波、局部背景残差（顶帽）、边缘背景估计、自动阈值、连通域筛选和强度加权质心。它报告每个点的像素坐标、面积、均值/峰值/积分信号、置信度和质量标记；它不进行跨图最终匹配、不产生正式 `spot_id`、不计算位移场或 S/C/A。
+
+两份新增设计文档：
+
+- [MULTISPOT_INTERFACE_PROPOSAL.md](MULTISPOT_INTERFACE_PROPOSAL.md)：未修改统一契约前的实验输出格式、M3/M4 所需信息和负责人待确认项。
+- [LM700_MULTISPOT_MIGRATION_NOTES.md](LM700_MULTISPOT_MIGRATION_NOTES.md)：老师资料的检测流程与本实现的对应关系、M2/M3 边界和未验证部分。
 
 ## 架构
 
@@ -75,10 +91,37 @@ focimeter_m2.exe `
 
 - `--project-root`：M1 相对路径的解析根。当前仓库 mock 需要指向 `focimeter_system/`。
 - `--save-intermediate`：保存灰度、增强、二值、编号标注图和结构化诊断 JSON。
+- `--experimental-multispot`：显式启用实验性 Hartmann 多光斑检测。它将输出写入 `experimental_multispot/`，不生成或覆盖正式五点结果，也不保证跨图物理身份。
+- `--experimental-16bit-white-level <code>`：实验模式读取 16 位容器图片时必填，例如 12 位有效数据使用 `4095`。M2 不根据单张图最大值猜测 10/12/14/16 位，配置值小于图中实际码值时返回 `CONFIG_INVALID`。
 - `--show`：先保存最终编号图，再通过 CLI 的 OpenCV 窗口显示；默认不弹窗，便于 M4 与自动测试调用。
 - `--help`：显示参数说明。
 
 退出码：`0` 成功，`2` 输入或配置无效，`3` 图像识别或跨图配对失败，`4` 输出写入失败。
+
+实验多光斑样例（仅 synthetic/software_verified）：
+
+```powershell
+focimeter_m2.exe `
+  --input focimeter_system/data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_noisy_gradient.json `
+  --output <output-directory> `
+  --project-root focimeter_system `
+  --experimental-multispot `
+  --save-intermediate
+```
+
+成功时只会生成以下实验文件，不会生成正式 v1 的 `spots_calib.json` 或 `spots_meas.json`：
+
+```text
+experimental_multispot/
+  spots_calib_multispot.json
+  spots_meas_multispot.json
+  m2_multispot_run_log.json
+  intermediate/                 使用 --save-intermediate 时存在
+```
+
+每个检测项使用 `detection_id`，它只是按 `y`、再按 `x` 排序得到的**单图局部编号**。`matching.physical_identity_guaranteed=false` 是硬性声明：M3 或未来经批准的 M2 匹配模块必须建立跨图对应关系，不能把两个文件里同号的 `detection_id` 当成同一条物理光线。
+
+实验输出中的 `quality.is_usable` 只有在全部候选达到内部 `minimum_usable_confidence` 时才为 `true`；低于该门限的点仍可保留用于诊断，但带有 `LOW_CONFIDENCE` 标记，调用方不得把它当作可直接计算的数据。该置信度是同一顶帽残差域中的信号、形状和面积工程评分，不是统计概率。
 
 ## 输入与输出
 
@@ -137,6 +180,14 @@ M4/M3 调用方必须等待 CLI 正常结束，并且仅在退出码为 `0` 时�
 其中包含平移、旋转、缩放、亮度、噪声、低对比度、模糊、背景梯度、适度光斑差异、缺失、多点阵列、ROI 边界、粘连和角色歧义案例，以及 `manifest.json` 真值说明。它们只用于软件逻辑验证。
 
 仓库原有两张 `data/samples/*.jpg` 是同一张光学系统示意图，不是五光斑照片，运行 M2 时应返回识别错误。
+
+第三阶段多光斑合成数据位于：
+
+```text
+../../data/mock/m2_image_recognition/synthetic_multispot/
+```
+
+它包含 25 点和 94 点规则阵列、全局平移、局部形变、独立亮度变化、低对比度、背景梯度和噪声，以及缺失、过多、粘连、边缘裁剪、全暗和全亮失败样例。`manifest.json` 中的 `synthetic_point_id` 和已知中心只服务于测试真值核对，不能作为正式 `spot_id` 或真实物理光线证据。所有图片均为可重复生成的 PNG，不是 LM700 实拍图。
 
 ## 测试
 
@@ -203,3 +254,6 @@ python focimeter_system/validate_mock_data.py
 16. 当前顶帽核来自统一配置。合成测试已表明光斑直径接近或大于核尺寸时可能被削弱，真实图到位后必须按真实光斑尺度重新标定。
 17. 标定图和测量图必须具有相同像素尺寸；否则两个文件的像素坐标不能直接配对，M2 返回 `COORDINATE_SYSTEM_INVALID`。
 18. 统一配置中的相机宽高若为已知整数，必须与两张解码图片一致；不一致返回 `CONFIG_INVALID`。使用 `null` 或 `TODO_CONFIRM` 时只执行两图彼此尺寸一致性检查。
+19. 多光斑检测目前使用连通域而不是老师网格原型中的局部极大值与最小间距去重；它会保守拒绝明显粘连，但对真实光斑碎裂、紧密多峰和不同阵列间距的适应性仍需实拍数据比较。
+20. 多光斑数量、面积、边界和置信度目前是 M2 内部实验参数，未写入统一配置；真实数据到位后应先形成配置提案，不能长期靠重新编译调参。
+21. 多光斑匹配所有者尚未由负责人批准，实验 JSON 使用 `matching.owner_status=unassigned`。当前建议由 M3 或未来独立匹配层处理，不能把该建议当作既定公共接口。

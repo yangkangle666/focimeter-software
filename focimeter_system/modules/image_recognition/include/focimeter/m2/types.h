@@ -10,6 +10,11 @@
 
 namespace focimeter::m2 {
 
+enum class RecognitionMode {
+    FiveSpotCompat,
+    HartmannMultispotExperimental,
+};
+
 struct ErrorInfo {
     std::string code;
     std::string message;
@@ -39,6 +44,18 @@ struct ProcessingConfig {
     double max_scale{1.30};
     double max_residual_ratio{0.12};
     double ambiguity_ratio{1.15};
+
+    // 以下参数仅服务于 M2 内部实验模式，不来自也不修改统一配置文件。
+    RecognitionMode recognition_mode{RecognitionMode::FiveSpotCompat};
+    int multispot_min_count{12};
+    int multispot_max_count{150};
+    int multispot_min_area_pixels{12};
+    double multispot_max_area_ratio{0.02};
+    int multispot_border_margin_pixels{2};
+    double multispot_background_factor{1.3};
+    int multispot_min_threshold{8};
+    double multispot_min_confidence{0.35};
+    std::optional<int> multispot_16bit_white_level;
 };
 
 struct SpotObservation {
@@ -46,7 +63,11 @@ struct SpotObservation {
     double area{0.0};
     double circularity{0.0};
     double mean_intensity{0.0};
+    double peak_intensity{0.0};
+    double peak_residual_intensity{0.0};
+    double integrated_intensity{0.0};
     double confidence{0.0};
+    std::vector<std::string> quality_flags;
 };
 
 struct Spot {
@@ -61,6 +82,7 @@ struct ImageDiagnostics {
     int image_height{0};
     int channels{0};
     int source_depth_bits{0};
+    double normalization_white_level{255.0};
     double mean_intensity{0.0};
     double intensity_stddev{0.0};
     double minimum_intensity{0.0};
@@ -68,6 +90,12 @@ struct ImageDiagnostics {
     double dark_pixel_ratio{0.0};
     double bright_pixel_ratio{0.0};
     int candidate_count{0};
+    int raw_candidate_count{0};
+    int rejected_area_count{0};
+    int rejected_border_count{0};
+    double background_intensity{0.0};
+    double detection_threshold{0.0};
+    bool candidate_limit_exceeded{false};
     std::vector<std::string> warnings;
 };
 
@@ -99,12 +127,15 @@ struct InputPackage {
     std::filesystem::path measurement_image;
     std::filesystem::path config_path;
     std::string run_mode;
+    std::string data_source{"unknown"};
 };
 
 struct RunOptions {
     std::filesystem::path input_package;
     std::filesystem::path output_directory;
     std::filesystem::path project_root;
+    RecognitionMode recognition_mode{RecognitionMode::FiveSpotCompat};
+    std::optional<int> experimental_16bit_white_level;
     bool save_intermediate{false};
 };
 
@@ -113,6 +144,7 @@ struct RunResult {
     std::filesystem::path calibration_output;
     std::filesystem::path measurement_output;
     std::filesystem::path log_output;
+    RecognitionMode recognition_mode{RecognitionMode::FiveSpotCompat};
     ErrorInfo error;
 
     [[nodiscard]] bool ok() const noexcept { return exit_code == 0 && error.empty(); }

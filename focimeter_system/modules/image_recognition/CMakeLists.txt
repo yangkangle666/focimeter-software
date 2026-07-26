@@ -31,6 +31,7 @@ endfunction()
 add_library(focimeter_m2_core STATIC
     src/image_processor.cpp
     src/json_io.cpp
+    src/multispot_detector.cpp
     src/module.cpp
     src/output_lock.cpp
     src/spot_matcher.cpp
@@ -73,12 +74,24 @@ if(M2_BUILD_TOOLS)
     if(MSVC)
         target_compile_options(m2_generate_synthetic PRIVATE /W4 /permissive- /utf-8)
     endif()
+
+    add_executable(m2_generate_multispot_synthetic tools/generate_multispot_synthetic.cpp)
+    target_link_libraries(m2_generate_multispot_synthetic
+        PRIVATE opencv_core opencv_imgproc opencv_imgcodecs nlohmann_json::nlohmann_json)
+    target_compile_features(m2_generate_multispot_synthetic PRIVATE cxx_std_17)
+    m2_deploy_windows_runtime(m2_generate_multispot_synthetic)
+    if(MSVC)
+        target_compile_options(m2_generate_multispot_synthetic PRIVATE /W4 /permissive- /utf-8)
+    endif()
 endif()
 
 if(M2_BUILD_TESTS AND BUILD_TESTING)
     enable_testing()
     get_filename_component(M2_SYSTEM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
     set(M2_SYNTHETIC_ROOT "${M2_SYSTEM_ROOT}/data/mock/m2_image_recognition/synthetic")
+    set(M2_MULTISPOT_SYNTHETIC_ROOT
+        "${M2_SYSTEM_ROOT}/data/mock/m2_image_recognition/synthetic_multispot")
+    set(M2_TEST_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/Testing/m2-$<CONFIG>")
 
     add_executable(m2_tests
         tests/test_main.cpp
@@ -90,13 +103,30 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
         target_compile_options(m2_tests PRIVATE /W4 /permissive- /utf-8)
     endif()
 
+    add_executable(m2_multispot_tests tests/test_multispot.cpp)
+    target_link_libraries(m2_multispot_tests
+        PRIVATE focimeter_m2_core nlohmann_json::nlohmann_json)
+    target_compile_features(m2_multispot_tests PRIVATE cxx_std_17)
+    m2_deploy_windows_runtime(m2_multispot_tests)
+    if(MSVC)
+        target_compile_options(m2_multispot_tests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+
     add_test(
         NAME m2_unit_and_integration
         COMMAND m2_tests
-            --temp-dir $ENV{TEMP}/focimeter-m2-tests
+            --temp-dir "${M2_TEST_OUTPUT_ROOT}/unit"
             --synthetic-root "${M2_SYNTHETIC_ROOT}"
     )
     set(M2_REGISTERED_TESTS m2_unit_and_integration)
+    add_test(
+        NAME m2_multispot_unit_and_integration
+        COMMAND m2_multispot_tests
+            --temp-dir "${M2_TEST_OUTPUT_ROOT}/multispot-unit"
+            --synthetic-root "${M2_MULTISPOT_SYNTHETIC_ROOT}"
+            --system-root "${M2_SYSTEM_ROOT}"
+    )
+    list(APPEND M2_REGISTERED_TESTS m2_multispot_unit_and_integration)
     if(M2_BUILD_CLI)
         add_test(NAME m2_cli_help COMMAND focimeter_m2 --help)
         list(APPEND M2_REGISTERED_TESTS m2_cli_help)
@@ -106,7 +136,7 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
                 NAME m2_cli_synthetic_${case_name}
                 COMMAND focimeter_m2
                     --input "${M2_SYNTHETIC_ROOT}/input_package_${case_name}.json"
-                    --output "$ENV{TEMP}/focimeter-m2-cli-${case_name}"
+                    --output "${M2_TEST_OUTPUT_ROOT}/five-spot-${case_name}"
                     --project-root "${M2_SYSTEM_ROOT}"
             )
             list(APPEND M2_REGISTERED_TESTS m2_cli_synthetic_${case_name})
@@ -116,19 +146,64 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
             COMMAND ${CMAKE_COMMAND}
                 "-DM2_EXECUTABLE=$<TARGET_FILE:focimeter_m2>"
                 "-DM2_INPUT=${M2_SYNTHETIC_ROOT}/input_package_missing.json"
-                "-DM2_OUTPUT=$ENV{TEMP}/focimeter-m2-cli-missing"
+                "-DM2_OUTPUT=${M2_TEST_OUTPUT_ROOT}/five-spot-missing"
                 "-DM2_PROJECT_ROOT=${M2_SYSTEM_ROOT}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_cli_failure.cmake"
         )
         list(APPEND M2_REGISTERED_TESTS m2_cli_synthetic_missing)
+
+        add_test(
+            NAME m2_cli_multispot_25
+            COMMAND focimeter_m2
+                --input "${M2_MULTISPOT_SYNTHETIC_ROOT}/packages/input_package_25_clean_shift.json"
+                --output "${M2_TEST_OUTPUT_ROOT}/multispot-25"
+                --project-root "${M2_SYSTEM_ROOT}"
+                --experimental-multispot
+        )
+        list(APPEND M2_REGISTERED_TESTS m2_cli_multispot_25)
+        add_test(
+            NAME m2_cli_multispot_16bit
+            COMMAND focimeter_m2
+                --input "${M2_MULTISPOT_SYNTHETIC_ROOT}/packages/input_package_25_12bit_shift.json"
+                --output "${M2_TEST_OUTPUT_ROOT}/multispot-16bit"
+                --project-root "${M2_SYSTEM_ROOT}"
+                --experimental-multispot
+                --experimental-16bit-white-level 4095
+        )
+        list(APPEND M2_REGISTERED_TESTS m2_cli_multispot_16bit)
+        add_test(
+            NAME m2_cli_multispot_missing
+            COMMAND ${CMAKE_COMMAND}
+                "-DM2_EXECUTABLE=$<TARGET_FILE:focimeter_m2>"
+                "-DM2_INPUT=${M2_MULTISPOT_SYNTHETIC_ROOT}/packages/input_package_missing_11.json"
+                "-DM2_OUTPUT=${M2_TEST_OUTPUT_ROOT}/multispot-missing"
+                "-DM2_PROJECT_ROOT=${M2_SYSTEM_ROOT}"
+                "-DM2_EXPECTED_TASK_ID=m2_multispot_missing_11"
+                "-DM2_EXPECTED_CALIBRATION_ERROR_CODE=COORDINATE_SYSTEM_INVALID"
+                "-DM2_EXPECTED_MEASUREMENT_ERROR_CODE=SPOT_COUNT_MISMATCH"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_multispot_cli_failure.cmake"
+        )
+        list(APPEND M2_REGISTERED_TESTS m2_cli_multispot_missing)
     endif()
     if(M2_BUILD_TOOLS)
         add_test(
             NAME m2_generate_synthetic_smoke
             COMMAND m2_generate_synthetic
-                --output "$ENV{TEMP}/focimeter-m2-generated"
+                --output "${M2_TEST_OUTPUT_ROOT}/five-spot-generated"
         )
         list(APPEND M2_REGISTERED_TESTS m2_generate_synthetic_smoke)
+
+        add_test(
+            NAME m2_generate_multispot_reproducible
+            COMMAND ${CMAKE_COMMAND}
+                "-DM2_GENERATOR=$<TARGET_FILE:m2_generate_multispot_synthetic>"
+                "-DM2_OUTPUT_ROOT=${M2_TEST_OUTPUT_ROOT}/multispot-generated"
+                "-DM2_REFERENCE_ROOT=${M2_MULTISPOT_SYNTHETIC_ROOT}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_multispot_generator_reproducible.cmake"
+        )
+        list(APPEND M2_REGISTERED_TESTS m2_generate_multispot_reproducible)
     endif()
-    set_tests_properties(${M2_REGISTERED_TESTS} PROPERTIES TIMEOUT 30)
+    set_tests_properties(${M2_REGISTERED_TESTS} PROPERTIES TIMEOUT 120)
+    set_tests_properties(m2_unit_and_integration PROPERTIES TIMEOUT 90)
+    set_tests_properties(m2_multispot_unit_and_integration PROPERTIES TIMEOUT 180)
 endif()

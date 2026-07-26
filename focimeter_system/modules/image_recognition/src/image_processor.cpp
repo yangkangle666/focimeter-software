@@ -7,10 +7,13 @@
 #include <fstream>
 #include <iterator>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+
+#include "focimeter/m2/multispot_detector.h"
 
 namespace focimeter::m2 {
 namespace {
@@ -80,7 +83,8 @@ bool validateImageConfig(const ProcessingConfig& config, ErrorInfo& error) {
         config.tophat_kernel < 1 || config.tophat_kernel > 4096 ||
         config.otsu_a <= 0.0 || config.otsu_a >= config.otsu_b ||
         config.otsu_b > 1.0 || config.max_depth < 0 || config.max_depth > 8 ||
-        config.expected_spot_count != 5 ||
+        (config.recognition_mode == RecognitionMode::FiveSpotCompat &&
+         config.expected_spot_count != 5) ||
         config.min_confidence < 0.0 || config.min_confidence > 1.0) {
         error = makeError(
             "CONFIG_INVALID",
@@ -88,11 +92,38 @@ bool validateImageConfig(const ProcessingConfig& config, ErrorInfo& error) {
             true);
         return false;
     }
+    if (config.recognition_mode == RecognitionMode::HartmannMultispotExperimental &&
+        (config.multispot_min_count < 1 ||
+         config.multispot_max_count < config.multispot_min_count ||
+         config.multispot_min_area_pixels < 1 ||
+         !std::isfinite(config.multispot_max_area_ratio) ||
+         config.multispot_max_area_ratio <= 0.0 || config.multispot_max_area_ratio >= 1.0 ||
+         config.multispot_border_margin_pixels < 0 ||
+         !std::isfinite(config.multispot_background_factor) ||
+         config.multispot_background_factor <= 0.0 ||
+         config.multispot_min_threshold < 0 || config.multispot_min_threshold > 255 ||
+         !std::isfinite(config.multispot_min_confidence) ||
+          config.multispot_min_confidence < 0.0 || config.multispot_min_confidence > 1.0 ||
+          (config.multispot_16bit_white_level.has_value() &&
+           (*config.multispot_16bit_white_level < 256 ||
+            *config.multispot_16bit_white_level > 65535)))) {
+        error = makeError(
+            "CONFIG_INVALID",
+            "Experimental multispot configuration values are outside M2's supported range.",
+            true);
+        return false;
+    }
     return true;
 }
 
-bool convertToEightBit(const cv::Mat& source, cv::Mat& destination, ErrorInfo& error) {
+bool convertToEightBit(
+    const cv::Mat& source,
+    cv::Mat& destination,
+    const ProcessingConfig& config,
+    ImageDiagnostics& diagnostics,
+    ErrorInfo& error) {
     if (source.depth() == CV_8U) {
+        diagnostics.normalization_white_level = 255.0;
         destination = source.clone();
         return true;
     }
@@ -105,15 +136,46 @@ bool convertToEightBit(const cv::Mat& source, cv::Mat& destination, ErrorInfo& e
         return false;
     }
 
+    if (config.recognition_mode == RecognitionMode::HartmannMultispotExperimental) {
+        // 16 位容器可能承载 10/12/14/16 位有效数据，不能靠单张图最大值猜测。
+        if (!config.multispot_16bit_white_level.has_value()) {
+            error = makeError(
+                "CONFIG_INVALID",
+                "Experimental 16-bit input requires an explicit sensor white level.",
+                true);
+            error.string_details["required_option"] = "experimental_16bit_white_level";
+            return false;
+        }
+        const double white_level = *config.multispot_16bit_white_level;
+        const cv::Mat contiguous = source.isContinuous() ? source : source.clone();
+        const cv::Mat scalar_values = contiguous.reshape(1);
+        double maximum = 0.0;
+        cv::minMaxLoc(scalar_values, nullptr, &maximum);
+        if (maximum > white_level) {
+            error = makeError(
+                "CONFIG_INVALID",
+                "Experimental 16-bit image contains values above the configured white level.",
+                true);
+            error.number_details["configured_white_level"] = white_level;
+            error.number_details["observed_maximum"] = maximum;
+            return false;
+        }
+        diagnostics.normalization_white_level = white_level;
+        source.convertTo(destination, CV_8U, 255.0 / white_level);
+        return true;
+    }
+
     const cv::Mat contiguous = source.isContinuous() ? source : source.clone();
     const cv::Mat scalar_values = contiguous.reshape(1);
     double minimum = 0.0;
     double maximum = 0.0;
     cv::minMaxLoc(scalar_values, &minimum, &maximum);
     if (maximum > minimum) {
+        diagnostics.normalization_white_level = maximum;
         const double scale = 255.0 / (maximum - minimum);
         source.convertTo(destination, CV_8U, scale, -minimum * scale);
     } else {
+        diagnostics.normalization_white_level = 65535.0;
         source.convertTo(destination, CV_8U, 1.0 / 257.0);
     }
     return true;
@@ -319,21 +381,25 @@ ImageAnalysis ImageProcessor::processMat(
     }
 
     cv::Mat working_image;
-    if (!convertToEightBit(image, working_image, analysis.error)) {
+    if (!convertToEightBit(image, working_image, config, analysis.diagnostics, analysis.error)) {
         appendDiagnostics(analysis.error, analysis.diagnostics);
         return analysis;
     }
     analysis.original = working_image.clone();
     analysis.annotated = toDisplayBgr(working_image);
 
-    const int roi_width = std::clamp(
-        static_cast<int>(std::lround(working_image.cols * config.roi_width_ratio)),
-        1,
-        working_image.cols);
-    const int roi_height = std::clamp(
-        static_cast<int>(std::lround(working_image.rows * config.roi_height_ratio)),
-        1,
-        working_image.rows);
+    const int roi_width = config.recognition_mode == RecognitionMode::HartmannMultispotExperimental
+        ? working_image.cols
+        : std::clamp(
+            static_cast<int>(std::lround(working_image.cols * config.roi_width_ratio)),
+            1,
+            working_image.cols);
+    const int roi_height = config.recognition_mode == RecognitionMode::HartmannMultispotExperimental
+        ? working_image.rows
+        : std::clamp(
+            static_cast<int>(std::lround(working_image.rows * config.roi_height_ratio)),
+            1,
+            working_image.rows);
     analysis.roi_rect = cv::Rect(
         (working_image.cols - roi_width) / 2,
         (working_image.rows - roi_height) / 2,
@@ -384,6 +450,10 @@ ImageAnalysis ImageProcessor::processMat(
     if (analysis.diagnostics.intensity_stddev < 4.0 &&
         analysis.diagnostics.maximum_intensity - analysis.diagnostics.minimum_intensity < 32.0) {
         addWarning(analysis.diagnostics, "IMAGE_LOW_CONTRAST");
+    }
+
+    if (config.recognition_mode == RecognitionMode::HartmannMultispotExperimental) {
+        return MultispotDetector{}.detect(std::move(analysis), config);
     }
 
     cv::Mat filtered;
