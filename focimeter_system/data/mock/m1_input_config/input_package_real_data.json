@@ -18,6 +18,9 @@
       "CONFIG_PARAMETER_PENDING: camera.image_width",
       "CONFIG_PARAMETER_PENDING: camera.image_height",
       "CONFIG_PARAMETER_PENDING: optical.hartmann_spacing_mm",
+      "DATA_SOURCE: real",
+      "VALIDATION_STATUS: software_verified",
+      "HARDWARE_PARAMETERS_UNCONFIRMED: calibration.parameters",
       "SOFTWARE_INTEGRATION_ONLY: 仅表示路径和 JSON 契约可用于软件联调，不代表真实计量验证完成。"
     ]
   },

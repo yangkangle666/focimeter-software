@@ -285,6 +285,20 @@ class M1ContractTests(unittest.TestCase):
         missing = [path for path in package_paths if not (PROJECT_ROOT / path).is_file()]
         self.assertEqual(missing, [], f"missing integration fixture files: {missing}")
 
+    def test_mock_packages_declare_data_and_validation_state(self):
+        expected = {
+            "input_package_ok.json": ("DATA_SOURCE: mock", "VALIDATION_STATUS: simulation_only"),
+            "input_package_real_data.json": ("DATA_SOURCE: real", "VALIDATION_STATUS: software_verified"),
+        }
+        for name, declarations in expected.items():
+            package = json.loads(
+                (PROJECT_ROOT / "data/mock/m1_input_config" / name).read_text(encoding="utf-8")
+            )
+            warnings = package["quality"]["warnings"]
+            for declaration in declarations:
+                self.assertIn(declaration, warnings)
+            self.assertFalse(any("metrology_validated" in warning for warning in warnings))
+
     def test_missing_image_matches_error_contract(self):
         request = self.request("sample_missing_image")
         request["request"]["calibration_image"] = "data/samples/calibration/not_found.jpg"

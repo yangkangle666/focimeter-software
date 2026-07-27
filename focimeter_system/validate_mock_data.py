@@ -6,7 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 MOCK_DIR = ROOT / "data" / "mock"
-CONFIG_PATH = ROOT / "config" / "default_config.json"
+CONFIG_PATHS = sorted((ROOT / "config").glob("*.json"))
+CALIBRATION_PATHS = sorted((ROOT / "data/calibration").glob("*.json"))
 
 REQUIRED_TOP_LEVEL_FIELDS = {"schema_version", "task_id", "module", "status"}
 VALID_STATUS = {"ok", "error"}
@@ -41,12 +42,13 @@ def validate_common_fields(path: Path, data: dict) -> None:
 
 
 def main() -> int:
-    paths = sorted(MOCK_DIR.rglob("*.json")) + [CONFIG_PATH]
+    mock_paths = sorted(MOCK_DIR.rglob("*.json"))
+    paths = mock_paths + CONFIG_PATHS + CALIBRATION_PATHS
     checked = 0
 
     for path in paths:
         data = load_json(path)
-        if path != CONFIG_PATH:
+        if path in mock_paths:
             validate_common_fields(path, data)
         checked += 1
 
