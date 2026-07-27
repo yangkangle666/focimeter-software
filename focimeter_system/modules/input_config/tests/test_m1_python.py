@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 
 from modules.input_config import run_m1
+from modules.input_config.calibration import validate_calibration
+from modules.input_config.validation import validate_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -41,6 +43,14 @@ class M1ContractTests(unittest.TestCase):
             "error": None,
         }
 
+    def default_config(self):
+        return json.loads((PROJECT_ROOT / "config/default_config.json").read_text(encoding="utf-8"))
+
+    def simulation_calibration(self):
+        return json.loads(
+            (PROJECT_ROOT / "data/calibration/simulation_calibration.json").read_text(encoding="utf-8")
+        )
+
     def test_output_matches_v1_envelope(self):
         result = run_m1(self.request(), self.root)
         self.assertEqual(result["status"], "ok")
@@ -71,7 +81,7 @@ class M1ContractTests(unittest.TestCase):
         self.assertEqual(config["measurement_targets"]["sphere_max_d"], 25.0)
 
     def test_default_config_uses_multispot_simulation_profile(self):
-        config = json.loads((PROJECT_ROOT / "config/default_config.json").read_text(encoding="utf-8"))
+        config = self.default_config()
         self.assertEqual(config["recognition"], {
             "spot_count_mode": "auto",
             "expected_spot_count": None,
@@ -98,9 +108,7 @@ class M1ContractTests(unittest.TestCase):
             self.assertGreater(path.stat().st_size, 1024)
 
     def test_simulation_calibration_declares_exact_simulated_parameters(self):
-        calibration = json.loads(
-            (PROJECT_ROOT / "data/calibration/simulation_calibration.json").read_text(encoding="utf-8")
-        )
+        calibration = self.simulation_calibration()
         self.assertEqual(calibration, {
             "schema_version": "1.0",
             "calibration_version": "simulation-v1",
@@ -133,6 +141,58 @@ class M1ContractTests(unittest.TestCase):
             "validation_status": "simulation_only",
             "hardware_parameters_confirmed": False,
         })
+
+    def test_auto_spot_count_rejects_fixed_expected_count(self):
+        config = self.default_config()
+        config["recognition"]["expected_spot_count"] = 5
+        _, error = validate_config(config)
+        self.assertEqual(error.code, "CONFIG_INVALID")
+
+    def test_fixed_spot_count_requires_positive_expected_count(self):
+        config = self.default_config()
+        config["recognition"] = {
+            "spot_count_mode": "fixed",
+            "expected_spot_count": None,
+            "min_confidence": 0.7,
+        }
+        _, error = validate_config(config)
+        self.assertEqual(error.code, "CONFIG_INVALID")
+
+    def test_metrology_status_requires_real_confirmed_hardware(self):
+        config = self.default_config()
+        config["data_profile"]["validation_status"] = "metrology_validated"
+        _, error = validate_config(config)
+        self.assertEqual(error.code, "CONFIG_INVALID")
+
+    def test_legacy_recognition_shape_remains_accepted(self):
+        config = self.default_config()
+        config.pop("data_profile")
+        config.pop("calibration_reference")
+        config["recognition"] = {"expected_spot_count": 5, "min_confidence": 0.7}
+        warnings, error = validate_config(config)
+        self.assertIsNone(error)
+        self.assertIn(
+            "CONFIG_PROFILE_LEGACY: provenance and calibration metadata are absent",
+            warnings,
+        )
+
+    def test_calibration_version_must_match_config_reference(self):
+        config = self.default_config()
+        calibration = self.simulation_calibration()
+        calibration["calibration_version"] = "different-version"
+        _, error = validate_calibration(calibration, config)
+        self.assertEqual(error.code, "CONFIG_INVALID")
+
+    def test_simulation_calibration_matches_default_config(self):
+        warnings, error = validate_calibration(
+            self.simulation_calibration(),
+            self.default_config(),
+        )
+        self.assertIsNone(error)
+        self.assertIn(
+            "CALIBRATION_PARAMETER_PENDING: parameters.hartmann_spacing_mm",
+            warnings,
+        )
 
     def test_multispot_fixture_pngs_have_expected_dimensions_and_differ(self):
         paths = [
