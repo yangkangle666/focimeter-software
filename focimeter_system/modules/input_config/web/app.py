@@ -33,10 +33,18 @@ class WebApplication:
         self.root = Path(project_root).expanduser().resolve(strict=True)
 
     def bootstrap(self):
+        calibration_files = self._list_files("calibration", IMAGE_EXTENSIONS)
+        measurement_files = self._list_files("measurement", IMAGE_EXTENSIONS)
+        synthetic_calibration = "data/synthetic/generated_images/hartmann_reference.png"
+        synthetic_measurement = "data/synthetic/generated_images/hartmann_measurement.png"
+        if (self.root / synthetic_calibration).is_file():
+            calibration_files.append(synthetic_calibration)
+        if (self.root / synthetic_measurement).is_file():
+            measurement_files.append(synthetic_measurement)
         return {
             "files": {
-                "calibration": self._list_files("calibration", IMAGE_EXTENSIONS),
-                "measurement": self._list_files("measurement", IMAGE_EXTENSIONS),
+                "calibration": sorted(set(calibration_files)),
+                "measurement": sorted(set(measurement_files)),
                 "config": self._list_configs(),
             },
             "default_config": self._read_json(self.root / "config/default_config.json"),
@@ -158,11 +166,33 @@ class WebApplication:
         data = package.get("data")
         if not isinstance(data, dict):
             raise WebError("输入包缺少 data 文件清单。", status=500, code="BUNDLE_BUILD_FAILED")
+        config_relative = data.get("config_path")
+        if not isinstance(config_relative, str) or not config_relative:
+            raise WebError(
+                "输入包缺少有效的 config_path 路径。",
+                status=422,
+                code="BUNDLE_FILE_MISSING",
+            )
+        config_path = self._resolve_bundle_file(config_relative)
+        try:
+            config = self._read_json(config_path)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise WebError(
+                f"无法读取联调包配置文件：{exc}",
+                status=422,
+                code="BUNDLE_BUILD_FAILED",
+            ) from exc
+
         references = [
             ("calibration_image", data.get("calibration_image")),
             ("measurement_image", data.get("measurement_image")),
-            ("config_path", data.get("config_path")),
+            ("config_path", config_relative),
         ]
+        calibration_reference = config.get("calibration_reference")
+        if calibration_reference:
+            references.append(
+                ("calibration_file", calibration_reference.get("calibration_file"))
+            )
 
         files = []
         for field, relative in references:
@@ -174,7 +204,7 @@ class WebApplication:
                 )
             files.append((field, relative, self._resolve_bundle_file(relative)))
 
-        readme = self._integration_readme(task_id)
+        readme = self._integration_readme(task_id, config)
         output = io.BytesIO()
         try:
             with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -227,17 +257,28 @@ class WebApplication:
         return candidate
 
     @staticmethod
-    def _integration_readme(task_id: str) -> str:
+    def _integration_readme(task_id: str, config: Mapping) -> str:
+        profile = config.get("data_profile") or {}
+        calibration_reference = config.get("calibration_reference") or {}
+        data_source = profile.get("data_source", "legacy")
+        validation_status = profile.get("validation_status", "undeclared")
+        hardware_confirmed = profile.get("hardware_parameters_confirmed", False)
+        calibration_version = calibration_reference.get("calibration_version", "undeclared")
         return (
             "# M1 -> M2 软件联调包\n\n"
             f"任务编号：`{task_id}`\n\n"
+            "## 配置状态\n\n"
+            f"- 数据来源：`{data_source}`\n"
+            f"- 验证状态：`{validation_status}`\n"
+            f"- 硬件参数已确认：`{str(bool(hardware_confirmed)).lower()}`\n"
+            f"- 标定版本：`{calibration_version}`\n\n"
             "## 使用步骤\n\n"
             "1. 解压本 ZIP 文件，并将解压目录作为 M2 的 `project_root`。\n"
             "2. 读取根目录的 `input_package.json`。\n"
-            "3. 按 JSON 中 `data` 的相对路径读取标定图、测量图和配置文件。\n\n"
+            "3. 按 JSON 中 `data` 的相对路径读取标定图、测量图和配置文件。\n"
+            "4. 配置中的 `calibration_reference.calibration_file` 已随包提供。\n\n"
             "## 检查结论\n\n"
-            "本包由 M1 在生成时完成路径和配置检查，下载前又重新确认了引用文件存在且位于项目目录内。\n"
-            "`camera.image_width`、`camera.image_height` 和 `optical.hartmann_spacing_mm` 未知时可以保留 warning。\n\n"
+            "M1 已检查所有声明路径、主配置和标定配置，并在下载前再次确认文件存在且位于项目目录内。\n\n"
             "> 重要：本包表示软件联调可用，不代表真实计量验证完成。\n"
         )
 

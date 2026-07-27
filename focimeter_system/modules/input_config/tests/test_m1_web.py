@@ -22,12 +22,17 @@ class WebApplicationTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / "data/samples/calibration").mkdir(parents=True)
         (self.root / "data/samples/measurement").mkdir(parents=True)
+        (self.root / "data/calibration").mkdir(parents=True)
         (self.root / "config").mkdir()
         (self.root / "data/samples/calibration/reference.png").write_bytes(b"calibration")
         (self.root / "data/samples/measurement/lens.png").write_bytes(b"measurement")
         source = PROJECT_ROOT / "config/default_config.json"
         (self.root / "config/default_config.json").write_text(
             source.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        calibration_source = PROJECT_ROOT / "data/calibration/simulation_calibration.json"
+        (self.root / "data/calibration/simulation_calibration.json").write_text(
+            calibration_source.read_text(encoding="utf-8"), encoding="utf-8"
         )
         self.app = WebApplication(self.root)
 
@@ -40,6 +45,17 @@ class WebApplicationTests(unittest.TestCase):
         self.assertIn("data/samples/calibration/reference.png", data["files"]["calibration"])
         self.assertIn("data/samples/measurement/lens.png", data["files"]["measurement"])
         self.assertEqual(data["default_config"]["schema_version"], "1.0")
+
+    def test_bootstrap_lists_synthetic_multispot_images(self):
+        data = WebApplication(PROJECT_ROOT).bootstrap()
+        self.assertIn(
+            "data/synthetic/generated_images/hartmann_reference.png",
+            data["files"]["calibration"],
+        )
+        self.assertIn(
+            "data/synthetic/generated_images/hartmann_measurement.png",
+            data["files"]["measurement"],
+        )
 
     def test_upload_writes_safe_project_relative_file(self):
         relative = self.app.save_upload(
@@ -109,6 +125,23 @@ class WebApplicationTests(unittest.TestCase):
             package = json.loads(archive.read("input_package.json").decode("utf-8"))
             for key in ("calibration_image", "measurement_image", "config_path"):
                 self.assertIn(package["data"][key], names)
+            self.assertIn("data/calibration/simulation_calibration.json", names)
+            readme = archive.read("README_M1_M2_INTEGRATION.md").decode("utf-8")
+            self.assertIn("数据来源：`synthetic`", readme)
+            self.assertIn("验证状态：`simulation_only`", readme)
+
+    def test_bundle_rejects_missing_referenced_calibration_file(self):
+        payload = {
+            "task_id": "web_missing_calibration_bundle",
+            "calibration_image": "data/samples/calibration/reference.png",
+            "measurement_image": "data/samples/measurement/lens.png",
+            "config_path": "config/default_config.json",
+        }
+        self.assertEqual(self.app.run(payload)["result"]["status"], "ok")
+        (self.root / "data/calibration/simulation_calibration.json").unlink()
+
+        with self.assertRaisesRegex(WebError, "simulation_calibration.json"):
+            self.app.integration_bundle("web_missing_calibration_bundle")
 
     def test_bundle_rejects_missing_referenced_file(self):
         payload = {
@@ -131,10 +164,15 @@ class WebServerTests(unittest.TestCase):
         (self.root / "config").mkdir()
         (self.root / "data/samples/calibration").mkdir(parents=True)
         (self.root / "data/samples/measurement").mkdir(parents=True)
+        (self.root / "data/calibration").mkdir(parents=True)
         (self.root / "data/samples/calibration/reference.png").write_bytes(b"calibration")
         (self.root / "data/samples/measurement/lens.png").write_bytes(b"measurement")
         source = PROJECT_ROOT / "config/default_config.json"
         (self.root / "config/default_config.json").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        calibration_source = PROJECT_ROOT / "data/calibration/simulation_calibration.json"
+        (self.root / "data/calibration/simulation_calibration.json").write_text(
+            calibration_source.read_text(encoding="utf-8"), encoding="utf-8"
+        )
         self.server = make_server(self.root, "127.0.0.1", 0)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -228,6 +266,7 @@ class WebServerTests(unittest.TestCase):
             package = json.loads(archive.read("input_package.json").decode("utf-8"))
             for key in ("calibration_image", "measurement_image", "config_path"):
                 self.assertIn(package["data"][key], names)
+            self.assertIn("data/calibration/simulation_calibration.json", names)
 
 
 class StaticContractTests(unittest.TestCase):
@@ -277,6 +316,14 @@ class StaticContractTests(unittest.TestCase):
         for label in ("像素尺寸", "图像宽度", "Hartmann 点阵间距", "最低识别置信度", "允许绝对路径"):
             self.assertIn(label, script)
         for key in ("pixel_size_um", "image_width", "hartmann_spacing_mm", "min_confidence", "allow_absolute_path"):
+            self.assertIn(key, script)
+
+    def test_step_four_exposes_fl800_device_profile_labels(self):
+        script = (self.static / "app.js").read_text(encoding="utf-8")
+
+        for label in ("光源颜色", "哈特曼间距来源", "球镜最小值", "柱镜最大值", "棱镜最大值", "轴向最大值", "下加度最大值", "UV 透过率最大值"):
+            self.assertIn(label, script)
+        for key in ("source_color", "spacing_source", "sphere_min_d", "cylinder_max_d", "uv_max_percent"):
             self.assertIn(key, script)
 
     def test_recent_task_can_open_result_without_new_task_validation(self):
