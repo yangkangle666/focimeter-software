@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "config_name": "default_config",
+  "config_name": "legacy_five_spot_config",
   "camera": {
     "pixel_size_um": 4.8,
     "image_width": 1280,

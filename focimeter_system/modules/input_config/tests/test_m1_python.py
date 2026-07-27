@@ -1,4 +1,8 @@
 import json
+import hashlib
+import struct
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,7 +22,13 @@ class M1ContractTests(unittest.TestCase):
         (self.root / "config").mkdir()
         (self.root / "data/samples/calibration/calib_mock_001.jpg").write_bytes(b"calibration")
         (self.root / "data/samples/measurement/meas_mock_001.jpg").write_bytes(b"measurement")
-        config = json.loads((PROJECT_ROOT / "config/default_config.json").read_text(encoding="utf-8"))
+        # Task 2 profile validation is not enabled yet; baseline M1 tests use
+        # the legacy shape while the committed default profile is tested directly.
+        config = json.loads((PROJECT_ROOT / "config/legacy_five_spot_config.json").read_text(encoding="utf-8"))
+        config["config_name"] = "default_config"
+        config["recognition"].pop("spot_count_mode")
+        config.pop("data_profile")
+        config.pop("calibration_reference")
         (self.root / "config/default_config.json").write_text(json.dumps(config), encoding="utf-8")
 
     def tearDown(self):
@@ -86,6 +96,72 @@ class M1ContractTests(unittest.TestCase):
             self.assertTrue(path.is_file())
             self.assertEqual(path.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
             self.assertGreater(path.stat().st_size, 1024)
+
+    def test_simulation_calibration_declares_exact_simulated_parameters(self):
+        calibration = json.loads(
+            (PROJECT_ROOT / "data/calibration/simulation_calibration.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(calibration, {
+            "schema_version": "1.0",
+            "calibration_version": "simulation-v1",
+            "parameter_status": "simulated",
+            "validation_status": "simulation_only",
+            "hardware_parameters_confirmed": False,
+            "parameters": {
+                "pixel_pitch_mm": 0.0048,
+                "effective_focal_length_mm": 12.0,
+                "distance_m": 0.03,
+                "hartmann_spacing_mm": None,
+                "optical_magnification": None,
+                "power_sign": -1.0,
+                "wavelength_nm": None,
+            },
+        })
+
+    def test_legacy_five_spot_config_declares_fixed_five_spot_profile(self):
+        config = json.loads(
+            (PROJECT_ROOT / "config/legacy_five_spot_config.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(config["config_name"], "legacy_five_spot_config")
+        self.assertEqual(config["recognition"], {
+            "spot_count_mode": "fixed",
+            "expected_spot_count": 5,
+            "min_confidence": 0.7,
+        })
+        self.assertEqual(config["data_profile"], {
+            "data_source": "mock",
+            "validation_status": "simulation_only",
+            "hardware_parameters_confirmed": False,
+        })
+
+    def test_multispot_fixture_pngs_have_expected_dimensions_and_differ(self):
+        paths = [
+            PROJECT_ROOT / "data/synthetic/generated_images/hartmann_reference.png",
+            PROJECT_ROOT / "data/synthetic/generated_images/hartmann_measurement.png",
+        ]
+        dimensions = []
+        for path in paths:
+            png = path.read_bytes()
+            width, height, bit_depth, color_type, _, _, _ = struct.unpack(">IIBBBBB", png[16:29])
+            dimensions.append((width, height, bit_depth, color_type))
+        self.assertEqual(dimensions, [(640, 480, 8, 0), (640, 480, 8, 0)])
+        self.assertNotEqual(paths[0].read_bytes(), paths[1].read_bytes())
+
+    def test_hartmann_fixture_generation_is_byte_deterministic(self):
+        paths = [
+            PROJECT_ROOT / "data/synthetic/generated_images/hartmann_reference.png",
+            PROJECT_ROOT / "data/synthetic/generated_images/hartmann_measurement.png",
+        ]
+        before = [hashlib.sha256(path.read_bytes()).digest() for path in paths]
+        subprocess.run(
+            [sys.executable, str(PROJECT_ROOT / "tools/generate_hartmann_fixtures.py")],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        after = [hashlib.sha256(path.read_bytes()).digest() for path in paths]
+        self.assertEqual(after, before)
 
     def test_real_input_package_paths_resolve(self):
         package_path = PROJECT_ROOT / "data/mock/m1_input_config/input_package_real_data.json"
