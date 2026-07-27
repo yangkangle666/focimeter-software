@@ -35,6 +35,43 @@ def transformed_measurement(calibration: dict, transform: np.ndarray, translatio
     return measurement
 
 
+def multispot_pair(transform: np.ndarray, translation=(0.0, 0.0)) -> tuple[dict, dict]:
+    center = np.array([512.0, 384.0], dtype=float)
+    offsets = [
+        (-90.0, -60.0),
+        (-30.0, -70.0),
+        (40.0, -65.0),
+        (95.0, -20.0),
+        (-80.0, 25.0),
+        (-10.0, 15.0),
+        (55.0, 35.0),
+        (100.0, 80.0),
+    ]
+    calibration = {
+        "schema_version": "1.0",
+        "task_id": "multi_001",
+        "module": "m2_image_recognition",
+        "status": "ok",
+        "image_type": "calibration",
+        "coordinate_type": "image_pixel",
+        "spots": [],
+        "quality": {"spot_count": len(offsets), "is_usable": True, "warnings": []},
+        "error": None,
+    }
+    measurement = copy.deepcopy(calibration)
+    measurement["image_type"] = "measurement"
+    for spot_id, offset in enumerate(offsets):
+        point = center + np.asarray(offset)
+        moved = center + np.asarray(translation) + transform @ np.asarray(offset)
+        calibration["spots"].append(
+            {"spot_id": spot_id, "x": float(point[0]), "y": float(point[1]), "confidence": 0.95}
+        )
+        measurement["spots"].append(
+            {"spot_id": spot_id, "x": float(moved[0]), "y": float(moved[1]), "confidence": 0.93}
+        )
+    return calibration, measurement
+
+
 class GeometryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.calibration = json.loads(CALIBRATION_PATH.read_text(encoding="utf-8"))
@@ -62,6 +99,13 @@ class GeometryTests(unittest.TestCase):
         measurement["spots"].reverse()
         fit = fit_spot_transform(self.calibration, measurement)
         np.testing.assert_allclose(np.eye(2), fit.transform, atol=1e-12)
+
+    def test_multispot_inputs_without_roles_are_fitted(self) -> None:
+        expected = np.array([[0.97, 0.03], [-0.02, 1.04]])
+        calibration, measurement = multispot_pair(expected, translation=(12.0, -6.0))
+        fit = fit_spot_transform(calibration, measurement)
+        np.testing.assert_allclose(expected, fit.transform, atol=1e-12)
+        self.assertEqual({}, fit.shifts)
 
     def test_reassigned_spot_ids_are_rejected(self) -> None:
         measurement = transformed_measurement(self.calibration, np.eye(2))

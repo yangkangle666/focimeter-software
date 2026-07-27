@@ -76,11 +76,13 @@ def calculate(
             )
 
         distance_m = float(config["optical"]["distance_m"])
-        expected_count = int(config["recognition"]["expected_spot_count"])
+        expected_count = config["recognition"]["expected_spot_count"]
         if not math.isclose(distance_m, parsed_model.distance_m, rel_tol=1e-12, abs_tol=1e-15):
             raise ModelError("Configuration distance_m does not match the calibration artifact hardware fingerprint.")
-        if expected_count != parsed_model.expected_spot_count:
+        if isinstance(expected_count, int) and expected_count != parsed_model.expected_spot_count:
             raise ModelError("Configured expected_spot_count does not match the calibration artifact hardware fingerprint.")
+        if len(calibration["spots"]) < parsed_model.expected_spot_count:
+            raise ModelError("Matched spot count is below the calibration artifact minimum.")
 
         geometry = fit_spot_transform(calibration, measurement)
         limits = parsed_model.quality_limits
@@ -164,6 +166,14 @@ def calculate(
             "quality": {
                 "is_usable": True,
                 "confidence": confidence,
+                "validation_status": (
+                    "software_verified"
+                    if "software_verified" in warnings
+                    else parsed_model.validation_status
+                ),
+                "matched_spot_count": len(calibration["spots"]),
+                "fit_rmse": geometry.rmse_pixel,
+                "condition_number": geometry.condition_number,
                 "warnings": warnings,
             },
             "intermediate": intermediate,

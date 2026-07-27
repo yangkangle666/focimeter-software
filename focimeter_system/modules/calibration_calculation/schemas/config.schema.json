@@ -138,12 +138,21 @@
       "additionalProperties": false,
       "required": [
         "expected_spot_count",
+        "min_spot_count",
         "min_confidence"
       ],
       "properties": {
         "expected_spot_count": {
+          "oneOf": [
+            {"type": "integer", "minimum": 1},
+            {"const": "AUTO"},
+            {"const": "TODO_CONFIRM"},
+            {"type": "null"}
+          ]
+        },
+        "min_spot_count": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 4
         },
         "min_confidence": {
           "type": "number",

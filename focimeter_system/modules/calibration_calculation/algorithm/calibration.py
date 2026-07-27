@@ -255,7 +255,7 @@ def fit_calibration_model(
     _validate_dataset(dataset)
     try:
         distance_m = float(config["optical"]["distance_m"])
-        expected_spot_count = int(config["recognition"]["expected_spot_count"])
+        configured_spot_count = config["recognition"]["expected_spot_count"]
         configured_confidence = float(config["recognition"]["min_confidence"])
     except (KeyError, TypeError, ValueError) as error:
         raise CalibrationDataError(f"Invalid fitting configuration: {error}") from error
@@ -299,6 +299,10 @@ def fit_calibration_model(
     if not calibration_records or not validation or not final_test:
         raise CalibrationDataError("Calibration, validation, and final test partitions are required.")
     _validate_partition_integrity(records)
+    if isinstance(configured_spot_count, int) and not isinstance(configured_spot_count, bool):
+        expected_spot_count = configured_spot_count
+    else:
+        expected_spot_count = min(len(record["measurement"]["spots"]) for record in records)
     raw_array = np.asarray([record["raw"].as_array() for record in calibration_records])
     certified_array = np.asarray(
         [prescription_to_power_vector(record["certified"]).as_array() for record in calibration_records]

@@ -14,7 +14,6 @@ from jsonschema.exceptions import ValidationError
 
 
 SCHEMA_ROOT = Path(__file__).resolve().parents[1] / "schemas"
-REQUIRED_ROLES = ("center", "x_positive", "y_positive")
 READY_PARAMETERS = (
     ("optical", "distance_m"),
 )
@@ -104,35 +103,6 @@ def _nonfinite_issues(value: object, path: str, code: str) -> list[ValidationIss
     return issues
 
 
-def _role_issues(document: Mapping[str, object], prefix: str) -> list[ValidationIssue]:
-    spots = document["spots"]
-    issues: list[ValidationIssue] = []
-    for role in REQUIRED_ROLES:
-        count = sum(spot["role"] == role for spot in spots)
-        if count != 1:
-            issues.append(
-                ValidationIssue(
-                    path=f"{prefix}.spots",
-                    code="COORDINATE_SYSTEM_INVALID",
-                    message=f"Role '{role}' must appear exactly once; found {count}.",
-                )
-            )
-    return issues
-
-
-def _pairing_role_issues(document: Mapping[str, object], prefix: str) -> list[ValidationIssue]:
-    roles = [spot["role"] for spot in document["spots"]]
-    if "unknown" in roles or len(set(roles)) != len(roles):
-        return [
-            ValidationIssue(
-                path=f"{prefix}.spots",
-                code="COORDINATE_SYSTEM_INVALID",
-                message="Calculation requires unique, known spot roles.",
-            )
-        ]
-    return []
-
-
 def _spot_id_issues(document: Mapping[str, object], prefix: str) -> list[ValidationIssue]:
     spot_ids = [spot["spot_id"] for spot in document["spots"]]
     if len(spot_ids) == len(set(spot_ids)):
@@ -163,7 +133,13 @@ def _spot_pairing_issues(
     mismatched_ids = [
         spot_id
         for spot_id in sorted(calibration_by_id)
-        if calibration_by_id[spot_id]["role"] != measurement_by_id[spot_id]["role"]
+        if (
+            "role" in calibration_by_id[spot_id]
+            and "role" in measurement_by_id[spot_id]
+            and calibration_by_id[spot_id]["role"] != "unknown"
+            and measurement_by_id[spot_id]["role"] != "unknown"
+            and calibration_by_id[spot_id]["role"] != measurement_by_id[spot_id]["role"]
+        )
     ]
     if mismatched_ids:
         return [
@@ -179,20 +155,30 @@ def _spot_pairing_issues(
 def _count_issues(
     document: Mapping[str, object],
     prefix: str,
-    expected_count: int,
+    expected_count: object,
+    min_spot_count: int,
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     spots = document["spots"]
     quality = document["quality"]
-    if quality["detected_count"] != len(spots):
+    quality_count = quality.get("detected_count", quality.get("spot_count"))
+    if quality_count is not None and quality_count != len(spots):
         issues.append(
             ValidationIssue(
                 path=f"{prefix}.quality.detected_count",
                 code="SPOT_COUNT_MISMATCH",
-                message=f"detected_count is {quality['detected_count']} but spots contains {len(spots)} items.",
+                message=f"quality spot count is {quality_count} but spots contains {len(spots)} items.",
             )
         )
-    if len(spots) != expected_count:
+    if len(spots) < min_spot_count:
+        issues.append(
+            ValidationIssue(
+                path=f"{prefix}.spots",
+                code="SPOT_COUNT_MISMATCH",
+                message=f"spots contains {len(spots)} items but at least {min_spot_count} are required.",
+            )
+        )
+    if isinstance(expected_count, int) and not isinstance(expected_count, bool) and len(spots) != expected_count:
         issues.append(
             ValidationIssue(
                 path=f"{prefix}.spots",
@@ -200,7 +186,12 @@ def _count_issues(
                 message=f"spots contains {len(spots)} items but config requires {expected_count}.",
             )
         )
-    if quality["expected_count"] != expected_count:
+    if (
+        isinstance(expected_count, int)
+        and not isinstance(expected_count, bool)
+        and "expected_count" in quality
+        and quality["expected_count"] != expected_count
+    ):
         issues.append(
             ValidationIssue(
                 path=f"{prefix}.quality.expected_count",
@@ -245,10 +236,10 @@ def validate_inputs(
         )
 
     expected_count = config["recognition"]["expected_spot_count"]
+    min_spot_count = int(config["recognition"].get("min_spot_count", 4))
     for document, prefix in ((calibration, "calibration"), (measurement, "measurement")):
         issues.extend(_spot_id_issues(document, prefix))
-        issues.extend(_role_issues(document, prefix))
-        issues.extend(_count_issues(document, prefix, expected_count))
+        issues.extend(_count_issues(document, prefix, expected_count, min_spot_count))
         if not document["quality"]["is_usable"]:
             issues.append(
                 ValidationIssue(
@@ -259,8 +250,6 @@ def validate_inputs(
             )
 
     if mode == "calculation-ready":
-        for document, prefix in ((calibration, "calibration"), (measurement, "measurement")):
-            issues.extend(_pairing_role_issues(document, prefix))
         issues.extend(_spot_pairing_issues(calibration, measurement))
         for section, field in READY_PARAMETERS:
             value = config[section][field]

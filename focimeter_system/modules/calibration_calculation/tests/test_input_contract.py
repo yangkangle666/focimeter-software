@@ -44,10 +44,10 @@ class InputContractTests(unittest.TestCase):
         self.measurement["quality"]["detected_count"] = 4
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "SPOT_COUNT_MISMATCH")
 
-    def test_actual_spot_count_below_expected_is_rejected(self) -> None:
+    def test_actual_spot_count_below_minimum_is_rejected(self) -> None:
         for document in (self.calibration, self.measurement):
-            document["spots"].pop(3)
-            document["quality"]["detected_count"] = 4
+            document["spots"] = document["spots"][:3]
+            document["quality"]["detected_count"] = 3
         report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
         self.assert_issue(report, "SPOT_COUNT_MISMATCH")
 
@@ -55,23 +55,44 @@ class InputContractTests(unittest.TestCase):
         self.config["recognition"]["expected_spot_count"] = 6
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "SPOT_COUNT_MISMATCH")
 
-    def test_missing_axis_role_is_rejected(self) -> None:
+    def test_axis_roles_are_optional_for_multispot_contract(self) -> None:
         self.calibration["spots"][4]["role"] = "other"
-        self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "COORDINATE_SYSTEM_INVALID")
+        self.assertTrue(validate_inputs(self.calibration, self.measurement, self.config).valid)
 
-    def test_duplicate_center_role_is_rejected(self) -> None:
+    def test_duplicate_roles_are_allowed_for_multispot_contract(self) -> None:
         self.calibration["spots"][3]["role"] = "center"
-        self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "COORDINATE_SYSTEM_INVALID")
+        self.measurement["spots"][3]["role"] = "center"
+        self.assertTrue(validate_inputs(self.calibration, self.measurement, self.config).valid)
 
-    def test_unknown_role_is_rejected_for_calculation(self) -> None:
+    def test_unknown_role_is_allowed_when_spot_ids_pair(self) -> None:
         self.measurement["spots"][3]["role"] = "unknown"
         report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
-        self.assert_issue(report, "COORDINATE_SYSTEM_INVALID")
+        self.assertTrue(report.valid, report.to_dict())
 
-    def test_duplicate_non_axis_role_is_rejected_for_calculation(self) -> None:
+    def test_duplicate_non_axis_role_is_allowed_for_multispot_calculation(self) -> None:
         self.measurement["spots"][3]["role"] = "left_or_negative"
+        self.calibration["spots"][3]["role"] = "left_or_negative"
         report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
-        self.assert_issue(report, "COORDINATE_SYSTEM_INVALID")
+        self.assertTrue(report.valid, report.to_dict())
+
+    def test_multispot_inputs_without_roles_are_accepted(self) -> None:
+        for document in (self.calibration, self.measurement):
+            for spot in document["spots"]:
+                spot.pop("role")
+            base_id = max(spot["spot_id"] for spot in document["spots"]) + 1
+            for offset in range(4):
+                document["spots"].append(
+                    {
+                        "spot_id": base_id + offset,
+                        "x": 640.0 + offset * 15.0,
+                        "y": 500.0 + offset * 10.0,
+                        "confidence": 0.9,
+                    }
+                )
+            document["quality"]["detected_count"] = len(document["spots"])
+            document["quality"]["expected_count"] = len(document["spots"])
+        report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
+        self.assertTrue(report.valid, report.to_dict())
 
     def test_duplicate_spot_id_is_rejected(self) -> None:
         self.calibration["spots"][1]["spot_id"] = 0

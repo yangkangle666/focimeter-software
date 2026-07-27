@@ -14,6 +14,10 @@
   "quality": {
     "is_usable": true,
     "confidence": 0.89,
+    "validation_status": "software_verified",
+    "matched_spot_count": 5,
+    "fit_rmse": 0.0,
+    "condition_number": 1.0,
     "warnings": [
       "MOCK_DATA_ONLY",
       "mock_result_for_interface_test_only",

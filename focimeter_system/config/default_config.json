@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "config_name": "default_config",
   "camera": {
-    "notes": "SIMULATION_ONLY: 初步直接使用网络公开工业書机参数，但作为秬一阶段开发模拟。全部标寸为模拟值，硬件后提供真实硬件参数后替换。",
+    "notes": "SIMULATION_ONLY: 使用公开工业相机参数作为第一阶段开发模拟值；真实硬件参数到位后必须替换。",
     "pixel_size_um": 4.8,
     "image_width": 1280,
     "image_height": 1024,
@@ -27,7 +27,8 @@
     "max_depth": 2
   },
   "recognition": {
-    "expected_spot_count": 5,
+    "expected_spot_count": "AUTO",
+    "min_spot_count": 4,
     "min_confidence": 0.7
   },
   "calculation": {
@@ -41,10 +42,10 @@
   },
   "light_source": {
     "type": "green_led",
-    "notes": "TEMP_PARAMETER: 网站公开工业相机参数（以下具体沢长、功率、亮量稳定性待确件组提供）。以都标注为临时参数，硬件后揠换。"
+    "notes": "TEMP_PARAMETER: 绿光 LED。具体波长、功率、亮度稳定性等待硬件组提供；当前不用于计量验证。"
   },
   "measurement_range": {
-    "notes": "REFERENCE_ONLY: 以下范围參考宁波法里奥 FL-8600/FL-800 竹品指标，仅用于代码范围校檌，不作为项目正式测量目标。最终指标以甲方诊程/项目验收要求为准。",
+    "notes": "REFERENCE_ONLY: 以下范围参考宁波法里奥 FL-8600/FL-800 竞品指标，仅用于代码范围校验，不作为项目正式测量目标。最终指标以甲方/课程/项目验收要求为准。",
     "sphere_diopter_min": -25,
     "sphere_diopter_max": 25,
     "cylinder_diopter_min": -10,

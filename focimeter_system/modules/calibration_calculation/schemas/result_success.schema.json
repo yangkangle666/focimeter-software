@@ -57,10 +57,14 @@
     "quality": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["is_usable", "confidence", "warnings"],
+      "required": ["is_usable", "confidence", "validation_status", "matched_spot_count", "fit_rmse", "condition_number", "warnings"],
       "properties": {
         "is_usable": {"type": "boolean"},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "validation_status": {"enum": ["simulation_only", "software_verified", "metrology_validated"]},
+        "matched_spot_count": {"type": "integer", "minimum": 0},
+        "fit_rmse": {"type": "number", "minimum": 0},
+        "condition_number": {"type": "number", "minimum": 1},
         "warnings": {"type": "array", "items": {"type": "string"}}
       }
     },
