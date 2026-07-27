@@ -21,17 +21,16 @@ class M1ContractTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / "data/samples/calibration").mkdir(parents=True)
         (self.root / "data/samples/measurement").mkdir(parents=True)
+        (self.root / "data/calibration").mkdir(parents=True)
         (self.root / "config").mkdir()
         (self.root / "data/samples/calibration/calib_mock_001.jpg").write_bytes(b"calibration")
         (self.root / "data/samples/measurement/meas_mock_001.jpg").write_bytes(b"measurement")
-        # Task 2 profile validation is not enabled yet; baseline M1 tests use
-        # the legacy shape while the committed default profile is tested directly.
-        config = json.loads((PROJECT_ROOT / "config/legacy_five_spot_config.json").read_text(encoding="utf-8"))
-        config["config_name"] = "default_config"
-        config["recognition"].pop("spot_count_mode")
-        config.pop("data_profile")
-        config.pop("calibration_reference")
+        config = self.default_config()
         (self.root / "config/default_config.json").write_text(json.dumps(config), encoding="utf-8")
+        (self.root / "data/calibration/simulation_calibration.json").write_text(
+            json.dumps(self.simulation_calibration()),
+            encoding="utf-8",
+        )
 
     def tearDown(self):
         self.temp.cleanup()
@@ -51,6 +50,11 @@ class M1ContractTests(unittest.TestCase):
             (PROJECT_ROOT / "data/calibration/simulation_calibration.json").read_text(encoding="utf-8")
         )
 
+    def write_config(self, config, name="default_config.json"):
+        path = self.root / "config" / name
+        path.write_text(json.dumps(config), encoding="utf-8")
+        return path
+
     def test_output_matches_v1_envelope(self):
         result = run_m1(self.request(), self.root)
         self.assertEqual(result["status"], "ok")
@@ -63,6 +67,52 @@ class M1ContractTests(unittest.TestCase):
             "SOFTWARE_INTEGRATION_ONLY: 仅表示路径和 JSON 契约可用于软件联调，不代表真实计量验证完成。",
             result["quality"]["warnings"],
         )
+
+    def test_multispot_package_reports_provenance_and_calibration_warnings(self):
+        result = run_m1(self.request("multispot_package"), self.root)
+        self.assertEqual(result["status"], "ok")
+        self.assertIn("DATA_SOURCE: synthetic", result["quality"]["warnings"])
+        self.assertIn("VALIDATION_STATUS: simulation_only", result["quality"]["warnings"])
+        self.assertIn(
+            "HARDWARE_PARAMETERS_UNCONFIRMED: calibration.parameters",
+            result["quality"]["warnings"],
+        )
+        self.assertIn(
+            "CALIBRATION_PARAMETER_PENDING: parameters.hartmann_spacing_mm",
+            result["quality"]["warnings"],
+        )
+
+    def test_missing_referenced_calibration_returns_config_not_found(self):
+        config = self.default_config()
+        config["calibration_reference"]["calibration_file"] = "data/calibration/missing.json"
+        self.write_config(config)
+        result = run_m1(self.request("missing_calibration"), self.root)
+        self.assertEqual(result["error"]["code"], "CONFIG_NOT_FOUND")
+        self.assertEqual(result["error"]["details"]["missing_field"], "calibration_file")
+
+    def test_legacy_five_spot_package_has_compatibility_warning(self):
+        config = json.loads(
+            (PROJECT_ROOT / "config/legacy_five_spot_config.json").read_text(encoding="utf-8")
+        )
+        self.write_config(config, "legacy_five_spot_config.json")
+        request = self.request("legacy_five_spot")
+        request["request"]["config_path"] = "config/legacy_five_spot_config.json"
+        result = run_m1(request, self.root)
+        self.assertEqual(result["status"], "ok")
+        self.assertIn(
+            "LEGACY_FIVE_SPOT_COMPATIBILITY: 仅用于旧接口兼容测试，不是 LM700 / Hartmann 正式算法目标。",
+            result["quality"]["warnings"],
+        )
+
+    def test_log_hashes_referenced_calibration_file(self):
+        task_id = "calibration_hash"
+        result = run_m1(self.request(task_id), self.root)
+        self.assertEqual(result["status"], "ok")
+        log = json.loads(
+            (self.root / f"outputs/logs/{task_id}_input_config.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("calibration_file", log["sha256"])
+        self.assertIn("data/calibration/simulation_calibration.json", log["input_files"])
 
     def test_default_config_declares_simulated_camera_green_light_and_coordinate_system(self):
         config = json.loads((PROJECT_ROOT / "config/default_config.json").read_text(encoding="utf-8"))

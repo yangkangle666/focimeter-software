@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
+from .calibration import validate_calibration
 from .errors import CONFIG_INVALID, CONFIG_NOT_FOUND, IMAGE_NOT_FOUND, INPUT_INVALID, M1Failure, TASK_CONFLICT, UNKNOWN_ERROR
 from .paths import canonical_root, relative_path, resolve_relative_file, safe_task_id
 from .validation import validate_config
@@ -18,6 +19,9 @@ MODULE = "m1_input_config"
 SHANGHAI = timezone(timedelta(hours=8))
 SOFTWARE_INTEGRATION_WARNING = (
     "SOFTWARE_INTEGRATION_ONLY: 仅表示路径和 JSON 契约可用于软件联调，不代表真实计量验证完成。"
+)
+LEGACY_FIVE_SPOT_WARNING = (
+    "LEGACY_FIVE_SPOT_COMPATIBILITY: 仅用于旧接口兼容测试，不是 LM700 / Hartmann 正式算法目标。"
 )
 
 
@@ -131,6 +135,33 @@ def build_input_package(request: Mapping[str, Any], project_root) -> dict:
     warnings, error = validate_config(config)
     if error:
         raise error
+
+    calibration_path = None
+    reference = config.get("calibration_reference")
+    if reference:
+        calibration_path = resolve_relative_file(
+            root,
+            reference["calibration_file"],
+            CONFIG_NOT_FOUND,
+            "calibration_file",
+        )
+        calibration_data = _read_json(calibration_path)
+        calibration_warnings, calibration_error = validate_calibration(calibration_data, config)
+        if calibration_error:
+            raise calibration_error
+        warnings.extend(calibration_warnings)
+
+    profile = config.get("data_profile")
+    if profile:
+        warnings.extend([
+            f"DATA_SOURCE: {profile['data_source']}",
+            f"VALIDATION_STATUS: {profile['validation_status']}",
+        ])
+        if not profile["hardware_parameters_confirmed"]:
+            warnings.append("HARDWARE_PARAMETERS_UNCONFIRMED: calibration.parameters")
+    recognition = config["recognition"]
+    if recognition.get("spot_count_mode") == "fixed" and recognition.get("expected_spot_count") == 5:
+        warnings.append(LEGACY_FIVE_SPOT_WARNING)
     warnings.append(SOFTWARE_INTEGRATION_WARNING)
 
     task_id = request["task_id"]
@@ -138,6 +169,8 @@ def build_input_package(request: Mapping[str, Any], project_root) -> dict:
     package_path = result_dir / "input_package.json"
     log_path = root / "outputs/logs" / f"{task_id}_input_config.json"
     hashes = {"calibration_image": _sha256(calibration), "measurement_image": _sha256(measurement), "config": _sha256(config_path)}
+    if calibration_path is not None:
+        hashes["calibration_file"] = _sha256(calibration_path)
     if package_path.exists() or log_path.exists():
         raise M1Failure(TASK_CONFLICT, "任务编号已存在，不能覆盖已有 input_package.json。")
 
@@ -161,7 +194,8 @@ def build_input_package(request: Mapping[str, Any], project_root) -> dict:
         _atomic_json(package_path, output)
         log = {
             "schema_version": "1.0", "task_id": task_id, "module": MODULE, "status": "ok",
-            "input_files": [data_output["calibration_image"], data_output["measurement_image"], data_output["config_path"]],
+            "input_files": [data_output["calibration_image"], data_output["measurement_image"], data_output["config_path"]]
+            + ([relative_path(root, calibration_path)] if calibration_path is not None else []),
             "output_files": [relative_path(root, package_path), relative_path(root, log_path)],
             "warnings": warnings, "sha256": hashes, "error": None,
         }
