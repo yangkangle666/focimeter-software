@@ -11,25 +11,45 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
-const stageOneFiveSpotPreset = {
+const multispotSimulationPreset = {
+  calibration: "data/synthetic/generated_images/hartmann_reference.png",
+  measurement: "data/synthetic/generated_images/hartmann_measurement.png",
+  config: "config/default_config.json",
+};
+
+const legacyFiveSpotPreset = {
   calibration: "data/samples/calibration/calib_mock_001.jpg",
   measurement: "data/samples/measurement/meas_mock_001.jpg",
-  config: "config/default_config.json",
+  config: "config/legacy_five_spot_config.json",
 };
 
 const configLabels = {
   camera: "相机",
+  camera_simulation: "相机模拟参数",
   optical: "光学",
   image_processing: "图像处理",
   recognition: "光斑识别",
   calculation: "计算单位",
   path_policy: "路径策略",
+  coordinate_system: "坐标系",
+  illumination: "照明光源",
+  hartmann_calibration: "哈特曼像素标定",
+  measurement_targets: "FL-800 测量目标",
+  data_profile: "数据与验证状态",
+  calibration_reference: "标定参数引用",
 };
 
 const configFieldLabels = {
-  pixel_size_um: { label: "像素尺寸", hint: "相机单个像素的物理尺寸", unit: "μm" },
-  image_width: { label: "图像宽度", hint: "图像横向像素数，待确认", unit: "pixel" },
-  image_height: { label: "图像高度", hint: "图像纵向像素数，待确认", unit: "pixel" },
+  pixel_size_um: { label: "像素尺寸", hint: "工业相机参考模拟值，后续由硬件参数替换", unit: "μm" },
+  image_width: { label: "图像宽度", hint: "工业相机参考模拟值，后续由硬件参数替换", unit: "pixel" },
+  image_height: { label: "图像高度", hint: "工业相机参考模拟值，后续由硬件参数替换", unit: "pixel" },
+  parameter_status: { label: "参数状态", hint: "当前相机参数为软件模拟值", options: { simulated: "simulated · 模拟值", measured: "measured · 实测值" } },
+  color_mode: { label: "成像模式", hint: "离线图片按黑白相机处理", options: { mono: "mono · 黑白" } },
+  bit_depth: { label: "位深", hint: "模拟相机灰度位深", unit: "bit" },
+  exposure_min_ms: { label: "最小曝光时间", hint: "模拟相机曝光范围下限", unit: "ms" },
+  exposure_max_ms: { label: "最大曝光时间", hint: "模拟相机曝光范围上限", unit: "ms" },
+  image_plane_width_mm: { label: "像面宽度", hint: "参考工业相机像面尺寸模拟值", unit: "mm" },
+  image_plane_height_mm: { label: "像面高度", hint: "参考工业相机像面尺寸模拟值", unit: "mm" },
   distance_m: { label: "光学传播距离", hint: "Hartmann 阵列到传感器的距离", unit: "m" },
   hartmann_spacing_mm: { label: "Hartmann 点阵间距", hint: "点阵间距，待确认", unit: "mm" },
   roi_width_ratio: { label: "ROI 宽度比例", hint: "图像横向保留区域", unit: "比例" },
@@ -39,6 +59,7 @@ const configFieldLabels = {
   otsu_a: { label: "Otsu 下阈值", hint: "归一化阈值下界", unit: "0–1" },
   otsu_b: { label: "Otsu 上阈值", hint: "归一化阈值上界", unit: "0–1" },
   max_depth: { label: "最大处理深度", hint: "图像处理允许的深度", unit: "层" },
+  spot_count_mode: { label: "光斑数量模式", hint: "正式多光斑使用自动检测，五光斑仅用于兼容", options: { auto: "auto · 自动检测", fixed: "fixed · 固定数量" } },
   expected_spot_count: { label: "期望光斑数量", hint: "标准点阵中的光斑数量", unit: "个" },
   min_confidence: { label: "最低识别置信度", hint: "低于此值的识别结果会被关注", unit: "0–1" },
   pixel_threshold: { label: "像素位移阈值", hint: "允许的最小像素变化", unit: "pixel" },
@@ -46,6 +67,44 @@ const configFieldLabels = {
   diopter_unit: { label: "屈光度单位", hint: "接口固定使用 D", options: { D: "D · 屈光度" } },
   path_type: { label: "路径类型", hint: "所有输入路径相对于项目根目录", options: { relative_to_project_root: "项目根目录相对路径" } },
   allow_absolute_path: { label: "允许绝对路径", hint: "为保护项目边界，必须关闭" },
+  coordinate_type: { label: "坐标类型", hint: "项目统一接口使用笛卡尔坐标", options: { cartesian: "cartesian · 笛卡尔" } },
+  origin: { label: "坐标原点", hint: "图像坐标原点位置", options: { top_left: "top_left · 左上角" } },
+  x_positive: { label: "X 正方向", hint: "图像横向正方向", options: { right: "right · 向右" } },
+  y_positive: { label: "Y 正方向", hint: "图像纵向正方向", options: { down: "down · 向下" } },
+  y_flip: { label: "Y 轴翻转", hint: "硬件坐标尚待确认，当前不翻转" },
+  confirmation_status: { label: "硬件确认状态", hint: "坐标定义等待硬件最终确认", options: { pending_hardware: "pending_hardware · 待硬件确认", confirmed: "confirmed · 已确认" } },
+  source_color: { label: "光源颜色", hint: "本次设备配置使用绿光，具体波长待硬件提供", options: { green_led: "green_led · 绿光 LED", green: "green · 绿光（兼容）" } },
+  wavelength_nm: { label: "绿光波长", hint: "未提供具体波长，暂时待确认", unit: "nm" },
+  spacing_source: { label: "哈特曼间距来源", hint: "通过相机检测到的光斑像素间距换算", options: { camera_pixel_spacing: "相机光斑像素间距" } },
+  spot_spacing_px: { label: "光斑像素间距", hint: "由 M2 检测相邻光斑中心距离后填写", unit: "pixel" },
+  spacing_formula: { label: "像素换算公式", hint: "像素间距 × 像素尺寸 ÷ 1000 得到毫米" },
+  sphere_min_d: { label: "球镜最小值", unit: "D" },
+  sphere_max_d: { label: "球镜最大值", unit: "D" },
+  sphere_steps_d: { label: "球镜可选步长", unit: "D" },
+  cylinder_min_d: { label: "柱镜最小值", unit: "D" },
+  cylinder_max_d: { label: "柱镜最大值", unit: "D" },
+  cylinder_steps_d: { label: "柱镜可选步长", unit: "D" },
+  prism_min_delta: { label: "棱镜最小值", unit: "△" },
+  prism_max_delta: { label: "棱镜最大值", unit: "△" },
+  prism_step_delta: { label: "棱镜步长", unit: "△" },
+  axis_min_degree: { label: "轴向最小值", unit: "degree" },
+  axis_max_degree: { label: "轴向最大值", unit: "degree" },
+  axis_step_degree: { label: "轴向步长", unit: "degree" },
+  addition_min_d: { label: "下加度最小值", unit: "D" },
+  addition_max_d: { label: "下加度最大值", unit: "D" },
+  addition_steps_d: { label: "下加度可选步长", unit: "D" },
+  uv_min_percent: { label: "UV 透过率最小值", unit: "%" },
+  uv_max_percent: { label: "UV 透过率最大值", unit: "%" },
+  uv_steps_percent: { label: "UV 透过率可选步长", unit: "%" },
+  data_source: { label: "数据来源", hint: "区分合成、接口模拟和真实硬件数据", options: { synthetic: "synthetic · 合成数据", mock: "mock · 接口模拟", real: "real · 真实硬件" } },
+  validation_status: { label: "验证状态", hint: "当前输出达到的验证等级", options: { simulation_only: "simulation_only · 仅模拟", software_verified: "software_verified · 软件验证", metrology_validated: "metrology_validated · 计量验证" } },
+  hardware_parameters_confirmed: { label: "硬件参数已确认", hint: "只有真实硬件参数完成确认后才能开启" },
+  calibration_file: { label: "标定文件", hint: "将随 M1 → M2 联调包一起打包" },
+  calibration_version: { label: "标定版本", hint: "必须与标定文件中的版本一致" },
+};
+
+const sectionFieldLabels = {
+  "calibration_reference.parameter_status": { label: "参数状态", hint: "simulated 为模拟值，measured 为实测值", options: { simulated: "simulated · 模拟值", measured: "measured · 实测值" } },
 };
 
 function createTaskId() {
@@ -74,8 +133,9 @@ async function initialize() {
     state.config = structuredClone(state.bootstrap.default_config);
     state.configPath = "config/default_config.json";
     $("#config-existing").value = state.configPath;
-    updateStageOnePresetAvailability();
+    updatePresetAvailability();
     renderConfigFields();
+    renderValidationState();
     renderRecentTasks();
     updateMirror();
   } catch (error) {
@@ -99,7 +159,8 @@ function bindEvents() {
   $("#config-upload").addEventListener("change", (event) => uploadFile("config", event.target.files[0]));
   $("#run-m1").addEventListener("click", runM1);
   $("#new-task").addEventListener("click", resetTask);
-  $("#stage-one-five-spot").addEventListener("click", prepareStageOneFiveSpot);
+  $("#multispot-simulation").addEventListener("click", prepareMultispotSimulation);
+  $("#legacy-five-spot").addEventListener("click", prepareStageOneFiveSpot);
   $("#download-bundle").addEventListener("click", downloadBundle);
   $("#copy-bundle-note").addEventListener("click", copyBundleNote);
   $$(".tab").forEach((tab) => tab.addEventListener("click", () => selectTab(tab.dataset.tab)));
@@ -110,30 +171,39 @@ function populateSelect(selector, values, placeholder) {
   select.replaceChildren(new Option(placeholder, ""), ...values.map((value) => new Option(value, value)));
 }
 
-function updateStageOnePresetAvailability() {
-  const button = $("#stage-one-five-spot");
-  const calibrationReady = state.bootstrap.files.calibration.includes(stageOneFiveSpotPreset.calibration);
-  const measurementReady = state.bootstrap.files.measurement.includes(stageOneFiveSpotPreset.measurement);
-  button.disabled = !(calibrationReady && measurementReady);
-  button.title = button.disabled ? "项目中缺少第一阶段五光斑 mock 图片" : "自动填充第一阶段联调输入";
+function presetReady(preset) {
+  return state.bootstrap.files.calibration.includes(preset.calibration)
+    && state.bootstrap.files.measurement.includes(preset.measurement)
+    && state.bootstrap.files.config.includes(preset.config);
 }
 
-function prepareStageOneFiveSpot() {
-  const calibrationReady = state.bootstrap?.files.calibration.includes(stageOneFiveSpotPreset.calibration);
-  const measurementReady = state.bootstrap?.files.measurement.includes(stageOneFiveSpotPreset.measurement);
-  if (!calibrationReady || !measurementReady) {
-    return showMessage("缺少第一阶段五光斑 mock 图片，无法准备联调任务。");
-  }
+function updatePresetAvailability() {
+  const multispot = $("#multispot-simulation");
+  const legacy = $("#legacy-five-spot");
+  multispot.disabled = !presetReady(multispotSimulationPreset);
+  legacy.disabled = !presetReady(legacyFiveSpotPreset);
+  multispot.title = multispot.disabled ? "项目中缺少多光斑模拟输入或配置" : "自动填充 LM700 / Hartmann 多光斑联调输入";
+  legacy.title = legacy.disabled ? "项目中缺少五光斑兼容输入或配置" : "自动填充历史五光斑兼容输入";
+}
+
+async function readConfig(path) {
+  const response = await fetch(`/api/file?${new URLSearchParams({ path })}`);
+  if (!response.ok) throw new Error("无法读取配置文件。");
+  return response.json();
+}
+
+async function applyPreset(preset, notes) {
+  if (!state.bootstrap || !presetReady(preset)) throw new Error("联调预设引用的文件不完整。");
+  const config = await readConfig(preset.config);
 
   state.result = null;
-  state.calibration = stageOneFiveSpotPreset.calibration;
-  state.measurement = stageOneFiveSpotPreset.measurement;
-  state.config = structuredClone(state.bootstrap.default_config);
-  state.config.recognition.expected_spot_count = 5;
-  state.configPath = stageOneFiveSpotPreset.config;
+  state.calibration = preset.calibration;
+  state.measurement = preset.measurement;
+  state.config = config;
+  state.configPath = preset.config;
 
   $("#task-id").value = createTaskId();
-  $("#notes").value = "第一阶段五光斑软件联调；不代表真实计量验证完成。";
+  $("#notes").value = notes;
   $("#calibration-existing").value = state.calibration;
   $("#measurement-existing").value = state.measurement;
   $("#config-existing").value = state.configPath;
@@ -141,9 +211,39 @@ function prepareStageOneFiveSpot() {
   $("#measurement-current").textContent = state.measurement;
   updateBundleActions(null);
   renderConfigFields();
+  renderValidationState();
   updateMirror();
   goToStep(5, true);
-  showMessage("五光斑联调输入已填充，请确认后运行 M1。", "success");
+}
+
+async function prepareMultispotSimulation() {
+  try {
+    await applyPreset(
+      multispotSimulationPreset,
+      "LM700 / Hartmann 多光斑软件联调；使用合成图和模拟参数，不代表真实计量验证完成。",
+    );
+    state.config.recognition.spot_count_mode = "auto";
+    state.config.recognition.expected_spot_count = null;
+    renderConfigFields();
+    showMessage("多光斑模拟输入已填充，请确认后运行 M1。", "success");
+  } catch (error) {
+    showMessage(error.message);
+  }
+}
+
+async function prepareStageOneFiveSpot() {
+  try {
+    await applyPreset(
+      legacyFiveSpotPreset,
+      "第一阶段五光斑兼容联调；仅用于旧接口测试，不代表真实计量验证完成。",
+    );
+    state.config.recognition.spot_count_mode = "fixed";
+    state.config.recognition.expected_spot_count = 5;
+    renderConfigFields();
+    showMessage("五光斑兼容输入已填充，请确认后运行 M1。", "success");
+  } catch (error) {
+    showMessage(error.message);
+  }
 }
 
 function validateStep(step) {
@@ -221,11 +321,10 @@ function addOption(selector, value) {
 async function loadConfig(path) {
   if (!path) return;
   try {
-    const response = await fetch(`/api/file?${new URLSearchParams({ path })}`);
-    if (!response.ok) throw new Error("无法读取配置文件。");
-    state.config = await response.json();
+    state.config = await readConfig(path);
     state.configPath = path;
     renderConfigFields();
+    renderValidationState();
     updateMirror();
     hideMessage();
   } catch (error) {
@@ -245,7 +344,7 @@ function renderConfigFields() {
     Object.entries(values).forEach(([key, value]) => {
       const label = document.createElement("label");
       label.className = "field";
-      const metadata = configFieldLabels[key] || { label: key, hint: "原始配置字段" };
+      const metadata = sectionFieldLabels[`${section}.${key}`] || configFieldLabels[key] || { label: key, hint: "原始配置字段" };
       const input = document.createElement(metadata.options || value === true || value === false ? "select" : "input");
       input.dataset.section = section;
       input.dataset.key = key;
@@ -256,7 +355,7 @@ function renderConfigFields() {
       } else {
         input.type = typeof value === "number" || value === null ? "number" : "text";
         input.step = "any";
-        input.value = value ?? "";
+        input.value = Array.isArray(value) ? value.join(", ") : value ?? "";
         if (value === null) input.placeholder = "待确认";
       }
       input.addEventListener("change", updateConfigValue);
@@ -281,8 +380,10 @@ function updateConfigValue(event) {
   const original = state.config[section][key];
   let value = event.target.value;
   if (typeof original === "boolean") value = value === "true";
+  else if (Array.isArray(original)) value = value.split(",").map((item) => Number(item.trim())).filter(Number.isFinite);
   else if (typeof original === "number" || original === null) value = value === "" ? null : Number(value);
   state.config[section][key] = value;
+  renderValidationState();
   updateMirror();
 }
 
@@ -339,8 +440,29 @@ function renderResult(response) {
   } else {
     $("#result-summary").innerHTML = `<div class="summary-line error">${escapeHtml(result.error?.message || "运行失败。")}</div>`;
   }
+  renderValidationState();
   updateBundleActions(response);
   selectTab("result");
+}
+
+function setBadge(selector, label, stateName) {
+  const badge = $(selector);
+  badge.textContent = label;
+  badge.className = `validation-badge ${stateName}`;
+}
+
+function renderValidationState() {
+  const profile = state.config?.data_profile || {};
+  const source = profile.data_source || "legacy";
+  const validation = profile.validation_status || "undeclared";
+  const confirmed = profile.hardware_parameters_confirmed === true;
+  setBadge("#data-source-badge", `数据来源 · ${source}`, source);
+  setBadge("#validation-status-badge", `验证状态 · ${validation}`, validation);
+  setBadge(
+    "#hardware-status-badge",
+    confirmed ? "硬件参数 · 已确认" : "硬件参数 · 待确认",
+    confirmed ? "confirmed" : "pending",
+  );
 }
 
 function bundleTaskId(response = state.result) {
@@ -483,6 +605,7 @@ function resetTask() {
   $("#measurement-current").textContent = "尚未选择";
   updateBundleActions(null);
   renderConfigFields();
+  renderValidationState();
   goToStep(1);
 }
 

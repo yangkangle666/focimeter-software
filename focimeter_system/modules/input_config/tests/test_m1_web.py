@@ -342,16 +342,35 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("function downloadBundle", script)
         self.assertIn("function copyBundleNote", script)
 
-    def test_page_can_prepare_stage_one_five_spot_bundle(self):
+    def test_page_promotes_multispot_and_marks_five_spot_as_legacy(self):
         html = (self.static / "index.html").read_text(encoding="utf-8")
         script = (self.static / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn('id="stage-one-five-spot"', html)
-        self.assertIn("第一阶段五光斑联调包", html)
-        self.assertIn("data/samples/calibration/calib_mock_001.jpg", script)
-        self.assertIn("data/samples/measurement/meas_mock_001.jpg", script)
-        self.assertIn("function prepareStageOneFiveSpot", script)
-        self.assertIn("state.config.recognition.expected_spot_count = 5", script)
+        self.assertIn('id="multispot-simulation"', html)
+        self.assertIn("LM700 / Hartmann 多光斑模拟联调", html)
+        self.assertIn('id="legacy-five-spot"', html)
+        self.assertIn("历史兼容测试", html)
+        self.assertIn("hartmann_reference.png", script)
+        self.assertIn("spot_count_mode = \"auto\"", script)
+        self.assertIn("expected_spot_count = null", script)
+        self.assertIn("legacy_five_spot_config.json", script)
+
+    def test_step_four_exposes_provenance_and_calibration_labels(self):
+        script = (self.static / "app.js").read_text(encoding="utf-8")
+
+        for label in (
+            "数据来源", "验证状态", "硬件参数已确认", "光斑数量模式",
+            "标定文件", "标定版本", "参数状态",
+        ):
+            self.assertIn(label, script)
+
+    def test_result_page_has_validation_state_badges(self):
+        html = (self.static / "index.html").read_text(encoding="utf-8")
+
+        for element_id in (
+            "data-source-badge", "validation-status-badge", "hardware-status-badge",
+        ):
+            self.assertIn(f'id="{element_id}"', html)
 
 
 if __name__ == "__main__":

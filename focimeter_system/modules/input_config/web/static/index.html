@@ -37,14 +37,24 @@
         <div class="panel-kicker">任务起点</div>
         <h1 id="step-1-title">建立本次测量记录</h1>
         <p class="lead">任务编号用于隔离输出，成功运行后不会覆盖。</p>
-        <section class="stage-one-preset" aria-labelledby="stage-one-title">
-          <div class="five-spot-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="stage-one-copy">
-            <span>Phase 01 · Mock contract</span>
-            <strong id="stage-one-title">第一阶段五光斑联调包</strong>
-            <p>自动使用五光斑标定图、测量图和 expected_spot_count=5，仅用于 M1 → M2 软件联调。</p>
+        <section class="profile-selector" aria-label="联调模式">
+          <div class="multispot-profile">
+            <div class="hartmann-mark" aria-hidden="true"></div>
+            <div class="profile-copy">
+              <span>默认方案 · 177 个模拟光斑</span>
+              <strong>LM700 / Hartmann 多光斑模拟联调</strong>
+              <p>自动装入参考阵列、空间位移测量图、绿光模拟配置和可替换标定参数。</p>
+            </div>
+            <button id="multispot-simulation" class="primary" type="button" disabled>准备多光斑任务</button>
           </div>
-          <button id="stage-one-five-spot" class="secondary" type="button" disabled>准备五光斑任务 →</button>
+          <div class="legacy-profile">
+            <div>
+              <span class="compatibility-label">兼容入口</span>
+              <strong>第一阶段五光斑</strong>
+              <small>历史兼容测试，仅用于旧接口联调</small>
+            </div>
+            <button id="legacy-five-spot" class="secondary" type="button" disabled>使用五光斑</button>
+          </div>
         </section>
         <div class="form-grid two">
           <label class="field"><span>任务编号</span><input id="task-id" autocomplete="off" maxlength="64"><small>字母、数字、下划线或短横线</small></label>
@@ -109,12 +119,17 @@
           <div><div class="panel-kicker">运行完成</div><h1 id="step-6-title">结果与日志</h1></div>
           <span id="result-status" class="result-status neutral">等待运行</span>
         </div>
+        <div class="validation-badges" aria-label="联调验证状态">
+          <span id="data-source-badge" class="validation-badge neutral">数据来源 · 未声明</span>
+          <span id="validation-status-badge" class="validation-badge neutral">验证状态 · 未声明</span>
+          <span id="hardware-status-badge" class="validation-badge pending">硬件参数 · 待确认</span>
+        </div>
         <div id="result-summary" class="result-summary"></div>
         <section id="bundle-summary" class="bundle-summary" hidden aria-live="polite">
           <div class="bundle-copy">
             <div class="bundle-kicker">M1 → M2 交付包</div>
             <strong>完整文件包已准备</strong>
-            <p>包含输入 JSON、标定图、测量图、配置文件和使用说明。</p>
+            <p>包含输入 JSON、标定图、测量图、配置文件、标定参数和使用说明。</p>
             <span id="bundle-status" class="bundle-status">等待运行结果</span>
           </div>
           <div class="bundle-actions">
