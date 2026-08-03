@@ -136,6 +136,152 @@ bool requireExactKeys(
     return true;
 }
 
+bool requireAllowedKeys(
+    const Json& object,
+    const std::initializer_list<std::string_view> required_keys,
+    const std::initializer_list<std::string_view> allowed_keys,
+    ErrorInfo& error,
+    const std::string_view context) {
+    if (!object.is_object()) {
+        error = makeError("CONFIG_INVALID", "Configuration section must be a JSON object.", true);
+        error.string_details["field"] = std::string(context);
+        return false;
+    }
+    std::set<std::string> allowed;
+    for (const auto key : allowed_keys) {
+        allowed.emplace(key);
+    }
+    for (const auto& item : object.items()) {
+        if (allowed.find(item.key()) == allowed.end()) {
+            error = makeError("CONFIG_INVALID", "Configuration object contains an undeclared field.", true);
+            error.string_details["field"] = std::string(context) + "." + item.key();
+            return false;
+        }
+    }
+    for (const auto key : required_keys) {
+        if (!object.contains(std::string(key))) {
+            error = makeError("CONFIG_INVALID", "Required unified configuration field is missing.", true);
+            error.string_details["field"] = std::string(context) + "." + std::string(key);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool requireStringValue(
+    const Json& object,
+    const char* key,
+    const std::initializer_list<std::string_view> allowed_values,
+    ErrorInfo& error,
+    const std::string_view context) {
+    const auto iterator = object.find(key);
+    const std::string field = std::string(context) + "." + key;
+    if (iterator == object.end() || !iterator->is_string()) {
+        error = makeError("CONFIG_INVALID", "Configuration string field is missing or invalid.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    for (const auto allowed : allowed_values) {
+        if (iterator->get_ref<const std::string&>() == allowed) {
+            return true;
+        }
+    }
+    error = makeError("CONFIG_INVALID", "Configuration string field has an unsupported value.", true);
+    error.string_details["field"] = field;
+    return false;
+}
+
+bool requireBooleanValue(
+    const Json& object,
+    const char* key,
+    const bool expected,
+    ErrorInfo& error,
+    const std::string_view context) {
+    const auto iterator = object.find(key);
+    const std::string field = std::string(context) + "." + key;
+    if (iterator == object.end() || !iterator->is_boolean() || iterator->get<bool>() != expected) {
+        error = makeError("CONFIG_INVALID", "Configuration boolean field has an invalid value.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    return true;
+}
+
+bool requireBoolean(
+    const Json& object,
+    const char* key,
+    ErrorInfo& error,
+    const std::string_view context) {
+    const auto iterator = object.find(key);
+    const std::string field = std::string(context) + "." + key;
+    if (iterator == object.end() || !iterator->is_boolean()) {
+        error = makeError("CONFIG_INVALID", "Configuration boolean field is missing or invalid.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    return true;
+}
+
+bool requireNullablePositiveNumber(
+    const Json& object,
+    const char* key,
+    ErrorInfo& error,
+    const std::string_view context) {
+    const auto iterator = object.find(key);
+    const std::string field = std::string(context) + "." + key;
+    if (iterator == object.end() || iterator->is_string() ||
+        (!iterator->is_null() && !iterator->is_number())) {
+        error = makeError("CONFIG_INVALID", "Configuration value must be a positive number or null.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    if (!iterator->is_null() &&
+        (!std::isfinite(iterator->get<double>()) || iterator->get<double>() <= 0.0)) {
+        error = makeError("CONFIG_INVALID", "Configuration value must be finite and positive.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    return true;
+}
+
+bool requirePositiveNumber(
+    const Json& object,
+    const char* key,
+    ErrorInfo& error,
+    const std::string_view context) {
+    const auto iterator = object.find(key);
+    const std::string field = std::string(context) + "." + key;
+    if (iterator == object.end() || !iterator->is_number() ||
+        !std::isfinite(iterator->get<double>()) || iterator->get<double>() <= 0.0) {
+        error = makeError("CONFIG_INVALID", "Configuration value must be finite and positive.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    return true;
+}
+
+bool requireNumberArray(
+    const Json& object,
+    const char* key,
+    ErrorInfo& error,
+    const std::string_view context) {
+    const auto iterator = object.find(key);
+    const std::string field = std::string(context) + "." + key;
+    if (iterator == object.end() || !iterator->is_array() || iterator->empty()) {
+        error = makeError("CONFIG_INVALID", "Configuration field must be a non-empty number array.", true);
+        error.string_details["field"] = field;
+        return false;
+    }
+    for (const auto& item : *iterator) {
+        if (!item.is_number() || !std::isfinite(item.get<double>()) || item.get<double>() <= 0.0) {
+            error = makeError("CONFIG_INVALID", "Configuration array values must be finite and positive.", true);
+            error.string_details["field"] = field;
+            return false;
+        }
+    }
+    return true;
+}
+
 bool requirePositiveOrUnknown(
     const Json& object,
     const char* key,
@@ -375,9 +521,10 @@ bool readProcessingConfig(
     }
 
     std::string schema_version;
-    if (!requireExactKeys(
+    if (!requireAllowedKeys(
             root,
             {"schema_version", "config_name", "camera", "optical", "image_processing", "recognition", "calculation", "path_policy"},
+            {"schema_version", "config_name", "camera", "camera_simulation", "optical", "image_processing", "recognition", "calculation", "path_policy", "illumination", "coordinate_system", "hartmann_calibration", "measurement_targets", "data_profile", "calibration_reference"},
             error,
             "root") ||
         !requireString(root, "schema_version", schema_version, error, "root", "CONFIG_INVALID") ||
@@ -420,7 +567,6 @@ bool readProcessingConfig(
             {"roi_width_ratio", "roi_height_ratio", "median_kernel", "tophat_kernel", "otsu_a", "otsu_b", "max_depth"},
             error,
             "image_processing") ||
-        !requireExactKeys(recognition, {"expected_spot_count", "min_confidence"}, error, "recognition") ||
         !requireExactKeys(calculation, {"pixel_threshold", "angle_unit", "diopter_unit"}, error, "calculation") ||
         !requireExactKeys(path_policy, {"path_type", "allow_absolute_path"}, error, "path_policy") ||
         !requirePositiveOrUnknown(camera, "pixel_size_um", false, error, "camera") ||
@@ -433,15 +579,40 @@ bool readProcessingConfig(
         return false;
     }
 
-    if (!requireNumber(image, "roi_width_ratio", config.roi_width_ratio, error, "image_processing") ||
+    if (!requireAllowedKeys(
+            recognition,
+            {"expected_spot_count", "min_confidence"},
+            {"expected_spot_count", "min_confidence", "spot_count_mode"},
+            error,
+            "recognition") ||
+        !requireNumber(image, "roi_width_ratio", config.roi_width_ratio, error, "image_processing") ||
         !requireNumber(image, "roi_height_ratio", config.roi_height_ratio, error, "image_processing") ||
         !requireInteger(image, "median_kernel", config.median_kernel, error, "image_processing") ||
         !requireInteger(image, "tophat_kernel", config.tophat_kernel, error, "image_processing") ||
         !requireNumber(image, "otsu_a", config.otsu_a, error, "image_processing") ||
         !requireNumber(image, "otsu_b", config.otsu_b, error, "image_processing") ||
         !requireInteger(image, "max_depth", config.max_depth, error, "image_processing") ||
-        !requireInteger(recognition, "expected_spot_count", config.expected_spot_count, error, "recognition") ||
         !requireNumber(recognition, "min_confidence", config.min_confidence, error, "recognition")) {
+        return false;
+    }
+
+    const auto spot_count_mode = recognition.find("spot_count_mode");
+    const auto expected_spot_count = recognition.find("expected_spot_count");
+    if (spot_count_mode != recognition.end()) {
+        if (!requireStringValue(recognition, "spot_count_mode", {"auto", "fixed"}, error, "recognition")) {
+            return false;
+        }
+        if (spot_count_mode->get_ref<const std::string&>() == "auto") {
+            if (!expected_spot_count->is_null()) {
+                error = makeError("CONFIG_INVALID", "Automatic spot-count mode requires a null expected count.", true);
+                error.string_details["field"] = "recognition.expected_spot_count";
+                return false;
+            }
+            config.expected_spot_count = 5;
+        } else if (!requireInteger(recognition, "expected_spot_count", config.expected_spot_count, error, "recognition")) {
+            return false;
+        }
+    } else if (!requireInteger(recognition, "expected_spot_count", config.expected_spot_count, error, "recognition")) {
         return false;
     }
 
@@ -474,6 +645,155 @@ bool readProcessingConfig(
         allow_absolute == path_policy.end() || !allow_absolute->is_boolean() || allow_absolute->get<bool>()) {
         error = makeError("CONFIG_INVALID", "Unified calculation units or path policy are invalid.", true);
         return false;
+    }
+
+    const auto camera_simulation_iterator = root.find("camera_simulation");
+    if (camera_simulation_iterator != root.end()) {
+        const Json& simulation = *camera_simulation_iterator;
+        int bit_depth = 0;
+        if (!requireExactKeys(
+                simulation,
+                {"parameter_status", "color_mode", "bit_depth", "exposure_min_ms", "exposure_max_ms", "image_plane_width_mm", "image_plane_height_mm"},
+                error,
+                "camera_simulation") ||
+            !requireStringValue(simulation, "parameter_status", {"simulated", "measured"}, error, "camera_simulation") ||
+            !requireStringValue(simulation, "color_mode", {"mono"}, error, "camera_simulation") ||
+            !requireInteger(simulation, "bit_depth", bit_depth, error, "camera_simulation") ||
+            !requirePositiveNumber(simulation, "exposure_min_ms", error, "camera_simulation") ||
+            !requirePositiveNumber(simulation, "exposure_max_ms", error, "camera_simulation") ||
+            !requirePositiveNumber(simulation, "image_plane_width_mm", error, "camera_simulation") ||
+            !requirePositiveNumber(simulation, "image_plane_height_mm", error, "camera_simulation")) {
+            return false;
+        }
+        if (bit_depth != 8 ||
+            simulation.at("exposure_min_ms").get<double>() > simulation.at("exposure_max_ms").get<double>()) {
+            error = makeError("CONFIG_INVALID", "Camera simulation parameters are outside the supported range.", true);
+            error.string_details["field"] = "camera_simulation";
+            return false;
+        }
+        config.max_depth = image.at("max_depth").get<int>();
+    }
+
+    const auto illumination_iterator = root.find("illumination");
+    if (illumination_iterator != root.end()) {
+        const Json& illumination = *illumination_iterator;
+        if (!requireExactKeys(illumination, {"source_color", "wavelength_nm"}, error, "illumination") ||
+            !requireStringValue(illumination, "source_color", {"green", "green_led"}, error, "illumination") ||
+            !requireNullablePositiveNumber(illumination, "wavelength_nm", error, "illumination")) {
+            return false;
+        }
+    }
+
+    const auto coordinate_iterator = root.find("coordinate_system");
+    if (coordinate_iterator != root.end()) {
+        const Json& coordinate = *coordinate_iterator;
+        if (!requireExactKeys(
+                coordinate,
+                {"coordinate_type", "origin", "x_positive", "y_positive", "y_flip", "confirmation_status"},
+                error,
+                "coordinate_system") ||
+            !requireStringValue(coordinate, "coordinate_type", {"cartesian"}, error, "coordinate_system") ||
+            !requireStringValue(coordinate, "origin", {"top_left"}, error, "coordinate_system") ||
+            !requireStringValue(coordinate, "x_positive", {"right"}, error, "coordinate_system") ||
+            !requireStringValue(coordinate, "y_positive", {"down"}, error, "coordinate_system") ||
+            !requireBooleanValue(coordinate, "y_flip", false, error, "coordinate_system") ||
+            !requireStringValue(coordinate, "confirmation_status", {"pending_hardware", "confirmed"}, error, "coordinate_system")) {
+            return false;
+        }
+    }
+
+    const auto hartmann_iterator = root.find("hartmann_calibration");
+    if (hartmann_iterator != root.end()) {
+        const Json& hartmann = *hartmann_iterator;
+        if (!requireExactKeys(
+                hartmann,
+                {"spacing_source", "spot_spacing_px", "spacing_formula"},
+                error,
+                "hartmann_calibration") ||
+            !requireStringValue(hartmann, "spacing_source", {"camera_pixel_spacing"}, error, "hartmann_calibration") ||
+            !requireNullablePositiveNumber(hartmann, "spot_spacing_px", error, "hartmann_calibration") ||
+            !requireStringValue(
+                hartmann,
+                "spacing_formula",
+                {"spot_spacing_px * camera.pixel_size_um / 1000"},
+                error,
+                "hartmann_calibration")) {
+            return false;
+        }
+    }
+
+    const auto targets_iterator = root.find("measurement_targets");
+    if (targets_iterator != root.end()) {
+        const Json& targets = *targets_iterator;
+        if (!requireExactKeys(
+                targets,
+                {"sphere_min_d", "sphere_max_d", "sphere_steps_d", "cylinder_min_d", "cylinder_max_d", "cylinder_steps_d", "prism_min_delta", "prism_max_delta", "prism_step_delta", "axis_min_degree", "axis_max_degree", "axis_step_degree", "addition_min_d", "addition_max_d", "addition_steps_d", "uv_min_percent", "uv_max_percent", "uv_steps_percent"},
+                error,
+                "measurement_targets")) {
+            return false;
+        }
+        double target_number = 0.0;
+        for (const char* key : {"sphere_min_d", "sphere_max_d", "cylinder_min_d", "cylinder_max_d", "prism_min_delta", "prism_max_delta", "prism_step_delta", "axis_min_degree", "axis_max_degree", "axis_step_degree", "addition_min_d", "addition_max_d", "uv_min_percent", "uv_max_percent"}) {
+            if (!requireNumber(targets, key, target_number, error, "measurement_targets")) {
+                return false;
+            }
+        }
+        if (!requireNumberArray(targets, "sphere_steps_d", error, "measurement_targets") ||
+            !requireNumberArray(targets, "cylinder_steps_d", error, "measurement_targets") ||
+            !requireNumberArray(targets, "addition_steps_d", error, "measurement_targets") ||
+            !requireNumberArray(targets, "uv_steps_percent", error, "measurement_targets")) {
+            return false;
+        }
+        const auto range = [&targets](const char* low, const char* high) {
+            return targets.at(low).get<double>() <= targets.at(high).get<double>();
+        };
+        if (!range("sphere_min_d", "sphere_max_d") || !range("cylinder_min_d", "cylinder_max_d") ||
+            !range("prism_min_delta", "prism_max_delta") || !range("axis_min_degree", "axis_max_degree") ||
+            !range("addition_min_d", "addition_max_d") || !range("uv_min_percent", "uv_max_percent") ||
+            targets.at("axis_min_degree") != 0 || targets.at("axis_max_degree") != 180 ||
+            targets.at("prism_step_delta").get<double>() <= 0.0 ||
+            targets.at("axis_step_degree").get<double>() <= 0.0 ||
+            targets.at("uv_min_percent").get<double>() < 0.0 || targets.at("uv_max_percent").get<double>() > 100.0) {
+            error = makeError("CONFIG_INVALID", "Measurement target ranges are invalid.", true);
+            error.string_details["field"] = "measurement_targets";
+            return false;
+        }
+    }
+
+    const auto profile_iterator = root.find("data_profile");
+    const auto reference_iterator = root.find("calibration_reference");
+    if ((profile_iterator == root.end()) != (reference_iterator == root.end())) {
+        error = makeError("CONFIG_INVALID", "data_profile and calibration_reference must be provided together.", true);
+        return false;
+    }
+    if (profile_iterator != root.end()) {
+        const Json& profile = *profile_iterator;
+        const Json& reference = *reference_iterator;
+        if (!requireExactKeys(profile, {"data_source", "validation_status", "hardware_parameters_confirmed"}, error, "data_profile") ||
+            !requireExactKeys(reference, {"calibration_file", "calibration_version", "parameter_status"}, error, "calibration_reference") ||
+            !requireStringValue(profile, "data_source", {"synthetic", "mock", "real"}, error, "data_profile") ||
+            !requireStringValue(profile, "validation_status", {"simulation_only", "software_verified", "metrology_validated"}, error, "data_profile") ||
+            !requireBoolean(profile, "hardware_parameters_confirmed", error, "data_profile") ||
+            !requireStringValue(reference, "parameter_status", {"simulated", "measured"}, error, "calibration_reference")) {
+            return false;
+        }
+        if (!reference.at("calibration_file").is_string() || reference.at("calibration_file").get_ref<const std::string&>().empty() ||
+            !reference.at("calibration_version").is_string() || reference.at("calibration_version").get_ref<const std::string&>().empty()) {
+            error = makeError("CONFIG_INVALID", "Calibration reference strings must be non-empty.", true);
+            error.string_details["field"] = "calibration_reference";
+            return false;
+        }
+        if (profile.at("validation_status") == "metrology_validated" &&
+            (profile.at("data_source") != "real" || profile.at("hardware_parameters_confirmed") != true)) {
+            error = makeError("CONFIG_INVALID", "Metrology-validated configuration requires real data and confirmed hardware parameters.", true);
+            error.string_details["field"] = "data_profile.validation_status";
+            return false;
+        }
+        if (profile.at("hardware_parameters_confirmed") == true && reference.at("parameter_status") != "measured") {
+            error = makeError("CONFIG_INVALID", "Confirmed hardware parameters require a measured calibration reference.", true);
+            error.string_details["field"] = "calibration_reference.parameter_status";
+            return false;
+        }
     }
     return true;
 }
