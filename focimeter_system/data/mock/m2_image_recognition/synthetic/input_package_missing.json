@@ -6,7 +6,7 @@
   "data": {
     "calibration_image": "data/mock/m2_image_recognition/synthetic/calibration/base_5spots.png",
     "measurement_image": "data/mock/m2_image_recognition/synthetic/failure/missing_spots_3.png",
-    "config_path": "config/default_config.json",
+    "config_path": "config/legacy_five_spot_config.json",
     "run_mode": "local_image",
     "created_at": "2026-07-22T20:00:00+08:00"
   },
