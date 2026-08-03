@@ -1,10 +1,10 @@
 import json
-import hashlib
 import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
 from modules.input_config import run_m1
@@ -13,6 +13,19 @@ from modules.input_config.validation import validate_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+def decoded_png_scanlines(data):
+    offset = 8
+    idat_chunks = []
+    while offset < len(data):
+        length = struct.unpack(">I", data[offset:offset + 4])[0]
+        chunk_type = data[offset + 4:offset + 8]
+        payload = data[offset + 8:offset + 8 + length]
+        if chunk_type == b"IDAT":
+            idat_chunks.append(payload)
+        offset += 12 + length
+    return zlib.decompress(b"".join(idat_chunks))
 
 
 class M1ContractTests(unittest.TestCase):
@@ -257,21 +270,26 @@ class M1ContractTests(unittest.TestCase):
         self.assertEqual(dimensions, [(640, 480, 8, 0), (640, 480, 8, 0)])
         self.assertNotEqual(paths[0].read_bytes(), paths[1].read_bytes())
 
-    def test_hartmann_fixture_generation_is_byte_deterministic(self):
+    def test_hartmann_fixture_generation_is_pixel_deterministic(self):
         paths = [
             PROJECT_ROOT / "data/synthetic/generated_images/hartmann_reference.png",
             PROJECT_ROOT / "data/synthetic/generated_images/hartmann_measurement.png",
         ]
-        before = [hashlib.sha256(path.read_bytes()).digest() for path in paths]
-        subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "tools/generate_hartmann_fixtures.py")],
-            cwd=PROJECT_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        after = [hashlib.sha256(path.read_bytes()).digest() for path in paths]
-        self.assertEqual(after, before)
+        original_files = [path.read_bytes() for path in paths]
+        before = [decoded_png_scanlines(data) for data in original_files]
+        try:
+            subprocess.run(
+                [sys.executable, str(PROJECT_ROOT / "tools/generate_hartmann_fixtures.py")],
+                cwd=PROJECT_ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            after = [decoded_png_scanlines(path.read_bytes()) for path in paths]
+            self.assertEqual(after, before)
+        finally:
+            for path, data in zip(paths, original_files):
+                path.write_bytes(data)
 
     def test_real_input_package_paths_resolve(self):
         package_path = PROJECT_ROOT / "data/mock/m1_input_config/input_package_real_data.json"

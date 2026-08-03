@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import threading
 import unittest
@@ -67,11 +68,11 @@ class WebApplicationTests(unittest.TestCase):
     def test_bootstrap_lists_real_hartmann_images(self):
         data = WebApplication(PROJECT_ROOT).bootstrap()
         self.assertIn(
-            "data/samples/calibration/hartmann_reference_real.jpg",
+            "data/samples/calibration/background.tif",
             data["files"]["calibration"],
         )
         self.assertIn(
-            "data/samples/measurement/hartmann_measurement_real.jpg",
+            "data/samples/measurement/R25M0004g.tif",
             data["files"]["measurement"],
         )
 
@@ -143,16 +144,13 @@ class WebApplicationTests(unittest.TestCase):
             package = json.loads(archive.read("input_package.json").decode("utf-8"))
             for key in ("calibration_image", "measurement_image", "config_path"):
                 self.assertIn(package["data"][key], names)
-            self.assertIn("data/calibration/image_derived_calibration.json", names)
+            self.assertIn(self.default_calibration, names)
             readme = archive.read("README_M1_M2_INTEGRATION.md").decode("utf-8")
-            self.assertIn("数据来源：`real`", readme)
-            self.assertIn("验证状态：`software_verified`", readme)
-            self.assertIn("计量验证完成：`false`", readme)
-            self.assertIn("可用于：`software_integration`", readme)
-            self.assertIn("`camera.pixel_size_um = 4.8` 为 mock/provisional", readme)
-            self.assertIn("物面或 Hartmann 孔距必须结合系统倍率", readme)
-            self.assertIn("M2 应优先输出像素坐标和像素位移", readme)
-            self.assertIn("M3 只能使用明确标记的临时参数完成软件联调", readme)
+            self.assertIn("数据来源：`synthetic`", readme)
+            self.assertIn("验证状态：`simulation_only`", readme)
+            self.assertIn("硬件参数已确认：`false`", readme)
+            self.assertIn("标定版本：`simulation-v1`", readme)
+            self.assertIn("本包表示软件联调可用，不代表真实计量验证完成", readme)
 
     def test_bundle_rejects_missing_referenced_calibration_file(self):
         payload = {
@@ -164,7 +162,7 @@ class WebApplicationTests(unittest.TestCase):
         self.assertEqual(self.app.run(payload)["result"]["status"], "ok")
         (self.root / self.default_calibration).unlink()
 
-        with self.assertRaisesRegex(WebError, "image_derived_calibration.json"):
+        with self.assertRaisesRegex(WebError, re.escape(Path(self.default_calibration).name)):
             self.app.integration_bundle("web_missing_calibration_bundle")
 
     def test_bundle_rejects_missing_referenced_file(self):
@@ -287,7 +285,7 @@ class WebServerTests(unittest.TestCase):
             package = json.loads(archive.read("input_package.json").decode("utf-8"))
             for key in ("calibration_image", "measurement_image", "config_path"):
                 self.assertIn(package["data"][key], names)
-            self.assertIn("data/calibration/image_derived_calibration.json", names)
+            self.assertIn(self.default_calibration, names)
 
 
 class StaticContractTests(unittest.TestCase):
@@ -367,12 +365,12 @@ class StaticContractTests(unittest.TestCase):
         html = (self.static / "index.html").read_text(encoding="utf-8")
         script = (self.static / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn('id="multispot-real"', html)
-        self.assertIn("LM700 / Hartmann 实图软件联调", html)
+        self.assertIn('id="multispot-simulation"', html)
+        self.assertIn("LM700 / Hartmann 多光斑模拟联调", html)
         self.assertIn('id="legacy-five-spot"', html)
         self.assertIn("历史兼容测试", html)
-        self.assertIn("hartmann_reference_real.jpg", script)
-        self.assertIn("hartmann_measurement_real.jpg", script)
+        self.assertIn("data/synthetic/generated_images/hartmann_reference.png", script)
+        self.assertIn("data/synthetic/generated_images/hartmann_measurement.png", script)
         self.assertIn("spot_count_mode = \"auto\"", script)
         self.assertIn("expected_spot_count = null", script)
         self.assertIn("legacy_five_spot_config.json", script)

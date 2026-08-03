@@ -11,9 +11,9 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
-const multispotRealPreset = {
-  calibration: "data/samples/calibration/hartmann_reference_real.jpg",
-  measurement: "data/samples/measurement/hartmann_measurement_real.jpg",
+const multispotSimulationPreset = {
+  calibration: "data/synthetic/generated_images/hartmann_reference.png",
+  measurement: "data/synthetic/generated_images/hartmann_measurement.png",
   config: "config/default_config.json",
 };
 
@@ -187,7 +187,7 @@ function bindEvents() {
   $("#config-upload").addEventListener("change", (event) => uploadFile("config", event.target.files[0]));
   $("#run-m1").addEventListener("click", runM1);
   $("#new-task").addEventListener("click", resetTask);
-  $("#multispot-real").addEventListener("click", prepareMultispotReal);
+  $("#multispot-simulation").addEventListener("click", prepareMultispotSimulation);
   $("#legacy-five-spot").addEventListener("click", prepareStageOneFiveSpot);
   $("#download-bundle").addEventListener("click", downloadBundle);
   $("#copy-bundle-note").addEventListener("click", copyBundleNote);
@@ -206,11 +206,11 @@ function presetReady(preset) {
 }
 
 function updatePresetAvailability() {
-  const multispot = $("#multispot-real");
+  const multispot = $("#multispot-simulation");
   const legacy = $("#legacy-five-spot");
-  multispot.disabled = !presetReady(multispotRealPreset);
+  multispot.disabled = !presetReady(multispotSimulationPreset);
   legacy.disabled = !presetReady(legacyFiveSpotPreset);
-  multispot.title = multispot.disabled ? "项目中缺少 Hartmann 实图或配置" : "自动填充 LM700 / Hartmann 实图软件联调输入";
+  multispot.title = multispot.disabled ? "项目中缺少多光斑模拟输入或配置" : "自动填充 LM700 / Hartmann 多光斑联调输入";
   legacy.title = legacy.disabled ? "项目中缺少五光斑兼容输入或配置" : "自动填充历史五光斑兼容输入";
 }
 
@@ -244,16 +244,16 @@ async function applyPreset(preset, notes) {
   goToStep(5, true);
 }
 
-async function prepareMultispotReal() {
+async function prepareMultispotSimulation() {
   try {
     await applyPreset(
-      multispotRealPreset,
-      "LM700 / Hartmann 实图软件联调；标定图含 44 个可见光斑，测量图含 34 个可见光斑。图像与路径已验证，像元尺寸、波长、曝光和光学距离仍待硬件实测，不代表计量验证完成。",
+      multispotSimulationPreset,
+      "LM700 / Hartmann 多光斑软件联调；使用合成图和模拟参数，不代表真实计量验证完成。",
     );
     state.config.recognition.spot_count_mode = "auto";
     state.config.recognition.expected_spot_count = null;
     renderConfigFields();
-    showMessage("Hartmann 实图输入已填充，请确认后运行 M1。", "success");
+    showMessage("多光斑模拟输入已填充，请确认后运行 M1。", "success");
   } catch (error) {
     showMessage(error.message);
   }
