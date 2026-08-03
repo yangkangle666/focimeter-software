@@ -1,19 +1,10 @@
 {
   "schema_version": "1.0",
-  "config_name": "default_config",
+  "config_name": "fl800_green_config",
   "camera": {
-    "pixel_size_um": 4.8,
-    "image_width": 1280,
-    "image_height": 1024
-  },
-  "camera_simulation": {
-    "parameter_status": "simulated",
-    "color_mode": "mono",
-    "bit_depth": 8,
-    "exposure_min_ms": 0.01,
-    "exposure_max_ms": 100.0,
-    "image_plane_width_mm": 6.1,
-    "image_plane_height_mm": 4.9
+    "pixel_size_um": 4.0,
+    "image_width": 1290,
+    "image_height": 826
   },
   "optical": {
     "distance_m": 0.03,
@@ -43,16 +34,8 @@
     "allow_absolute_path": false
   },
   "illumination": {
-    "source_color": "green_led",
+    "source_color": "green",
     "wavelength_nm": null
-  },
-  "coordinate_system": {
-    "coordinate_type": "cartesian",
-    "origin": "top_left",
-    "x_positive": "right",
-    "y_positive": "down",
-    "y_flip": false,
-    "confirmation_status": "pending_hardware"
   },
   "hartmann_calibration": {
     "spacing_source": "camera_pixel_spacing",
