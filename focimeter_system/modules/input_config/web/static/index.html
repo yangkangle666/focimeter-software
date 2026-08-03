@@ -41,11 +41,11 @@
           <div class="multispot-profile">
             <div class="hartmann-mark" aria-hidden="true"></div>
             <div class="profile-copy">
-              <span>默认方案 · 177 个模拟光斑</span>
-              <strong>LM700 / Hartmann 多光斑模拟联调</strong>
-              <p>自动装入参考阵列、空间位移测量图、绿光模拟配置和可替换标定参数。</p>
+              <span>默认方案 · 真实绿光 Hartmann 图片</span>
+              <strong>LM700 / Hartmann 实图软件联调</strong>
+              <p>自动装入标定图（44 个可见光斑）、测量图（34 个可见光斑）及图像推算配置；可用于软件联调，不代表计量验证完成。</p>
             </div>
-            <button id="multispot-simulation" class="primary" type="button" disabled>准备多光斑任务</button>
+            <button id="multispot-real" class="primary" type="button" disabled>准备实图任务</button>
           </div>
           <div class="legacy-profile">
             <div>
@@ -101,6 +101,10 @@
           <label class="field"><span>配置来源</span><select id="config-existing"><option value="">请选择配置</option></select></label>
           <label class="upload-compact" for="config-upload"><input id="config-upload" type="file" accept=".json"><span>上传 JSON</span></label>
         </div>
+        <div id="fixed-interface-summary" class="config-fixed-summary" aria-label="固定接口约束">
+          <span class="config-fixed-label">固定接口</span>
+          <strong>degree · D · 左上原点 · Y 向下 · 项目相对路径</strong>
+        </div>
         <div id="config-fields" class="config-fields"></div>
       </section>
 
@@ -123,6 +127,8 @@
           <span id="data-source-badge" class="validation-badge neutral">数据来源 · 未声明</span>
           <span id="validation-status-badge" class="validation-badge neutral">验证状态 · 未声明</span>
           <span id="hardware-status-badge" class="validation-badge pending">硬件参数 · 待确认</span>
+          <span id="metrology-status-badge" class="validation-badge pending">计量验证 · 未完成</span>
+          <span id="usable-for-badge" class="validation-badge neutral">可用于 · 未声明</span>
         </div>
         <div id="result-summary" class="result-summary"></div>
         <section id="bundle-summary" class="bundle-summary" hidden aria-live="polite">

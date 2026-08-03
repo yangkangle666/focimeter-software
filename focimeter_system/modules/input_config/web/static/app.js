@@ -11,9 +11,9 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
-const multispotSimulationPreset = {
-  calibration: "data/synthetic/generated_images/hartmann_reference.png",
-  measurement: "data/synthetic/generated_images/hartmann_measurement.png",
+const multispotRealPreset = {
+  calibration: "data/samples/calibration/hartmann_reference_real.jpg",
+  measurement: "data/samples/measurement/hartmann_measurement_real.jpg",
   config: "config/default_config.json",
 };
 
@@ -22,6 +22,27 @@ const legacyFiveSpotPreset = {
   measurement: "data/samples/measurement/meas_mock_001.jpg",
   config: "config/legacy_five_spot_config.json",
 };
+
+const HIDDEN_CONFIG_SECTIONS = new Set([
+  "parameter_provenance",
+  "data_profile",
+  "calibration_reference",
+]);
+
+const FIXED_CONFIG_FIELDS = new Set([
+  "calculation.angle_unit",
+  "calculation.diopter_unit",
+  "path_policy.path_type",
+  "path_policy.allow_absolute_path",
+  "coordinate_system.coordinate_type",
+  "coordinate_system.origin",
+  "coordinate_system.x_positive",
+  "coordinate_system.y_positive",
+  "coordinate_system.y_flip",
+  "coordinate_system.confirmation_status",
+  "hartmann_calibration.spacing_source",
+  "hartmann_calibration.spacing_formula",
+]);
 
 const configLabels = {
   camera: "相机",
@@ -36,6 +57,7 @@ const configLabels = {
   hartmann_calibration: "哈特曼像素标定",
   measurement_targets: "FL-800 测量目标",
   data_profile: "数据与验证状态",
+  parameter_provenance: "参数来源与适用范围",
   calibration_reference: "标定参数引用",
 };
 
@@ -43,15 +65,15 @@ const configFieldLabels = {
   pixel_size_um: { label: "像素尺寸", hint: "工业相机参考模拟值，后续由硬件参数替换", unit: "μm" },
   image_width: { label: "图像宽度", hint: "工业相机参考模拟值，后续由硬件参数替换", unit: "pixel" },
   image_height: { label: "图像高度", hint: "工业相机参考模拟值，后续由硬件参数替换", unit: "pixel" },
-  parameter_status: { label: "参数状态", hint: "当前相机参数为软件模拟值", options: { simulated: "simulated · 模拟值", measured: "measured · 实测值" } },
-  color_mode: { label: "成像模式", hint: "离线图片按黑白相机处理", options: { mono: "mono · 黑白" } },
+  parameter_status: { label: "参数状态", hint: "provisional 表示临时联调参数，不可用于精度结论", options: { simulated: "simulated · 模拟值", provisional: "provisional · 临时值", measured: "measured · 实测值" } },
+  color_mode: { label: "成像模式", hint: "当前实图为 RGB；算法可按需要提取绿色或转为灰度", options: { mono: "mono · 黑白", rgb: "rgb · 彩色" } },
   bit_depth: { label: "位深", hint: "模拟相机灰度位深", unit: "bit" },
   exposure_min_ms: { label: "最小曝光时间", hint: "模拟相机曝光范围下限", unit: "ms" },
   exposure_max_ms: { label: "最大曝光时间", hint: "模拟相机曝光范围上限", unit: "ms" },
   image_plane_width_mm: { label: "像面宽度", hint: "参考工业相机像面尺寸模拟值", unit: "mm" },
   image_plane_height_mm: { label: "像面高度", hint: "参考工业相机像面尺寸模拟值", unit: "mm" },
   distance_m: { label: "光学传播距离", hint: "Hartmann 阵列到传感器的距离", unit: "m" },
-  hartmann_spacing_mm: { label: "Hartmann 点阵间距", hint: "点阵间距，待确认", unit: "mm" },
+  hartmann_spacing_mm: { label: "Hartmann 点阵间距", hint: "当前仅为传感器像面临时派生值；物面或孔距换算需要系统倍率", unit: "mm" },
   roi_width_ratio: { label: "ROI 宽度比例", hint: "图像横向保留区域", unit: "比例" },
   roi_height_ratio: { label: "ROI 高度比例", hint: "图像纵向保留区域", unit: "比例" },
   median_kernel: { label: "中值滤波核", hint: "必须为正奇数", unit: "尺寸" },
@@ -77,7 +99,7 @@ const configFieldLabels = {
   wavelength_nm: { label: "绿光波长", hint: "未提供具体波长，暂时待确认", unit: "nm" },
   spacing_source: { label: "哈特曼间距来源", hint: "通过相机检测到的光斑像素间距换算", options: { camera_pixel_spacing: "相机光斑像素间距" } },
   spot_spacing_px: { label: "光斑像素间距", hint: "由 M2 检测相邻光斑中心距离后填写", unit: "pixel" },
-  spacing_formula: { label: "像素换算公式", hint: "像素间距 × 像素尺寸 ÷ 1000 得到毫米" },
+  spacing_formula: { label: "像素换算公式", hint: "仅得到传感器像面临时毫米值；不能直接证明物面或 Hartmann 孔距" },
   sphere_min_d: { label: "球镜最小值", unit: "D" },
   sphere_max_d: { label: "球镜最大值", unit: "D" },
   sphere_steps_d: { label: "球镜可选步长", unit: "D" },
@@ -99,12 +121,18 @@ const configFieldLabels = {
   data_source: { label: "数据来源", hint: "区分合成、接口模拟和真实硬件数据", options: { synthetic: "synthetic · 合成数据", mock: "mock · 接口模拟", real: "real · 真实硬件" } },
   validation_status: { label: "验证状态", hint: "当前输出达到的验证等级", options: { simulation_only: "simulation_only · 仅模拟", software_verified: "software_verified · 软件验证", metrology_validated: "metrology_validated · 计量验证" } },
   hardware_parameters_confirmed: { label: "硬件参数已确认", hint: "只有真实硬件参数完成确认后才能开启" },
+  metrology_validated: { label: "计量验证完成", hint: "当前必须为 false；软件联调结果不得写入精度结论" },
+  usable_for: { label: "可用于", hint: "当前版本只允许 software_integration", options: { software_integration: "software_integration · 软件联调", metrology_validation: "metrology_validation · 计量验证" } },
+  camera_pixel_size_um: { label: "像元尺寸来源", hint: "4.8 μm 当前为 mock/provisional，后续替换为硬件实测值", options: { mock_provisional: "mock_provisional · 临时模拟", hardware_measured: "hardware_measured · 硬件实测" } },
+  object_plane_spacing_requires_optical_magnification: { label: "物面换算需要系统倍率", hint: "物面或 Hartmann 孔距不能只依靠像元尺寸计算" },
   calibration_file: { label: "标定文件", hint: "将随 M1 → M2 联调包一起打包" },
   calibration_version: { label: "标定版本", hint: "必须与标定文件中的版本一致" },
 };
 
 const sectionFieldLabels = {
-  "calibration_reference.parameter_status": { label: "参数状态", hint: "simulated 为模拟值，measured 为实测值", options: { simulated: "simulated · 模拟值", measured: "measured · 实测值" } },
+  "calibration_reference.parameter_status": { label: "参数状态", hint: "provisional 为临时联调值，measured 为硬件实测值", options: { simulated: "simulated · 模拟值", provisional: "provisional · 临时值", measured: "measured · 实测值" } },
+  "parameter_provenance.spot_spacing_px": { label: "像素间距来源", hint: "当前 215.398 px 由标定图直接测得", options: { measured_from_image: "measured_from_image · 图像实测", mock_simulated: "mock_simulated · 模拟", pending_image_measurement: "pending_image_measurement · 待测" } },
+  "parameter_provenance.hartmann_spacing_mm": { label: "毫米间距来源", hint: "当前 1.03391 mm 是传感器像面临时派生值", options: { provisional_derived_sensor_plane: "provisional_derived_sensor_plane · 像面临时派生", hardware_calibrated: "hardware_calibrated · 硬件标定", not_available: "not_available · 暂无" } },
 };
 
 function createTaskId() {
@@ -159,7 +187,7 @@ function bindEvents() {
   $("#config-upload").addEventListener("change", (event) => uploadFile("config", event.target.files[0]));
   $("#run-m1").addEventListener("click", runM1);
   $("#new-task").addEventListener("click", resetTask);
-  $("#multispot-simulation").addEventListener("click", prepareMultispotSimulation);
+  $("#multispot-real").addEventListener("click", prepareMultispotReal);
   $("#legacy-five-spot").addEventListener("click", prepareStageOneFiveSpot);
   $("#download-bundle").addEventListener("click", downloadBundle);
   $("#copy-bundle-note").addEventListener("click", copyBundleNote);
@@ -178,11 +206,11 @@ function presetReady(preset) {
 }
 
 function updatePresetAvailability() {
-  const multispot = $("#multispot-simulation");
+  const multispot = $("#multispot-real");
   const legacy = $("#legacy-five-spot");
-  multispot.disabled = !presetReady(multispotSimulationPreset);
+  multispot.disabled = !presetReady(multispotRealPreset);
   legacy.disabled = !presetReady(legacyFiveSpotPreset);
-  multispot.title = multispot.disabled ? "项目中缺少多光斑模拟输入或配置" : "自动填充 LM700 / Hartmann 多光斑联调输入";
+  multispot.title = multispot.disabled ? "项目中缺少 Hartmann 实图或配置" : "自动填充 LM700 / Hartmann 实图软件联调输入";
   legacy.title = legacy.disabled ? "项目中缺少五光斑兼容输入或配置" : "自动填充历史五光斑兼容输入";
 }
 
@@ -216,16 +244,16 @@ async function applyPreset(preset, notes) {
   goToStep(5, true);
 }
 
-async function prepareMultispotSimulation() {
+async function prepareMultispotReal() {
   try {
     await applyPreset(
-      multispotSimulationPreset,
-      "LM700 / Hartmann 多光斑软件联调；使用合成图和模拟参数，不代表真实计量验证完成。",
+      multispotRealPreset,
+      "LM700 / Hartmann 实图软件联调；标定图含 44 个可见光斑，测量图含 34 个可见光斑。图像与路径已验证，像元尺寸、波长、曝光和光学距离仍待硬件实测，不代表计量验证完成。",
     );
     state.config.recognition.spot_count_mode = "auto";
     state.config.recognition.expected_spot_count = null;
     renderConfigFields();
-    showMessage("多光斑模拟输入已填充，请确认后运行 M1。", "success");
+    showMessage("Hartmann 实图输入已填充，请确认后运行 M1。", "success");
   } catch (error) {
     showMessage(error.message);
   }
@@ -336,12 +364,14 @@ function renderConfigFields() {
   const host = $("#config-fields");
   host.replaceChildren();
   Object.entries(state.config || {}).forEach(([section, values]) => {
+    if (HIDDEN_CONFIG_SECTIONS.has(section)) return;
     if (typeof values !== "object" || values === null || Array.isArray(values)) return;
     const group = document.createElement("section");
     group.className = "config-group";
     group.innerHTML = `<h2>${configLabels[section] || section}</h2><div class="config-group-grid"></div>`;
     const grid = group.querySelector("div");
     Object.entries(values).forEach(([key, value]) => {
+      if (FIXED_CONFIG_FIELDS.has(`${section}.${key}`)) return;
       const label = document.createElement("label");
       label.className = "field";
       const metadata = sectionFieldLabels[`${section}.${key}`] || configFieldLabels[key] || { label: key, hint: "原始配置字段" };
@@ -456,6 +486,8 @@ function renderValidationState() {
   const source = profile.data_source || "legacy";
   const validation = profile.validation_status || "undeclared";
   const confirmed = profile.hardware_parameters_confirmed === true;
+  const metrologyValidated = profile.metrology_validated === true;
+  const usableFor = profile.usable_for || "undeclared";
   setBadge("#data-source-badge", `数据来源 · ${source}`, source);
   setBadge("#validation-status-badge", `验证状态 · ${validation}`, validation);
   setBadge(
@@ -463,6 +495,12 @@ function renderValidationState() {
     confirmed ? "硬件参数 · 已确认" : "硬件参数 · 待确认",
     confirmed ? "confirmed" : "pending",
   );
+  setBadge(
+    "#metrology-status-badge",
+    `计量验证 · ${metrologyValidated ? "已完成" : "未完成"}`,
+    metrologyValidated ? "confirmed" : "pending",
+  );
+  setBadge("#usable-for-badge", `可用于 · ${usableFor}`, usableFor);
 }
 
 function bundleTaskId(response = state.result) {
@@ -480,7 +518,8 @@ function bundleNote(taskId) {
     "请解压后将解压目录作为 project_root，",
     "读取根目录 input_package.json。",
     "包内文件已经过路径和配置检查，仅用于软件联调，",
-    "不代表真实计量验证完成。",
+    "metrology_validated=false，usable_for=software_integration。",
+    "4.8 μm 和 1.03391 mm 均为临时参数，不得用于精度结论。",
   ].join("\n");
 }
 

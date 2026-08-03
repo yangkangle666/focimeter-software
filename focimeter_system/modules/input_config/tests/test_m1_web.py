@@ -16,6 +16,16 @@ from modules.input_config.web.server import make_server
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
+def copy_default_calibration(root):
+    config = json.loads((PROJECT_ROOT / "config/default_config.json").read_text(encoding="utf-8"))
+    relative = config["calibration_reference"]["calibration_file"]
+    source = PROJECT_ROOT / relative
+    target = root / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    return relative
+
+
 class WebApplicationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -30,10 +40,7 @@ class WebApplicationTests(unittest.TestCase):
         (self.root / "config/default_config.json").write_text(
             source.read_text(encoding="utf-8"), encoding="utf-8"
         )
-        calibration_source = PROJECT_ROOT / "data/calibration/simulation_calibration.json"
-        (self.root / "data/calibration/simulation_calibration.json").write_text(
-            calibration_source.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        self.default_calibration = copy_default_calibration(self.root)
         self.app = WebApplication(self.root)
 
     def tearDown(self):
@@ -54,6 +61,17 @@ class WebApplicationTests(unittest.TestCase):
         )
         self.assertIn(
             "data/synthetic/generated_images/hartmann_measurement.png",
+            data["files"]["measurement"],
+        )
+
+    def test_bootstrap_lists_real_hartmann_images(self):
+        data = WebApplication(PROJECT_ROOT).bootstrap()
+        self.assertIn(
+            "data/samples/calibration/hartmann_reference_real.jpg",
+            data["files"]["calibration"],
+        )
+        self.assertIn(
+            "data/samples/measurement/hartmann_measurement_real.jpg",
             data["files"]["measurement"],
         )
 
@@ -125,10 +143,16 @@ class WebApplicationTests(unittest.TestCase):
             package = json.loads(archive.read("input_package.json").decode("utf-8"))
             for key in ("calibration_image", "measurement_image", "config_path"):
                 self.assertIn(package["data"][key], names)
-            self.assertIn("data/calibration/simulation_calibration.json", names)
+            self.assertIn("data/calibration/image_derived_calibration.json", names)
             readme = archive.read("README_M1_M2_INTEGRATION.md").decode("utf-8")
-            self.assertIn("数据来源：`synthetic`", readme)
-            self.assertIn("验证状态：`simulation_only`", readme)
+            self.assertIn("数据来源：`real`", readme)
+            self.assertIn("验证状态：`software_verified`", readme)
+            self.assertIn("计量验证完成：`false`", readme)
+            self.assertIn("可用于：`software_integration`", readme)
+            self.assertIn("`camera.pixel_size_um = 4.8` 为 mock/provisional", readme)
+            self.assertIn("物面或 Hartmann 孔距必须结合系统倍率", readme)
+            self.assertIn("M2 应优先输出像素坐标和像素位移", readme)
+            self.assertIn("M3 只能使用明确标记的临时参数完成软件联调", readme)
 
     def test_bundle_rejects_missing_referenced_calibration_file(self):
         payload = {
@@ -138,9 +162,9 @@ class WebApplicationTests(unittest.TestCase):
             "config_path": "config/default_config.json",
         }
         self.assertEqual(self.app.run(payload)["result"]["status"], "ok")
-        (self.root / "data/calibration/simulation_calibration.json").unlink()
+        (self.root / self.default_calibration).unlink()
 
-        with self.assertRaisesRegex(WebError, "simulation_calibration.json"):
+        with self.assertRaisesRegex(WebError, "image_derived_calibration.json"):
             self.app.integration_bundle("web_missing_calibration_bundle")
 
     def test_bundle_rejects_missing_referenced_file(self):
@@ -169,10 +193,7 @@ class WebServerTests(unittest.TestCase):
         (self.root / "data/samples/measurement/lens.png").write_bytes(b"measurement")
         source = PROJECT_ROOT / "config/default_config.json"
         (self.root / "config/default_config.json").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
-        calibration_source = PROJECT_ROOT / "data/calibration/simulation_calibration.json"
-        (self.root / "data/calibration/simulation_calibration.json").write_text(
-            calibration_source.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        self.default_calibration = copy_default_calibration(self.root)
         self.server = make_server(self.root, "127.0.0.1", 0)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -266,7 +287,7 @@ class WebServerTests(unittest.TestCase):
             package = json.loads(archive.read("input_package.json").decode("utf-8"))
             for key in ("calibration_image", "measurement_image", "config_path"):
                 self.assertIn(package["data"][key], names)
-            self.assertIn("data/calibration/simulation_calibration.json", names)
+            self.assertIn("data/calibration/image_derived_calibration.json", names)
 
 
 class StaticContractTests(unittest.TestCase):
@@ -346,11 +367,12 @@ class StaticContractTests(unittest.TestCase):
         html = (self.static / "index.html").read_text(encoding="utf-8")
         script = (self.static / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn('id="multispot-simulation"', html)
-        self.assertIn("LM700 / Hartmann 多光斑模拟联调", html)
+        self.assertIn('id="multispot-real"', html)
+        self.assertIn("LM700 / Hartmann 实图软件联调", html)
         self.assertIn('id="legacy-five-spot"', html)
         self.assertIn("历史兼容测试", html)
-        self.assertIn("hartmann_reference.png", script)
+        self.assertIn("hartmann_reference_real.jpg", script)
+        self.assertIn("hartmann_measurement_real.jpg", script)
         self.assertIn("spot_count_mode = \"auto\"", script)
         self.assertIn("expected_spot_count = null", script)
         self.assertIn("legacy_five_spot_config.json", script)
@@ -360,9 +382,35 @@ class StaticContractTests(unittest.TestCase):
 
         for label in (
             "数据来源", "验证状态", "硬件参数已确认", "光斑数量模式",
+            "计量验证完成", "可用于", "像元尺寸来源", "像素间距来源",
+            "毫米间距来源", "物面换算需要系统倍率",
             "标定文件", "标定版本", "参数状态",
         ):
             self.assertIn(label, script)
+
+    def test_config_form_hides_internal_metadata_and_fixed_fields(self):
+        html = (self.static / "index.html").read_text(encoding="utf-8")
+        script = (self.static / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("const HIDDEN_CONFIG_SECTIONS", script)
+        self.assertIn('"parameter_provenance"', script)
+        self.assertIn('"data_profile"', script)
+        self.assertIn('"calibration_reference"', script)
+        self.assertIn("const FIXED_CONFIG_FIELDS", script)
+        self.assertIn('"calculation.angle_unit"', script)
+        self.assertIn('"coordinate_system.origin"', script)
+        self.assertIn('"hartmann_calibration.spacing_source"', script)
+        self.assertIn("HIDDEN_CONFIG_SECTIONS.has(section)", script)
+        self.assertIn("FIXED_CONFIG_FIELDS.has(`${section}.${key}`)", script)
+        self.assertIn('id="fixed-interface-summary"', html)
+        self.assertIn("degree · D · 左上原点 · Y 向下 · 项目相对路径", html)
+
+    def test_config_form_keeps_core_parameter_groups(self):
+        script = (self.static / "app.js").read_text(encoding="utf-8")
+
+        for label in ("相机", "光学", "图像处理", "光斑识别", "FL-800 测量目标"):
+            self.assertIn(label, script)
+        self.assertIn("state.config[section][key] = value", script)
 
     def test_result_page_has_validation_state_badges(self):
         html = (self.static / "index.html").read_text(encoding="utf-8")
