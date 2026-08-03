@@ -818,6 +818,10 @@ RunResult runImpl(const RunOptions& options, RecoveryContext& recovery) {
         error.string_details["config_path"] = input.config_path.generic_string();
         return finish_pair_failure(2, error, error, error);
     }
+    if (options.recognition_mode == RecognitionMode::HartmannMultispotExperimental &&
+        input.data_source == "unknown" && config.data_source != "unknown") {
+        input.data_source = config.data_source;
+    }
     ImageProcessor processor;
     if (!prepareOutputTargets(result, error)) {
         result.exit_code = 4;

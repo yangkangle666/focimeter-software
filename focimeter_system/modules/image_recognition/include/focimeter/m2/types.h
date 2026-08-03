@@ -37,6 +37,7 @@ struct ProcessingConfig {
     int max_depth{2};
     int expected_spot_count{5};
     double min_confidence{0.7};
+    std::string data_source{"unknown"};
 
     // 统一配置暂未定义配对参数；这些是保守的第一阶段工程门限。
     double max_rotation_degrees{35.0};

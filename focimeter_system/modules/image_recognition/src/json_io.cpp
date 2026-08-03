@@ -794,6 +794,7 @@ bool readProcessingConfig(
             error.string_details["field"] = "calibration_reference.parameter_status";
             return false;
         }
+        config.data_source = profile.at("data_source").get<std::string>();
     }
     return true;
 }

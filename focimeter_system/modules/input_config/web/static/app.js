@@ -12,8 +12,8 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 const multispotSimulationPreset = {
-  calibration: "data/synthetic/generated_images/hartmann_reference.png",
-  measurement: "data/synthetic/generated_images/hartmann_measurement.png",
+  calibration: "data/mock/m2_image_recognition/synthetic_multispot/calibration/94_clean_reference.png",
+  measurement: "data/mock/m2_image_recognition/synthetic_multispot/measurement/94_measured_local_deformation.png",
   config: "config/default_config.json",
 };
 

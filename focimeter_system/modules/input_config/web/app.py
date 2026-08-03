@@ -35,8 +35,14 @@ class WebApplication:
     def bootstrap(self):
         calibration_files = self._list_files("calibration", IMAGE_EXTENSIONS)
         measurement_files = self._list_files("measurement", IMAGE_EXTENSIONS)
-        synthetic_calibration = "data/synthetic/generated_images/hartmann_reference.png"
-        synthetic_measurement = "data/synthetic/generated_images/hartmann_measurement.png"
+        synthetic_calibration = (
+            "data/mock/m2_image_recognition/synthetic_multispot/"
+            "calibration/94_clean_reference.png"
+        )
+        synthetic_measurement = (
+            "data/mock/m2_image_recognition/synthetic_multispot/"
+            "measurement/94_measured_local_deformation.png"
+        )
         if (self.root / synthetic_calibration).is_file():
             calibration_files.append(synthetic_calibration)
         if (self.root / synthetic_measurement).is_file():

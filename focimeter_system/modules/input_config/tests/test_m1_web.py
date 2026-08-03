@@ -57,11 +57,11 @@ class WebApplicationTests(unittest.TestCase):
     def test_bootstrap_lists_synthetic_multispot_images(self):
         data = WebApplication(PROJECT_ROOT).bootstrap()
         self.assertIn(
-            "data/synthetic/generated_images/hartmann_reference.png",
+            "data/mock/m2_image_recognition/synthetic_multispot/calibration/94_clean_reference.png",
             data["files"]["calibration"],
         )
         self.assertIn(
-            "data/synthetic/generated_images/hartmann_measurement.png",
+            "data/mock/m2_image_recognition/synthetic_multispot/measurement/94_measured_local_deformation.png",
             data["files"]["measurement"],
         )
 
@@ -369,8 +369,8 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("LM700 / Hartmann 多光斑模拟联调", html)
         self.assertIn('id="legacy-five-spot"', html)
         self.assertIn("历史兼容测试", html)
-        self.assertIn("data/synthetic/generated_images/hartmann_reference.png", script)
-        self.assertIn("data/synthetic/generated_images/hartmann_measurement.png", script)
+        self.assertIn("synthetic_multispot/calibration/94_clean_reference.png", script)
+        self.assertIn("synthetic_multispot/measurement/94_measured_local_deformation.png", script)
         self.assertIn("spot_count_mode = \"auto\"", script)
         self.assertIn("expected_spot_count = null", script)
         self.assertIn("legacy_five_spot_config.json", script)
