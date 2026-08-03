@@ -366,12 +366,13 @@ function renderConfigFields() {
   Object.entries(state.config || {}).forEach(([section, values]) => {
     if (HIDDEN_CONFIG_SECTIONS.has(section)) return;
     if (typeof values !== "object" || values === null || Array.isArray(values)) return;
+    const visibleEntries = Object.entries(values).filter(([key]) => !FIXED_CONFIG_FIELDS.has(`${section}.${key}`));
+    if (!visibleEntries.length) return;
     const group = document.createElement("section");
     group.className = "config-group";
     group.innerHTML = `<h2>${configLabels[section] || section}</h2><div class="config-group-grid"></div>`;
     const grid = group.querySelector("div");
-    Object.entries(values).forEach(([key, value]) => {
-      if (FIXED_CONFIG_FIELDS.has(`${section}.${key}`)) return;
+    visibleEntries.forEach(([key, value]) => {
       const label = document.createElement("label");
       label.className = "field";
       const metadata = sectionFieldLabels[`${section}.${key}`] || configFieldLabels[key] || { label: key, hint: "原始配置字段" };
