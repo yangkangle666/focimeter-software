@@ -903,8 +903,43 @@ void verifyExperimentalSettingsPersistence(
             config.multispot_min_area_pixels == 19 && config.multispot_max_area_ratio == 0.03 &&
             config.multispot_border_margin_pixels == 4 && config.multispot_background_factor == 1.6 &&
             config.multispot_min_threshold == 11 && config.multispot_min_confidence == 0.42 &&
-            config.multispot_16bit_white_level == 4095,
+            config.multispot_16bit_white_level == 4095 && config.data_source == "synthetic",
         "readProcessingConfig must not silently reset M2-internal multispot settings");
+}
+
+void verifyM1InputPackageIntegration(
+    TestContext& test,
+    const std::filesystem::path& system_root,
+    const std::filesystem::path& output_root) {
+    RunOptions options;
+    options.input_package = system_root / "data/mock/m1_input_config/input_package_multispot_ok.json";
+    options.output_directory = output_root / "m1-input-package";
+    options.project_root = system_root;
+    options.recognition_mode = RecognitionMode::HartmannMultispotExperimental;
+
+    const ImageRecognitionModule module;
+    const auto result = module.run(options);
+    test.expect(result.ok(), "M2 must consume an M1 v1 multispot input package");
+    if (!result.ok()) {
+        return;
+    }
+
+    const auto calibration = readJsonFile(test, result.calibration_output, "M1 package calibration output");
+    const auto measurement = readJsonFile(test, result.measurement_output, "M1 package measurement output");
+    const auto run_log = readJsonFile(test, result.log_output, "M1 package run log");
+    for (const auto* document : {&calibration, &measurement}) {
+        if (document->has_value()) {
+            test.expect(
+                document->value().at("data_source") == "synthetic" &&
+                    document->value().at("spots").is_array() && document->value().at("spots").size() == 94,
+                "M2 experimental output must preserve M1 synthetic provenance and detection count");
+        }
+    }
+    if (run_log.has_value()) {
+        test.expect(
+            run_log->contains("data_source") && run_log->at("data_source") == "synthetic",
+            "M2 run log must derive data_source from the M1 configuration profile");
+    }
 }
 
 void verifyExperimentalSerializerBehavior(
@@ -1369,6 +1404,7 @@ int runMultispotTests(const std::vector<std::filesystem::path>& arguments) {
         std::cerr << "Could not create multispot test output directory.\n";
         return 2;
     }
+    verifyM1InputPackageIntegration(test, system_root, output_root);
     verifyExperimentalSerializerBehavior(test, synthetic_root, output_root / "serializer", limits);
 
     for (const auto& fixture : fixtures) {

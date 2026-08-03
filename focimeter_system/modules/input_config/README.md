@@ -6,7 +6,7 @@
 
 ## 工作模式
 
-- 默认模式：`spot_count_mode=auto`，使用 `data/synthetic/generated_images/` 下的 LM700 / Hartmann 多光斑模拟图。
+- 默认模式：`spot_count_mode=auto`，使用 `data/mock/m2_image_recognition/synthetic_multispot/` 下经 M2 回归验证的 94 点模拟图。
 - 兼容模式：`config/legacy_five_spot_config.json` 固定为 5 个光斑，仅用于第一阶段旧接口测试。
 - 数据来源：`synthetic` 表示合成图，`mock` 表示接口模拟，`real` 表示真实硬件文件。
 - 验证状态：`simulation_only` 仅完成模拟联调，`software_verified` 表示真实文件已通过软件流程，`metrology_validated` 只能用于真实计量验证完成的配置。
