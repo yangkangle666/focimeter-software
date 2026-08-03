@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "config_name": "default_config",
+  "camera": {
+    "pixel_size_um": 4,
+    "image_width": null,
+    "image_height": null
+  },
+  "optical": {
+    "distance_m": 0.03,
+    "hartmann_spacing_mm": null
+  },
+  "image_processing": {
+    "roi_width_ratio": 0.9,
+    "roi_height_ratio": 0.9,
+    "median_kernel": 3,
+    "tophat_kernel": 30,
+    "otsu_a": 0.4,
+    "otsu_b": 0.7,
+    "max_depth": 2
+  },
+  "recognition": {
+    "expected_spot_count": 5,
+    "min_confidence": 0.7
+  },
+  "calculation": {
+    "pixel_threshold": 1,
+    "angle_unit": "degree",
+    "diopter_unit": "D"
+  },
+  "path_policy": {
+    "path_type": "relative_to_project_root",
+    "allow_absolute_path": false
+  }
+}
