@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "task_id": "m1_20260722_193042",
+  "module": "m1_input_config",
+  "status": "ok",
+  "data": {
+    "calibration_image": "data/samples/calibration/background.tif",
+    "measurement_image": "data/samples/measurement/R25M0004g.tif",
+    "config_path": "data/uploads/m1_20260722_193042/config/config.json",
+    "run_mode": "local_image",
+    "created_at": "2026-07-23T13:14:09+08:00"
+  },
+  "quality": {
+    "paths_checked": true,
+    "config_checked": true,
+    "is_usable": true,
+    "warnings": [
+      "CONFIG_PARAMETER_PENDING: camera.image_width",
+      "CONFIG_PARAMETER_PENDING: camera.image_height",
+      "CONFIG_PARAMETER_PENDING: optical.hartmann_spacing_mm",
+      "DATA_SOURCE: real",
+      "VALIDATION_STATUS: software_verified",
+      "HARDWARE_PARAMETERS_UNCONFIRMED: calibration.parameters",
+      "SOFTWARE_INTEGRATION_ONLY: 仅表示路径和 JSON 契约可用于软件联调，不代表真实计量验证完成。"
+    ]
+  },
+  "error": null
+}

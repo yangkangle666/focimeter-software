@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "calibration_version": "simulation-v1",
+  "parameter_status": "simulated",
+  "validation_status": "simulation_only",
+  "hardware_parameters_confirmed": false,
+  "parameters": {
+    "pixel_pitch_mm": 0.0048,
+    "effective_focal_length_mm": 12.0,
+    "distance_m": 0.03,
+    "hartmann_spacing_mm": null,
+    "optical_magnification": null,
+    "power_sign": -1.0,
+    "wavelength_nm": null
+  }
+}

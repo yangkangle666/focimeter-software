@@ -2,7 +2,22 @@
 
 开发分支：`feature/m1-input`
 
-负责接收标定图、测量图和配置参数，完成路径与参数校验，并输出标准 `input_package.json`。
+负责接收参考图、测量图和配置参数，完成路径、配置与标定依赖校验，并输出标准 `input_package.json` 和可直接交给 M2 的完整 ZIP。
+
+## 工作模式
+
+- 默认模式：`spot_count_mode=auto`，使用 `data/synthetic/generated_images/` 下的 LM700 / Hartmann 多光斑模拟图。
+- 兼容模式：`config/legacy_five_spot_config.json` 固定为 5 个光斑，仅用于第一阶段旧接口测试。
+- 数据来源：`synthetic` 表示合成图，`mock` 表示接口模拟，`real` 表示真实硬件文件。
+- 验证状态：`simulation_only` 仅完成模拟联调，`software_verified` 表示真实文件已通过软件流程，`metrology_validated` 只能用于真实计量验证完成的配置。
+
+## 标定文件
+
+配置通过 `calibration_reference.calibration_file` 引用标定 JSON。当前默认文件是 `../../data/calibration/simulation_calibration.json`，硬件参数就绪后可替换，但版本、参数状态和验证状态必须与主配置一致。
+
+## 输出内容
+
+运行结果保存在 `../../outputs/results/<task_id>/input_package.json`。网页下载的 ZIP 包含输入 JSON、参考图、测量图、运行时配置、标定 JSON 和使用说明；所有引用文件在打包前会再次检查。
 
 ## 测试材料
 
@@ -11,4 +26,4 @@
 - 目标输出：`../../data/mock/m1_input_config/input_package_ok.json`
 - 错误样例：`../../data/mock/m1_input_config/error_missing_image.json`
 
-不得实现光斑识别或 S/C/A 计算。输出必须能被 M2 直接读取。
+M1 不执行光斑识别，不计算 S/C/A，也不采集实时相机数据。`is_usable=true` 仅表示当前联调包的软件路径和契约可用，不代表真实计量验证完成。

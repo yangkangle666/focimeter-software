@@ -14,7 +14,12 @@
     "paths_checked": true,
     "config_checked": true,
     "is_usable": true,
-    "warnings": []
+    "warnings": [
+      "DATA_SOURCE: mock",
+      "VALIDATION_STATUS: simulation_only",
+      "HARDWARE_PARAMETERS_UNCONFIRMED: calibration.parameters",
+      "SOFTWARE_INTEGRATION_ONLY: 仅表示路径和 JSON 契约可用于软件联调，不代表真实计量验证完成。"
+    ]
   },
   "error": null
 }

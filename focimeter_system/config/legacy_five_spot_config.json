@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "config_name": "default_config",
+  "config_name": "legacy_five_spot_config",
   "camera": {
     "pixel_size_um": 4.8,
     "image_width": 1280,
@@ -29,8 +29,8 @@
     "max_depth": 2
   },
   "recognition": {
-    "spot_count_mode": "auto",
-    "expected_spot_count": null,
+    "spot_count_mode": "fixed",
+    "expected_spot_count": 5,
     "min_confidence": 0.7
   },
   "calculation": {
@@ -80,7 +80,7 @@
     "uv_steps_percent": [1, 15]
   },
   "data_profile": {
-    "data_source": "synthetic",
+    "data_source": "mock",
     "validation_status": "simulation_only",
     "hardware_parameters_confirmed": false
   },

@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "task_id": "m1_20260722_193042",
+  "module": "m1_input_config",
+  "status": "ok",
+  "request": {
+    "calibration_image": "data/samples/calibration/background.tif",
+    "measurement_image": "data/samples/measurement/R25M0004g.tif",
+    "config_path": "data/uploads/m1_20260722_193042/config/config.json",
+    "run_mode": "local_image",
+    "operator": "integration_test",
+    "notes": "仅用于软件联调，不代表真实计量验证完成。"
+  },
+  "error": null
+}
