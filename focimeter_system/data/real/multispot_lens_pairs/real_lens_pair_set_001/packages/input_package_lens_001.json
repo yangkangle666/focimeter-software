@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "task_id": "real_lens_pair_set_001_lens_001",
+  "module": "m1_input_config",
+  "status": "ok",
+  "data_source": "real",
+  "data": {
+    "calibration_image": "data/real/multispot_lens_pairs/real_lens_pair_set_001/images/reference_no_lens.jpg",
+    "measurement_image": "data/real/multispot_lens_pairs/real_lens_pair_set_001/images/lens_001_spots.jpg",
+    "config_path": "data/real/multispot_lens_pairs/real_lens_pair_set_001/config/detection_config.json",
+    "run_mode": "local_image"
+  },
+  "quality": {
+    "config_checked": true,
+    "paths_checked": true,
+    "is_usable": true,
+    "warnings": [
+      "REAL_DATA_SOFTWARE_INTEGRATION_ONLY",
+      "JPEG_SOURCE",
+      "DEVICE_REFERENCE_ONLY",
+      "NOT_METROLOGY_VALIDATED"
+    ]
+  },
+  "error": null
+}

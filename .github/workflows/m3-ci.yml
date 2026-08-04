@@ -7,6 +7,7 @@ on:
     paths:
       - "focimeter_system/modules/calibration_calculation/**"
       - "focimeter_system/config/**"
+      - "focimeter_system/data/real/**"
       - "focimeter_system/data/mock/**"
       - "focimeter_system/validate_mock_data.py"
       - ".github/workflows/m3-ci.yml"
