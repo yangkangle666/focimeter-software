@@ -1,13 +1,16 @@
 {
   "fixture_version": "1.0",
-  "source_commit": "ed42560e0473ed113e6f6bcb62f7c4060de3a34b",
+  "source_commit": "e253a1ba250706ac4667e2b6a3bc850b43baf828",
+  "m2_source_tree_sha": "7f9ed2bcfe0ebf96c4f05be8875022bf15c0d12c",
   "source_input": "data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_noisy_gradient.json",
+  "source_input_sha256_lf": "2c5c7da7927a7bf83ed3ae0a4690f8be647f3dcdc624423b5c5ea4865a9c1bee",
   "generator": "modules/image_recognition focimeter_m2",
+  "generation_command": ".build-m2-review2/focimeter_m2.exe --input focimeter_system/data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_noisy_gradient.json --output .m2-fixture-regenerated --project-root focimeter_system --experimental-multispot --save-intermediate",
   "arguments": [
     "--input",
     "data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_noisy_gradient.json",
     "--output",
-    ".m2-fixture-output",
+    ".m2-fixture-regenerated",
     "--project-root",
     "focimeter_system",
     "--experimental-multispot",

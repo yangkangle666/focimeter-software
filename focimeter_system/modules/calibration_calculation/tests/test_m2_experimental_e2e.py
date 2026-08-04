@@ -12,6 +12,7 @@ from modules.calibration_calculation.algorithm.types import CalibrationModel
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "m2_experimental_94"
 
 
@@ -31,6 +32,17 @@ class M2ExperimentalEndToEndTests(unittest.TestCase):
             digest = hashlib.sha256(canonical_bytes).hexdigest()
             self.assertEqual(metadata["sha256"], digest)
         self.assertFalse(self.manifest["metrology_validated"])
+
+    def test_fixture_provenance_identifies_reachable_m2_tree_and_input(self):
+        self.assertEqual(40, len(self.manifest["source_commit"]))
+        self.assertEqual(40, len(self.manifest["m2_source_tree_sha"]))
+        self.assertIn("--experimental-multispot", self.manifest["generation_command"])
+        source_input = PROJECT_ROOT / self.manifest["source_input"]
+        canonical_bytes = source_input.read_bytes().replace(b"\r\n", b"\n")
+        self.assertEqual(
+            self.manifest["source_input_sha256_lf"],
+            hashlib.sha256(canonical_bytes).hexdigest(),
+        )
 
     def test_normal_94_point_outputs_are_uniquely_matched(self):
         prepared = prepare_calculation_inputs(self.calibration, self.measurement, self.model)

@@ -153,7 +153,11 @@ def _fit_candidate(
     # measurement detection could hide a false/merged spot.
     if len(pairs) != len(measurement_points):
         return None
-    overlap = len(pairs) / min(len(calibration_points), len(measurement_points))
+    # The supported direction is reference/calibration -> measurement. Report
+    # how much of the physical reference lattice remains observable, not how
+    # completely the smaller measurement set was consumed (which is already
+    # required above).
+    overlap = len(pairs) / len(calibration_points)
     if overlap < limits.min_overlap_ratio:
         return None
     c = calibration_points[[item[0] for item in pairs]]
@@ -188,7 +192,9 @@ def _fit_candidate(
     shear = abs(float(symmetric[0, 1])) / max(float(np.mean(np.diag(symmetric))), np.finfo(float).eps)
     if shear > limits.max_shear_ratio:
         return None
-    if float(np.linalg.norm(translation)) / pitch > limits.max_translation_pitch_ratio:
+    calibration_center = np.average(c, axis=0, weights=confidence)
+    center_displacement = transform @ calibration_center + translation - calibration_center
+    if float(np.linalg.norm(center_displacement)) / pitch > limits.max_translation_pitch_ratio:
         return None
     predicted = c @ transform.T + translation
     residuals = np.linalg.norm(m - predicted, axis=1)
