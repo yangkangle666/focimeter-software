@@ -17,7 +17,7 @@
     "detected_count": 5,
     "min_confidence": 0.93,
     "is_usable": true,
-    "warnings": []
+    "warnings": ["MOCK_DATA_ONLY"]
   },
   "error": null
 }

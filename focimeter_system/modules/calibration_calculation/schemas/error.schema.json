@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/error.schema.json",
+  "title": "Unified M3 error output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "module", "status", "error"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "task_id": {"type": "string", "minLength": 1},
+    "module": {"const": "m3_calibration_calculation"},
+    "status": {"const": "error"},
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "module", "recoverable", "details"],
+      "properties": {
+        "code": {
+          "enum": ["IMAGE_NOT_FOUND", "CONFIG_NOT_FOUND", "CONFIG_INVALID", "IMAGE_LOAD_FAILED", "SPOT_COUNT_MISMATCH", "CENTROID_FAILED", "COORDINATE_SYSTEM_INVALID", "UNIT_MISMATCH", "CALCULATION_FAILED", "UNKNOWN_ERROR"]
+        },
+        "message": {"type": "string", "minLength": 1},
+        "module": {"const": "m3_calibration_calculation"},
+        "recoverable": {"type": "boolean"},
+        "details": {"type": "object"}
+      }
+    }
+  }
+}

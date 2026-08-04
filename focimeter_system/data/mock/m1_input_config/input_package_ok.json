@@ -15,6 +15,7 @@
     "config_checked": true,
     "is_usable": true,
     "warnings": [
+      "MOCK_DATA_ONLY",
       "DATA_SOURCE: mock",
       "VALIDATION_STATUS: simulation_only",
       "HARDWARE_PARAMETERS_UNCONFIRMED: calibration.parameters",

@@ -5,8 +5,8 @@
   "status": "ok",
   "lens_type": "spherical",
   "result": {
-    "S": -2.50,
-    "C": 0.00,
+    "S": -2.5,
+    "C": 0.0,
     "A": null,
     "unit": "D",
     "angle_unit": "degree"
@@ -14,15 +14,28 @@
   "quality": {
     "is_usable": true,
     "confidence": 0.91,
-    "warnings": []
+    "validation_status": "software_verified",
+    "matched_spot_count": 5,
+    "fit_rmse": 0.0,
+    "condition_number": 1.0,
+    "warnings": [
+      "MOCK_DATA_ONLY",
+      "software_verified"
+    ]
   },
   "intermediate": {
     "coordinate_system_valid": true,
     "coordinate_type_before": "image_pixel",
     "coordinate_type_after": "calibration_pixel",
     "shift_unit": "pixel",
-    "shift_y_positive": {"dx": 0.82, "dy": 2.60},
-    "shift_x_positive": {"dx": -1.38, "dy": 0.78}
+    "shift_y_positive": {
+      "dx": 0.82,
+      "dy": 2.6
+    },
+    "shift_x_positive": {
+      "dx": -1.38,
+      "dy": 0.78
+    }
   },
   "error": null
 }

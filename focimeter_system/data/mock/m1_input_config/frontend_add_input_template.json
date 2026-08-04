@@ -9,7 +9,7 @@
     "config_path": "config/default_config.json",
     "run_mode": "local_image",
     "operator": "mock_user",
-    "notes": "临时前端添加的输入材料。"
+    "notes": "MOCK_DATA_ONLY：临时前端添加的统一 mock 输入材料。"
   },
   "expected_output": "input_package_ok.json",
   "error": null

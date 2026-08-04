@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/spot_result.schema.json",
+  "title": "M2 spot recognition success output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "module", "status", "image_type", "coordinate_type", "spots", "quality", "error"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "task_id": {"type": "string", "minLength": 1},
+    "module": {"const": "m2_image_recognition"},
+    "status": {"const": "ok"},
+    "image_type": {"enum": ["calibration", "measurement"]},
+    "coordinate_type": {"const": "image_pixel"},
+    "spots": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/spot"}
+    },
+    "quality": {"$ref": "#/$defs/quality"},
+    "error": {"type": "null"}
+  },
+  "$defs": {
+    "spot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spot_id", "x", "y", "confidence"],
+      "properties": {
+        "spot_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Physical ray identity within the same task_id. The same spot_id in calibration and measurement files must refer to the same physical light ray, not detection order."
+        },
+        "role": {"enum": ["center", "y_positive", "x_positive", "left_or_negative", "other", "unknown"]},
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "area": {"type": "number", "minimum": 0},
+        "mean_intensity": {"type": "number", "minimum": 0},
+        "quality_flags": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["is_usable"],
+      "properties": {
+        "expected_count": {"type": "integer", "minimum": 0},
+        "detected_count": {"type": "integer", "minimum": 0},
+        "spot_count": {"type": "integer", "minimum": 0},
+        "min_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "is_usable": {"type": "boolean"},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

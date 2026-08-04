@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/frontend_input.schema.json",
+  "title": "Temporary M3 frontend input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "module", "status", "frontend_input", "must_read_upstream_output", "expected_output", "error"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "task_id": {"type": "string", "minLength": 1},
+    "module": {"const": "m3_calibration_calculation"},
+    "status": {"const": "ok"},
+    "frontend_input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spots_calib_path", "spots_meas_path", "config_path", "lens_result_mode"],
+      "properties": {
+        "spots_calib_path": {"type": "string", "minLength": 1, "not": {"pattern": "^(?:[A-Za-z]:|[/\\\\])"}},
+        "spots_meas_path": {"type": "string", "minLength": 1, "not": {"pattern": "^(?:[A-Za-z]:|[/\\\\])"}},
+        "config_path": {"type": "string", "minLength": 1, "not": {"pattern": "^(?:[A-Za-z]:|[/\\\\])"}},
+        "lens_result_mode": {"const": "auto"}
+      }
+    },
+    "must_read_upstream_output": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string", "minLength": 1}},
+    "expected_output": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "error": {"type": "null"}
+  }
+}

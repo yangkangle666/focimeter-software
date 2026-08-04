@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/result_success.schema.json",
+  "title": "M3 calculation success output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "module", "status", "lens_type", "result", "quality", "intermediate", "error"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "task_id": {"type": "string", "minLength": 1},
+    "module": {"const": "m3_calibration_calculation"},
+    "status": {"const": "ok"},
+    "lens_type": {"enum": ["spherical", "cylindrical"]},
+    "result": {"$ref": "#/$defs/result"},
+    "quality": {"$ref": "#/$defs/quality"},
+    "intermediate": {"$ref": "#/$defs/intermediate"},
+    "matching": {"$ref": "#/$defs/matching"},
+    "error": {"type": "null"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"lens_type": {"const": "spherical"}}, "required": ["lens_type"]},
+      "then": {
+        "properties": {
+          "result": {
+            "properties": {"C": {"const": 0}, "A": {"type": "null"}}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"lens_type": {"const": "cylindrical"}}, "required": ["lens_type"]},
+      "then": {
+        "properties": {
+          "result": {
+            "properties": {
+              "C": {"type": "number", "not": {"const": 0}},
+              "A": {"type": "number"}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["S", "C", "A", "unit", "angle_unit"],
+      "properties": {
+        "S": {"type": "number"},
+        "C": {"type": "number"},
+        "A": {"type": ["number", "null"], "minimum": 0, "exclusiveMaximum": 180},
+        "unit": {"const": "D"},
+        "angle_unit": {"const": "degree"}
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["is_usable", "confidence", "validation_status", "matched_spot_count", "fit_rmse", "condition_number", "warnings"],
+      "properties": {
+        "is_usable": {"type": "boolean"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "validation_status": {"enum": ["simulation_only", "software_verified", "metrology_validated"]},
+        "matched_spot_count": {"type": "integer", "minimum": 0},
+        "fit_rmse": {"type": "number", "minimum": 0},
+        "condition_number": {"type": "number", "minimum": 1},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "shift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dx", "dy"],
+      "properties": {"dx": {"type": "number"}, "dy": {"type": "number"}}
+    },
+    "intermediate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coordinate_system_valid", "coordinate_type_before", "coordinate_type_after", "shift_unit"],
+      "properties": {
+        "coordinate_system_valid": {"const": true},
+        "coordinate_type_before": {"const": "image_pixel"},
+        "coordinate_type_after": {"const": "calibration_pixel"},
+        "shift_unit": {"const": "pixel"},
+        "shift_y_positive": {"$ref": "#/$defs/shift"},
+        "shift_x_positive": {"$ref": "#/$defs/shift"}
+      }
+    },
+    "matching": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_schema_version", "calibration_detection_count", "measurement_detection_count",
+        "matched_spot_count", "unmatched_calibration_count", "unmatched_measurement_count",
+        "overlap_ratio", "rmse_pixel", "max_residual_pixel", "hypothesis_margin", "identity_source"
+      ],
+      "properties": {
+        "input_schema_version": {"const": "m2.multispot.experimental.1"},
+        "calibration_detection_count": {"type": "integer", "minimum": 1},
+        "measurement_detection_count": {"type": "integer", "minimum": 1},
+        "matched_spot_count": {"type": "integer", "minimum": 4},
+        "unmatched_calibration_count": {"type": "integer", "minimum": 0},
+        "unmatched_measurement_count": {"type": "integer", "minimum": 0},
+        "overlap_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "rmse_pixel": {"type": "number", "minimum": 0},
+        "max_residual_pixel": {"type": "number", "minimum": 0},
+        "hypothesis_margin": {"type": "number", "minimum": 0},
+        "identity_source": {"const": "m3_conservative_cross_image_matching"}
+      }
+    }
+  }
+}

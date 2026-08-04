@@ -8,7 +8,7 @@
     "lens_type_label": "球镜",
     "main_result": "S=-2.50D, C=0.00D, A=--",
     "quality_label": "可用",
-    "warnings": []
+    "warnings": ["MOCK_DATA_ONLY"]
   },
   "artifacts": {
     "report_path": "outputs/reports/sample_001_report.json",

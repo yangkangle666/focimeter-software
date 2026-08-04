@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "dataset_id": "real_lens_pair_set_001",
+  "data_source": "real",
+  "received_date": "2026-08-04",
+  "validation_status": "raw_received",
+  "metrology_validated": false,
+  "usable_for": [
+    "software_integration",
+    "multispot_detection",
+    "cross_image_matching_development"
+  ],
+  "pairing": {
+    "reference_shared_across_cases": true,
+    "reference_is_no_lens": true,
+    "case_directories_match_their_device_reading_photos": true,
+    "confirmed_by_project_lead": true
+  },
+  "image_contract": {
+    "width": 1600,
+    "height": 1200,
+    "format": "JPEG",
+    "channels": 3,
+    "coordinate_type": "image_pixel",
+    "origin": "top_left",
+    "x_positive": "right",
+    "y_positive": "down"
+  },
+  "files": [
+    {
+      "role": "calibration_no_lens",
+      "path": "images/reference_no_lens.jpg",
+      "sha256": "eb12939275052ab13fc595852ba47f32f1bd068c5fbb3e4ef068df0c59781c77"
+    },
+    {
+      "role": "lens_001_measurement",
+      "path": "images/lens_001_spots.jpg",
+      "sha256": "9945b256e8ad867862300acaef629faf55c0fdae0187f814738764fd5e1a4eaf"
+    },
+    {
+      "role": "lens_001_device_reading",
+      "path": "readings/lens_001_device.jpg",
+      "sha256": "4eb0ed57a72ddecdcabba65d4885d48560d359f54d670b714bd0ca2ed08f0d2a"
+    },
+    {
+      "role": "lens_002_measurement",
+      "path": "images/lens_002_spots.jpg",
+      "sha256": "97cea9b967b287008bf89268c67e950781a3299d8437d5bc506888c454268cff"
+    },
+    {
+      "role": "lens_002_device_reading",
+      "path": "readings/lens_002_device.jpg",
+      "sha256": "7f2b9bcefdd8e888326ae6077f0bac151eb43a6af535224fd2544a749355f8c1"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "lens_001",
+      "calibration_image": "images/reference_no_lens.jpg",
+      "measurement_image": "images/lens_001_spots.jpg",
+      "device_reading_photo": "readings/lens_001_device.jpg",
+      "device_reference": {
+        "status": "device_reference_only",
+        "notation": "minus_cylinder",
+        "S_D": -5.25,
+        "C_D": -2.0,
+        "A_degree": 154,
+        "prism_delta": 0.0
+      },
+      "engineering_spot_count_estimate": {
+        "calibration": 43,
+        "measurement": 27,
+        "method": "green-channel connected components; not an M2 result"
+      }
+    },
+    {
+      "case_id": "lens_002",
+      "calibration_image": "images/reference_no_lens.jpg",
+      "measurement_image": "images/lens_002_spots.jpg",
+      "device_reading_photo": "readings/lens_002_device.jpg",
+      "device_reference": {
+        "status": "device_reference_only",
+        "notation": "minus_cylinder",
+        "S_D": -1.5,
+        "C_D": 0.0,
+        "A_degree": null,
+        "displayed_A_degree": 0,
+        "prism_delta": 0.0
+      },
+      "engineering_spot_count_estimate": {
+        "calibration": 43,
+        "measurement": 39,
+        "method": "green-channel connected components; not an M2 result"
+      }
+    }
+  ],
+  "unknown_capture_parameters": [
+    "camera_model",
+    "sensor_pixel_size_um",
+    "exposure",
+    "gain",
+    "green_wavelength_nm",
+    "hartmann_hole_spacing_mm",
+    "optical_distance_m",
+    "optical_magnification",
+    "lens_serial_numbers",
+    "reference_instrument_calibration_status"
+  ],
+  "limitations": [
+    "The provided files are JPEG rather than raw or lossless camera frames.",
+    "The commercial focimeter screen values are engineering references, not certified standard-lens values.",
+    "The dataset has two lens cases and no repeated captures, so it cannot establish repeatability or metrology accuracy.",
+    "Edge spots leave the frame after lens deformation; matching must support partial overlap and must not require identical detection sets."
+  ]
+}

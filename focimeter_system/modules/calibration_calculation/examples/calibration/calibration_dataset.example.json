@@ -1,0 +1,133 @@
+{
+  "schema_version": "1.0",
+  "dataset_id": "m3_simulation_dataset_001",
+  "data_kind": "simulation",
+  "samples": [
+    {
+      "sample_id": "sphere_neg_5_train",
+      "partition": "train",
+      "serial_number": "SIM-SPH-N05",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/sphere_neg_5/spots_meas.json",
+      "certified": {"S": -5.0, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "sphere_pos_5_train",
+      "partition": "train",
+      "serial_number": "SIM-SPH-P05",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/sphere_pos_5/spots_meas.json",
+      "certified": {"S": 5.0, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "cylinder_neg_1_5_axis_0_train",
+      "partition": "train",
+      "serial_number": "SIM-CYL-N15",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/cylinder_neg_1_5/axis_0/spots_meas.json",
+      "certified": {"S": 0.0, "C": -1.5, "A": 0.0, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.015
+    },
+    {
+      "sample_id": "cylinder_neg_1_5_axis_45_train",
+      "partition": "train",
+      "serial_number": "SIM-CYL-N15",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/cylinder_neg_1_5/axis_45/spots_meas.json",
+      "certified": {"S": 0.0, "C": -1.5, "A": 45.0, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.015
+    },
+    {
+      "sample_id": "sphere_pos_2_5_validation",
+      "partition": "validation",
+      "serial_number": "SIM-SPH-P025",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/sphere_pos_2_5/spots_meas.json",
+      "certified": {"S": 2.5, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "zero_validation_repeat_1",
+      "partition": "validation",
+      "serial_number": "SIM-ZERO",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/zero/repeat_1/spots_meas.json",
+      "certified": {"S": 0.0, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "zero_validation_repeat_2",
+      "partition": "validation",
+      "serial_number": "SIM-ZERO",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/zero/repeat_2/spots_meas.json",
+      "certified": {"S": 0.0, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "cylinder_neg_1_5_axis_90_validation_1",
+      "partition": "validation",
+      "serial_number": "SIM-CYL-N15-A90",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/cylinder_neg_1_5/axis_90/repeat_1/spots_meas.json",
+      "certified": {"S": 0.0, "C": -1.5, "A": 90.0, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.015
+    },
+    {
+      "sample_id": "cylinder_neg_1_5_axis_90_validation_2",
+      "partition": "validation",
+      "serial_number": "SIM-CYL-N15-A90",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/cylinder_neg_1_5/axis_90/repeat_2/spots_meas.json",
+      "certified": {"S": 0.0, "C": -1.5, "A": 90.0, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.015
+    },
+    {
+      "sample_id": "sphere_zero_test_1",
+      "partition": "test",
+      "serial_number": "SIM-ZERO-TEST",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/test/zero/repeat_1/spots_meas.json",
+      "certified": {"S": 0.0, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "sphere_zero_test_2",
+      "partition": "test",
+      "serial_number": "SIM-ZERO-TEST",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/test/zero/repeat_2/spots_meas.json",
+      "certified": {"S": 0.0, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "sphere_pos_2_5_test",
+      "partition": "test",
+      "serial_number": "SIM-SPH-P025-TEST",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/test/sphere_pos_2_5/spots_meas.json",
+      "certified": {"S": 2.5, "C": 0.0, "A": null, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.03
+    },
+    {
+      "sample_id": "cylinder_neg_1_5_axis_90_test_1",
+      "partition": "test",
+      "serial_number": "SIM-CYL-N15-A90-TEST",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/test/cylinder_neg_1_5/axis_90/repeat_1/spots_meas.json",
+      "certified": {"S": 0.0, "C": -1.5, "A": 90.0, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.015
+    },
+    {
+      "sample_id": "cylinder_neg_1_5_axis_90_test_2",
+      "partition": "test",
+      "serial_number": "SIM-CYL-N15-A90-TEST",
+      "spots_calib_path": "data/calibration/zero/spots_calib.json",
+      "spots_meas_path": "data/calibration/test/cylinder_neg_1_5/axis_90/repeat_2/spots_meas.json",
+      "certified": {"S": 0.0, "C": -1.5, "A": 90.0, "unit": "D", "angle_unit": "degree", "notation": "minus_cylinder"},
+      "uncertainty_D": 0.015
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "config_name": "default_config",
+  "camera": {
+    "pixel_size_um": null,
+    "image_width": 1600,
+    "image_height": 1200
+  },
+  "optical": {
+    "distance_m": null,
+    "hartmann_spacing_mm": null
+  },
+  "image_processing": {
+    "roi_width_ratio": 0.9,
+    "roi_height_ratio": 0.9,
+    "median_kernel": 3,
+    "tophat_kernel": 30,
+    "otsu_a": 0.4,
+    "otsu_b": 0.7,
+    "max_depth": 2
+  },
+  "recognition": {
+    "spot_count_mode": "auto",
+    "expected_spot_count": null,
+    "min_confidence": 0.7
+  },
+  "calculation": {
+    "pixel_threshold": 1.0,
+    "angle_unit": "degree",
+    "diopter_unit": "D"
+  },
+  "path_policy": {
+    "path_type": "relative_to_project_root",
+    "allow_absolute_path": false
+  },
+  "coordinate_system": {
+    "coordinate_type": "cartesian",
+    "origin": "top_left",
+    "x_positive": "right",
+    "y_positive": "down",
+    "y_flip": false,
+    "confirmation_status": "pending_hardware"
+  },
+  "illumination": {
+    "source_color": "green",
+    "wavelength_nm": null
+  }
+}

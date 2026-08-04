@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://focimeter.local/schemas/calibration_dataset.schema.json",
+  "title": "M3 standard-lens calibration dataset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "dataset_id", "data_kind", "samples"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "dataset_id": {"type": "string", "minLength": 1},
+    "data_kind": {"enum": ["simulation", "metrology"]},
+    "samples": {"type": "array", "minItems": 5, "items": {"$ref": "#/$defs/sample"}}
+  },
+  "$defs": {
+    "relativePath": {"type": "string", "minLength": 1, "not": {"pattern": "^(?:[A-Za-z]:|[/\\\\])"}},
+    "certified": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["S", "C", "A", "unit", "angle_unit", "notation"],
+      "properties": {
+        "S": {"type": "number"},
+        "C": {"type": "number"},
+        "A": {"type": ["number", "null"], "minimum": 0, "exclusiveMaximum": 180},
+        "unit": {"const": "D"},
+        "angle_unit": {"const": "degree"},
+        "notation": {"enum": ["minus_cylinder", "plus_cylinder"]}
+      }
+    },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_id", "partition", "serial_number", "spots_calib_path", "spots_meas_path", "certified", "uncertainty_D"],
+      "properties": {
+        "sample_id": {"type": "string", "minLength": 1},
+        "partition": {"enum": ["train", "validation", "test"]},
+        "serial_number": {"type": "string", "minLength": 1},
+        "spots_calib_path": {"$ref": "#/$defs/relativePath"},
+        "spots_meas_path": {"$ref": "#/$defs/relativePath"},
+        "source_image_path": {"$ref": "#/$defs/relativePath"},
+        "source_image_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "certified": {"$ref": "#/$defs/certified"},
+        "uncertainty_D": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "dependentRequired": {"source_image_path": ["source_image_sha256"], "source_image_sha256": ["source_image_path"]}
+    }
+  }
+}
