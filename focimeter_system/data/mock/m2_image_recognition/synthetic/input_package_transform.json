@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "task_id": "m2_synthetic_transform",
+  "module": "m1_input_config",
+  "status": "ok",
+  "data": {
+    "calibration_image": "data/mock/m2_image_recognition/synthetic/calibration/base_5spots.png",
+    "measurement_image": "data/mock/m2_image_recognition/synthetic/measurement/translate_rotate_scale.png",
+    "config_path": "config/legacy_five_spot_config.json",
+    "run_mode": "local_image",
+    "created_at": "2026-07-22T20:00:00+08:00"
+  },
+  "quality": {
+    "paths_checked": true,
+    "config_checked": true,
+    "is_usable": true,
+    "warnings": ["SYNTHETIC_DATA_ONLY"]
+  },
+  "error": null
+}

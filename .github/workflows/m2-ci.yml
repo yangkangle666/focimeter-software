@@ -1,0 +1,46 @@
+name: M2 C++ CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "focimeter_system/modules/image_recognition/**"
+      - "focimeter_system/data/mock/m2_image_recognition/**"
+      - "focimeter_system/validate_mock_data.py"
+      - ".github/workflows/m2-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ninja-build libopencv-dev nlohmann-json3-dev
+
+      - name: Configure M2
+        run: >-
+          cmake
+          -S focimeter_system/modules/image_recognition
+          -B build/m2
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build M2
+        run: cmake --build build/m2 --parallel 2
+
+      - name: Run M2 CTest suite
+        run: ctest --test-dir build/m2 --output-on-failure
+
+      - name: Validate mock JSON contracts
+        run: python3 focimeter_system/validate_mock_data.py

@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "task_id": "m2_synthetic_uneven",
+  "module": "m1_input_config",
+  "status": "ok",
+  "data": {
+    "calibration_image": "data/mock/m2_image_recognition/synthetic/calibration/base_5spots.png",
+    "measurement_image": "data/mock/m2_image_recognition/synthetic/measurement/uneven_spots.png",
+    "config_path": "config/legacy_five_spot_config.json",
+    "run_mode": "local_image"
+  },
+  "quality": {
+    "is_usable": true,
+    "warnings": ["SYNTHETIC_TEST_ONLY"]
+  },
+  "error": null
+}

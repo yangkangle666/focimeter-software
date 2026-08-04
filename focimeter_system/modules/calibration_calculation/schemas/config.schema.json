@@ -12,9 +12,7 @@
     "image_processing",
     "recognition",
     "calculation",
-    "path_policy",
-    "light_source",
-    "measurement_range"
+    "path_policy"
   ],
   "properties": {
     "schema_version": {
@@ -70,6 +68,28 @@
           "type": "number",
           "minimum": 0
         }
+      }
+    },
+    "camera_simulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameter_status",
+        "color_mode",
+        "bit_depth",
+        "exposure_min_ms",
+        "exposure_max_ms",
+        "image_plane_width_mm",
+        "image_plane_height_mm"
+      ],
+      "properties": {
+        "parameter_status": {"enum": ["simulated", "measured"]},
+        "color_mode": {"const": "mono"},
+        "bit_depth": {"const": 8},
+        "exposure_min_ms": {"type": "number", "exclusiveMinimum": 0},
+        "exposure_max_ms": {"type": "number", "exclusiveMinimum": 0},
+        "image_plane_width_mm": {"type": "number", "exclusiveMinimum": 0},
+        "image_plane_height_mm": {"type": "number", "exclusiveMinimum": 0}
       }
     },
     "optical": {
@@ -134,32 +154,39 @@
       }
     },
     "recognition": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "expected_spot_count",
-        "min_spot_count",
-        "min_confidence"
-      ],
-      "properties": {
-        "expected_spot_count": {
-          "oneOf": [
-            {"type": "integer", "minimum": 1},
-            {"const": "AUTO"},
-            {"const": "TODO_CONFIRM"},
-            {"type": "null"}
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["spot_count_mode", "expected_spot_count", "min_confidence"],
+          "properties": {
+            "spot_count_mode": {"enum": ["auto", "fixed"]},
+            "expected_spot_count": {
+              "oneOf": [
+                {"type": "integer", "minimum": 1},
+                {"type": "null"}
+              ]
+            },
+            "min_confidence": {"type": "number", "minimum": 0, "maximum": 1}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"spot_count_mode": {"const": "auto"}}},
+              "then": {"properties": {"expected_spot_count": {"type": "null"}}},
+              "else": {"properties": {"expected_spot_count": {"type": "integer", "minimum": 1}}}
+            }
           ]
         },
-        "min_spot_count": {
-          "type": "integer",
-          "minimum": 4
-        },
-        "min_confidence": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expected_spot_count", "min_confidence"],
+          "properties": {
+            "expected_spot_count": {"type": "integer", "minimum": 1},
+            "min_confidence": {"type": "number", "minimum": 0, "maximum": 1}
+          }
         }
-      }
+      ]
     },
     "calculation": {
       "type": "object",
@@ -198,77 +225,88 @@
         }
       }
     },
-    "light_source": {
+    "coordinate_system": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "type",
-        "notes"
-      ],
+      "required": ["coordinate_type", "origin", "x_positive", "y_positive", "y_flip", "confirmation_status"],
       "properties": {
-        "type": {
-          "type": "string",
-          "minLength": 1
-        },
-        "notes": {
-          "type": "string",
-          "minLength": 1
-        }
+        "coordinate_type": {"const": "cartesian"},
+        "origin": {"const": "top_left"},
+        "x_positive": {"const": "right"},
+        "y_positive": {"const": "down"},
+        "y_flip": {"const": false},
+        "confirmation_status": {"enum": ["pending_hardware", "confirmed"]}
       }
     },
-    "measurement_range": {
+    "illumination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_color", "wavelength_nm"],
+      "properties": {
+        "source_color": {"enum": ["green", "green_led"]},
+        "wavelength_nm": {"$ref": "#/$defs/unknownPositiveNumber"}
+      }
+    },
+    "hartmann_calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spacing_source", "spot_spacing_px", "spacing_formula"],
+      "properties": {
+        "spacing_source": {"const": "camera_pixel_spacing"},
+        "spot_spacing_px": {"$ref": "#/$defs/unknownPositiveNumber"},
+        "spacing_formula": {"const": "spot_spacing_px * camera.pixel_size_um / 1000"}
+      }
+    },
+    "measurement_targets": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "notes",
-        "sphere_diopter_min",
-        "sphere_diopter_max",
-        "cylinder_diopter_min",
-        "cylinder_diopter_max",
-        "axis_degree_min",
-        "axis_degree_max"
+        "sphere_min_d", "sphere_max_d", "sphere_steps_d",
+        "cylinder_min_d", "cylinder_max_d", "cylinder_steps_d",
+        "prism_min_delta", "prism_max_delta", "prism_step_delta",
+        "axis_min_degree", "axis_max_degree", "axis_step_degree",
+        "addition_min_d", "addition_max_d", "addition_steps_d",
+        "uv_min_percent", "uv_max_percent", "uv_steps_percent"
       ],
       "properties": {
-        "notes": {
-          "type": "string",
-          "minLength": 1
-        },
-        "sphere_diopter_min": {
-          "type": "number"
-        },
-        "sphere_diopter_max": {
-          "type": "number"
-        },
-        "cylinder_diopter_min": {
-          "type": "number"
-        },
-        "cylinder_diopter_max": {
-          "type": "number"
-        },
-        "axis_degree_min": {
-          "type": "number"
-        },
-        "axis_degree_max": {
-          "type": "number"
-        },
-        "prism_diopter_min": {
-          "type": "number"
-        },
-        "prism_diopter_max": {
-          "type": "number"
-        },
-        "addition_diopter_min": {
-          "type": "number"
-        },
-        "addition_diopter_max": {
-          "type": "number"
-        },
-        "lens_diameter_mm_min": {
-          "type": "number"
-        },
-        "lens_diameter_mm_max": {
-          "type": "number"
-        }
+        "sphere_min_d": {"type": "number"},
+        "sphere_max_d": {"type": "number"},
+        "sphere_steps_d": {"$ref": "#/$defs/positiveNumberList"},
+        "cylinder_min_d": {"type": "number"},
+        "cylinder_max_d": {"type": "number"},
+        "cylinder_steps_d": {"$ref": "#/$defs/positiveNumberList"},
+        "prism_min_delta": {"type": "number"},
+        "prism_max_delta": {"type": "number"},
+        "prism_step_delta": {"type": "number", "exclusiveMinimum": 0},
+        "axis_min_degree": {"const": 0},
+        "axis_max_degree": {"const": 180},
+        "axis_step_degree": {"type": "number", "exclusiveMinimum": 0},
+        "addition_min_d": {"type": "number"},
+        "addition_max_d": {"type": "number"},
+        "addition_steps_d": {"$ref": "#/$defs/positiveNumberList"},
+        "uv_min_percent": {"type": "number", "minimum": 0, "maximum": 100},
+        "uv_max_percent": {"type": "number", "minimum": 0, "maximum": 100},
+        "uv_steps_percent": {"$ref": "#/$defs/positiveNumberList"}
+      }
+    },
+    "data_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data_source", "validation_status", "hardware_parameters_confirmed"],
+      "properties": {
+        "data_source": {"enum": ["synthetic", "mock", "real"]},
+        "validation_status": {"enum": ["simulation_only", "software_verified", "metrology_validated"]},
+        "hardware_parameters_confirmed": {"type": "boolean"}
+      }
+    },
+    "calibration_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calibration_file", "calibration_version", "parameter_status"],
+      "properties": {
+        "calibration_file": {"type": "string", "minLength": 1},
+        "calibration_version": {"type": "string", "minLength": 1},
+        "parameter_status": {"enum": ["simulated", "measured"]}
       }
     }
   },
@@ -300,6 +338,11 @@
           "const": "TODO_CONFIRM"
         }
       ]
+    },
+    "positiveNumberList": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "number", "exclusiveMinimum": 0}
     }
   }
 }

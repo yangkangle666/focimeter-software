@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "config_name": "legacy_five_spot_config",
+  "camera": {
+    "pixel_size_um": 4.8,
+    "image_width": null,
+    "image_height": null
+  },
+  "camera_simulation": {
+    "parameter_status": "simulated",
+    "color_mode": "mono",
+    "bit_depth": 8,
+    "exposure_min_ms": 0.01,
+    "exposure_max_ms": 100.0,
+    "image_plane_width_mm": 6.1,
+    "image_plane_height_mm": 4.9
+  },
+  "optical": {
+    "distance_m": 0.03,
+    "hartmann_spacing_mm": null
+  },
+  "image_processing": {
+    "roi_width_ratio": 0.9,
+    "roi_height_ratio": 0.9,
+    "median_kernel": 3,
+    "tophat_kernel": 30,
+    "otsu_a": 0.4,
+    "otsu_b": 0.7,
+    "max_depth": 2
+  },
+  "recognition": {
+    "spot_count_mode": "fixed",
+    "expected_spot_count": 5,
+    "min_confidence": 0.7
+  },
+  "calculation": {
+    "pixel_threshold": 1.0,
+    "angle_unit": "degree",
+    "diopter_unit": "D"
+  },
+  "path_policy": {
+    "path_type": "relative_to_project_root",
+    "allow_absolute_path": false
+  },
+  "illumination": {
+    "source_color": "green_led",
+    "wavelength_nm": null
+  },
+  "coordinate_system": {
+    "coordinate_type": "cartesian",
+    "origin": "top_left",
+    "x_positive": "right",
+    "y_positive": "down",
+    "y_flip": false,
+    "confirmation_status": "pending_hardware"
+  },
+  "hartmann_calibration": {
+    "spacing_source": "camera_pixel_spacing",
+    "spot_spacing_px": null,
+    "spacing_formula": "spot_spacing_px * camera.pixel_size_um / 1000"
+  },
+  "measurement_targets": {
+    "sphere_min_d": -25.0,
+    "sphere_max_d": 25.0,
+    "sphere_steps_d": [0.01, 0.06, 0.12, 0.25],
+    "cylinder_min_d": -10.0,
+    "cylinder_max_d": 10.0,
+    "cylinder_steps_d": [0.01, 0.06, 0.12, 0.25],
+    "prism_min_delta": 0.0,
+    "prism_max_delta": 15.0,
+    "prism_step_delta": 0.01,
+    "axis_min_degree": 0,
+    "axis_max_degree": 180,
+    "axis_step_degree": 1,
+    "addition_min_d": 0.0,
+    "addition_max_d": 10.0,
+    "addition_steps_d": [0.01, 0.06, 0.12, 0.25],
+    "uv_min_percent": 1,
+    "uv_max_percent": 100,
+    "uv_steps_percent": [1, 15]
+  },
+  "data_profile": {
+    "data_source": "mock",
+    "validation_status": "simulation_only",
+    "hardware_parameters_confirmed": false
+  },
+  "calibration_reference": {
+    "calibration_file": "data/calibration/simulation_calibration.json",
+    "calibration_version": "simulation-v1",
+    "parameter_status": "simulated"
+  }
+}

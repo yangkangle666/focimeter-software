@@ -36,9 +36,11 @@ class SchemaContractTests(unittest.TestCase):
         self.assert_schema_valid("spot_result.schema.json", measurement)
 
     def test_canonical_configuration_and_frontend_match_schemas(self) -> None:
-        config = json.loads((ROOT / "config" / "default_config.json").read_text(encoding="utf-8"))
+        for config_path in sorted((ROOT / "config").glob("*.json")):
+            with self.subTest(config=config_path.name):
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                self.assert_schema_valid("config.schema.json", config)
         frontend = self.load_json(M3_MOCKS / "frontend_add_input_template.json")
-        self.assert_schema_valid("config.schema.json", config)
         self.assert_schema_valid("frontend_input.schema.json", frontend)
 
     def test_canonical_outputs_match_schemas(self) -> None:

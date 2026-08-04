@@ -6,7 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 MOCK_DIR = ROOT / "data" / "mock"
-CONFIG_PATH = ROOT / "config" / "default_config.json"
+CONFIG_PATHS = sorted((ROOT / "config").glob("*.json"))
+CALIBRATION_PATHS = sorted((ROOT / "data/calibration").glob("*.json"))
 INPUT_PACKAGE_PATH = MOCK_DIR / "m1_input_config" / "input_package_ok.json"
 
 EXPECTED_MOCK_INPUT_PATHS = {
@@ -106,13 +107,14 @@ def validate_mock_marker(path: Path, data: dict) -> None:
 
 
 def main() -> int:
-    paths = sorted(MOCK_DIR.rglob("*.json")) + [CONFIG_PATH]
+    mock_paths = sorted(MOCK_DIR.rglob("*.json"))
+    paths = mock_paths + CONFIG_PATHS + CALIBRATION_PATHS
     checked = 0
     checked_input_paths = 0
 
     for path in paths:
         data = load_json(path)
-        if path != CONFIG_PATH:
+        if path in mock_paths:
             validate_common_fields(path, data)
         validate_mock_marker(path, data)
         if path == INPUT_PACKAGE_PATH:

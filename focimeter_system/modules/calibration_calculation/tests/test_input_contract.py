@@ -52,6 +52,7 @@ class InputContractTests(unittest.TestCase):
         self.assert_issue(report, "SPOT_COUNT_MISMATCH")
 
     def test_expected_count_mismatch_is_rejected(self) -> None:
+        self.config["recognition"]["spot_count_mode"] = "fixed"
         self.config["recognition"]["expected_spot_count"] = 6
         self.assert_issue(validate_inputs(self.calibration, self.measurement, self.config), "SPOT_COUNT_MISMATCH")
 
