@@ -14,6 +14,7 @@
     "result": {"$ref": "#/$defs/result"},
     "quality": {"$ref": "#/$defs/quality"},
     "intermediate": {"$ref": "#/$defs/intermediate"},
+    "matching": {"$ref": "#/$defs/matching"},
     "error": {"type": "null"}
   },
   "allOf": [
@@ -85,6 +86,28 @@
         "shift_unit": {"const": "pixel"},
         "shift_y_positive": {"$ref": "#/$defs/shift"},
         "shift_x_positive": {"$ref": "#/$defs/shift"}
+      }
+    },
+    "matching": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_schema_version", "calibration_detection_count", "measurement_detection_count",
+        "matched_spot_count", "unmatched_calibration_count", "unmatched_measurement_count",
+        "overlap_ratio", "rmse_pixel", "max_residual_pixel", "hypothesis_margin", "identity_source"
+      ],
+      "properties": {
+        "input_schema_version": {"const": "m2.multispot.experimental.1"},
+        "calibration_detection_count": {"type": "integer", "minimum": 1},
+        "measurement_detection_count": {"type": "integer", "minimum": 1},
+        "matched_spot_count": {"type": "integer", "minimum": 4},
+        "unmatched_calibration_count": {"type": "integer", "minimum": 0},
+        "unmatched_measurement_count": {"type": "integer", "minimum": 0},
+        "overlap_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "rmse_pixel": {"type": "number", "minimum": 0},
+        "max_residual_pixel": {"type": "number", "minimum": 0},
+        "hypothesis_margin": {"type": "number", "minimum": 0},
+        "identity_source": {"const": "m3_conservative_cross_image_matching"}
       }
     }
   }

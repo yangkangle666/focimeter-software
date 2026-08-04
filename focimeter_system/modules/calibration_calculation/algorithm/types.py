@@ -67,6 +67,96 @@ class QualityLimits:
 
 
 @dataclass(frozen=True)
+class MatchingLimits:
+    min_matched_spots: int
+    min_overlap_ratio: float
+    max_lattice_residual_pitch_ratio: float
+    max_matching_rmse_pitch_ratio: float
+    max_matching_residual_pitch_ratio: float
+    max_condition_number: float
+    max_rotation_degree: float
+    min_scale_ratio: float
+    max_scale_ratio: float
+    max_shear_ratio: float
+    max_translation_pitch_ratio: float
+    min_confidence: float
+    minimum_hypothesis_margin: float
+
+    @classmethod
+    def simulation_defaults(cls) -> "MatchingLimits":
+        return cls(
+            min_matched_spots=12,
+            min_overlap_ratio=0.6,
+            max_lattice_residual_pitch_ratio=0.12,
+            max_matching_rmse_pitch_ratio=0.10,
+            max_matching_residual_pitch_ratio=0.25,
+            max_condition_number=50.0,
+            max_rotation_degree=15.0,
+            min_scale_ratio=0.75,
+            max_scale_ratio=1.25,
+            max_shear_ratio=0.2,
+            max_translation_pitch_ratio=0.45,
+            min_confidence=0.35,
+            minimum_hypothesis_margin=0.15,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, object]) -> "MatchingLimits":
+        try:
+            limits = cls(
+                min_matched_spots=int(data["min_matched_spots"]),
+                min_overlap_ratio=float(data["min_overlap_ratio"]),
+                max_lattice_residual_pitch_ratio=float(data["max_lattice_residual_pitch_ratio"]),
+                max_matching_rmse_pitch_ratio=float(data["max_matching_rmse_pitch_ratio"]),
+                max_matching_residual_pitch_ratio=float(data["max_matching_residual_pitch_ratio"]),
+                max_condition_number=float(data["max_condition_number"]),
+                max_rotation_degree=float(data["max_rotation_degree"]),
+                min_scale_ratio=float(data["min_scale_ratio"]),
+                max_scale_ratio=float(data["max_scale_ratio"]),
+                max_shear_ratio=float(data["max_shear_ratio"]),
+                max_translation_pitch_ratio=float(data["max_translation_pitch_ratio"]),
+                min_confidence=float(data["min_confidence"]),
+                minimum_hypothesis_margin=float(data["minimum_hypothesis_margin"]),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise ModelError(f"Invalid matching limits: {error}") from error
+        limits._validate()
+        return limits
+
+    def _validate(self) -> None:
+        values = tuple(float(value) for value in self.__dict__.values())
+        if not all(math.isfinite(value) for value in values):
+            raise ModelError("Matching limits must be finite.")
+        if self.min_matched_spots < 4:
+            raise ModelError("Matching requires at least four spots.")
+        unit_ratios = (
+            self.min_overlap_ratio,
+            self.max_lattice_residual_pitch_ratio,
+            self.max_matching_rmse_pitch_ratio,
+            self.max_matching_residual_pitch_ratio,
+            self.max_shear_ratio,
+            self.max_translation_pitch_ratio,
+            self.min_confidence,
+            self.minimum_hypothesis_margin,
+        )
+        if any(value <= 0 or value >= 1 for value in unit_ratios):
+            raise ModelError("Matching ratio limits must be strictly between zero and one.")
+        if self.max_matching_rmse_pitch_ratio > self.max_matching_residual_pitch_ratio:
+            raise ModelError("Matching RMSE cannot exceed the maximum point residual.")
+        if self.max_condition_number < 1:
+            raise ModelError("Matching condition number must be at least one.")
+        if not 0 < self.max_rotation_degree < 45:
+            raise ModelError("Matching rotation must remain below 45 degrees to exclude 90-degree aliases.")
+        if not 0 < self.min_scale_ratio <= 1 <= self.max_scale_ratio:
+            raise ModelError("Matching scale bounds must be positive and contain one.")
+        if self.max_translation_pitch_ratio >= 0.5:
+            raise ModelError("Matching translation must stay below half a lattice pitch.")
+
+    def to_dict(self) -> dict[str, object]:
+        return dict(self.__dict__)
+
+
+@dataclass(frozen=True)
 class CalibrationModel:
     schema_version: str
     model_type: str
@@ -78,6 +168,7 @@ class CalibrationModel:
     correction_matrix: np.ndarray
     correction_bias: np.ndarray
     quality_limits: QualityLimits
+    matching_limits: MatchingLimits
     fit_metrics: Mapping[str, object]
     standard_lenses: tuple[Mapping[str, object], ...]
 
@@ -99,6 +190,12 @@ class CalibrationModel:
                 min_confidence=float(limits["min_confidence"]),
                 validation_confidence=float(limits["validation_confidence"]),
             )
+            matching_data = data.get("matching_limits")
+            matching = (
+                MatchingLimits.simulation_defaults()
+                if matching_data is None
+                else MatchingLimits.from_dict(matching_data)
+            )
             model = cls(
                 schema_version=str(data["schema_version"]),
                 model_type=str(data["model_type"]),
@@ -110,6 +207,7 @@ class CalibrationModel:
                 correction_matrix=matrix,
                 correction_bias=bias,
                 quality_limits=quality,
+                matching_limits=matching,
                 fit_metrics=dict(data["fit_metrics"]),
                 standard_lenses=tuple(dict(item) for item in data["standard_lenses"]),
             )
@@ -183,6 +281,7 @@ class CalibrationModel:
                 "min_confidence": limits.min_confidence,
                 "validation_confidence": limits.validation_confidence,
             },
+            "matching_limits": self.matching_limits.to_dict(),
             "fit_metrics": dict(self.fit_metrics),
             "standard_lenses": [dict(item) for item in self.standard_lenses],
         }

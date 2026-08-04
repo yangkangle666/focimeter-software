@@ -39,6 +39,14 @@ class AlgorithmSchemaTests(unittest.TestCase):
     def test_model_type_round_trip(self) -> None:
         parsed = CalibrationModel.from_dict(self.model)
         self.assertEqual(self.model, parsed.to_dict())
+        self.assertEqual(12, parsed.matching_limits.min_matched_spots)
+        self.assertEqual(15.0, parsed.matching_limits.max_rotation_degree)
+
+    def test_matching_translation_must_stay_below_half_pitch(self) -> None:
+        model = copy.deepcopy(self.model)
+        model["matching_limits"]["max_translation_pitch_ratio"] = 0.5
+        with self.assertRaises(ModelError):
+            CalibrationModel.from_dict(model)
 
     def test_nonfinite_model_coefficient_is_rejected(self) -> None:
         model = copy.deepcopy(self.model)

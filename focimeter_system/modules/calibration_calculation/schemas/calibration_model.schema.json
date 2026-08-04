@@ -4,7 +4,7 @@
   "title": "M3 hybrid power-matrix calibration parameter artifact",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "model_type", "model_id", "validation_status", "source_dataset_sha256", "hardware", "correction", "quality_limits", "fit_metrics", "standard_lenses"],
+  "required": ["schema_version", "model_type", "model_id", "validation_status", "source_dataset_sha256", "hardware", "correction", "quality_limits", "matching_limits", "fit_metrics", "standard_lenses"],
   "properties": {
     "schema_version": {"const": "1.0"},
     "model_type": {"const": "hybrid_power_matrix_v1"},
@@ -42,6 +42,40 @@
         "max_skew_power_D": {"type": "number", "exclusiveMinimum": 0},
         "min_confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "validation_confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "matching_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_matched_spots",
+        "min_overlap_ratio",
+        "max_lattice_residual_pitch_ratio",
+        "max_matching_rmse_pitch_ratio",
+        "max_matching_residual_pitch_ratio",
+        "max_condition_number",
+        "max_rotation_degree",
+        "min_scale_ratio",
+        "max_scale_ratio",
+        "max_shear_ratio",
+        "max_translation_pitch_ratio",
+        "min_confidence",
+        "minimum_hypothesis_margin"
+      ],
+      "properties": {
+        "min_matched_spots": {"type": "integer", "minimum": 4},
+        "min_overlap_ratio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "max_lattice_residual_pitch_ratio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "max_matching_rmse_pitch_ratio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "max_matching_residual_pitch_ratio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "max_condition_number": {"type": "number", "minimum": 1},
+        "max_rotation_degree": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 45},
+        "min_scale_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "max_scale_ratio": {"type": "number", "minimum": 1},
+        "max_shear_ratio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "max_translation_pitch_ratio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 0.5},
+        "min_confidence": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "minimum_hypothesis_margin": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
       }
     },
     "fit_metrics": {"type": "object"},

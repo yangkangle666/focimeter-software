@@ -1,0 +1,32 @@
+{
+  "fixture_version": "1.0",
+  "source_commit": "ed42560e0473ed113e6f6bcb62f7c4060de3a34b",
+  "source_input": "data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_noisy_gradient.json",
+  "generator": "modules/image_recognition focimeter_m2",
+  "arguments": [
+    "--input",
+    "data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_noisy_gradient.json",
+    "--output",
+    ".m2-fixture-output",
+    "--project-root",
+    "focimeter_system",
+    "--experimental-multispot",
+    "--save-intermediate"
+  ],
+  "schema_version": "m2.multispot.experimental.1",
+  "review_status": "reviewed_for_software_integration",
+  "validation_status": "software_verified",
+  "metrology_validated": false,
+  "hash_normalization": "normalize_crlf_to_lf_before_sha256",
+  "files": {
+    "spots_calib_multispot.json": {
+      "sha256": "7983e5c3add2a02e1b37082e4a63d214c9dd2756c3b8d77a547c6d9de431cfb5",
+      "detected_count": 94
+    },
+    "spots_meas_multispot.json": {
+      "sha256": "89f27bbd716cecddc6b27d3f78d3daf8efd007776797ff4ea4ad8240cbea66df",
+      "detected_count": 94
+    }
+  },
+  "scope_note": "Fixed current-M2 output for M3 software integration only; not certified lens or metrology data."
+}
