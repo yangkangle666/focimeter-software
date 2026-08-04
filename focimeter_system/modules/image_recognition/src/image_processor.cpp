@@ -66,6 +66,13 @@ void appendDiagnostics(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["dark_pixel_ratio"] = diagnostics.dark_pixel_ratio;
     error.number_details["bright_pixel_ratio"] = diagnostics.bright_pixel_ratio;
     error.number_details["candidate_count"] = diagnostics.candidate_count;
+    error.number_details["raw_candidate_count"] = diagnostics.raw_candidate_count;
+    error.number_details["rejected_area_count"] = diagnostics.rejected_area_count;
+    error.number_details["rejected_border_count"] = diagnostics.rejected_border_count;
+    error.number_details["rejected_shape_count"] = diagnostics.rejected_shape_count;
+    error.number_details["rejected_proximity_count"] = diagnostics.rejected_proximity_count;
+    error.string_details["segmentation_source"] = diagnostics.segmentation_source;
+    error.string_details["centroid_intensity_source"] = diagnostics.centroid_intensity_source;
     if (!diagnostics.warnings.empty()) {
         error.string_details["quality_warnings"] = joinWarnings(diagnostics.warnings);
     }
@@ -98,6 +105,18 @@ bool validateImageConfig(const ProcessingConfig& config, ErrorInfo& error) {
          config.multispot_min_area_pixels < 1 ||
          !std::isfinite(config.multispot_max_area_ratio) ||
          config.multispot_max_area_ratio <= 0.0 || config.multispot_max_area_ratio >= 1.0 ||
+         !std::isfinite(config.multispot_relative_min_area_ratio) ||
+         config.multispot_relative_min_area_ratio <= 0.0 ||
+         config.multispot_relative_min_area_ratio >= 1.0 ||
+         !std::isfinite(config.multispot_fragment_proximity_factor) ||
+         config.multispot_fragment_proximity_factor <= 0.0 ||
+         !std::isfinite(config.multispot_fragment_max_area_ratio) ||
+         config.multispot_fragment_max_area_ratio <= 0.0 ||
+         config.multispot_fragment_max_area_ratio >= 1.0 ||
+         !std::isfinite(config.multispot_merged_area_ratio) ||
+         config.multispot_merged_area_ratio <= 1.0 ||
+         !std::isfinite(config.multispot_merged_elongation_ratio) ||
+         config.multispot_merged_elongation_ratio <= 1.0 ||
          config.multispot_border_margin_pixels < 0 ||
          !std::isfinite(config.multispot_background_factor) ||
          config.multispot_background_factor <= 0.0 ||
@@ -409,10 +428,16 @@ ImageAnalysis ImageProcessor::processMat(
     const cv::Mat roi = working_image(analysis.roi_rect);
     if (roi.channels() == 1) {
         analysis.gray = roi.clone();
+        analysis.diagnostics.segmentation_source = "native_grayscale";
+        analysis.diagnostics.centroid_intensity_source = "native_grayscale";
     } else if (roi.channels() == 3) {
         cv::cvtColor(roi, analysis.gray, cv::COLOR_BGR2GRAY);
+        analysis.diagnostics.segmentation_source = "bt601_luminance";
+        analysis.diagnostics.centroid_intensity_source = "green_channel";
     } else {
         cv::cvtColor(roi, analysis.gray, cv::COLOR_BGRA2GRAY);
+        analysis.diagnostics.segmentation_source = "bt601_luminance";
+        analysis.diagnostics.centroid_intensity_source = "green_channel";
     }
 
     cv::Scalar mean;

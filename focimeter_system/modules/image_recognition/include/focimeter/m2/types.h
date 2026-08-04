@@ -52,6 +52,11 @@ struct ProcessingConfig {
     int multispot_max_count{150};
     int multispot_min_area_pixels{12};
     double multispot_max_area_ratio{0.02};
+    double multispot_relative_min_area_ratio{0.35};
+    double multispot_fragment_proximity_factor{1.25};
+    double multispot_fragment_max_area_ratio{0.65};
+    double multispot_merged_area_ratio{1.5};
+    double multispot_merged_elongation_ratio{1.35};
     int multispot_border_margin_pixels{2};
     double multispot_background_factor{1.3};
     int multispot_min_threshold{8};
@@ -63,11 +68,14 @@ struct SpotObservation {
     cv::Point2d center;
     double area{0.0};
     double circularity{0.0};
+    double bounding_box_elongation{1.0};
+    double principal_axis_elongation{1.0};
     double mean_intensity{0.0};
     double peak_intensity{0.0};
     double peak_residual_intensity{0.0};
     double integrated_intensity{0.0};
     double confidence{0.0};
+    int source_component_label{-1};
     std::vector<std::string> quality_flags;
 };
 
@@ -94,9 +102,13 @@ struct ImageDiagnostics {
     int raw_candidate_count{0};
     int rejected_area_count{0};
     int rejected_border_count{0};
+    int rejected_shape_count{0};
+    int rejected_proximity_count{0};
     double background_intensity{0.0};
     double detection_threshold{0.0};
     bool candidate_limit_exceeded{false};
+    std::string segmentation_source{"native_grayscale"};
+    std::string centroid_intensity_source{"native_grayscale"};
     std::vector<std::string> warnings;
 };
 

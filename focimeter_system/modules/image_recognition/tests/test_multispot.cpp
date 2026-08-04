@@ -545,6 +545,10 @@ void expectObservationQuality(
                 observation.area <= static_cast<double>(analysis.gray.total()),
             point_context + " area must be finite and positive");
         test.expect(
+            std::isfinite(observation.bounding_box_elongation) &&
+                observation.bounding_box_elongation >= 1.0,
+            point_context + " bounding-box elongation must be finite and at least one");
+        test.expect(
             std::isfinite(observation.mean_intensity) && observation.mean_intensity > 0.0 &&
                 observation.mean_intensity <= 255.0,
             point_context + " mean intensity must be within the 8-bit domain");
@@ -590,7 +594,7 @@ std::optional<std::vector<cv::Point2d>> expectExperimentalSuccessDocument(
     expect_string("contract_status", "proposed");
     expect_string("data_source", "synthetic");
     expect_string("validation_status", "software_verified");
-    expect_string("validation_scope", "simulation_only");
+    expect_string("validation_scope", "software_only");
     test.expect(
         document.contains("schema_version") && document.at("schema_version").is_string() &&
             document.at("schema_version") == "m2.multispot.experimental.1",
@@ -641,6 +645,11 @@ std::optional<std::vector<cv::Point2d>> expectExperimentalSuccessDocument(
                 quality.at("detected_count") == expected.expected_count,
             context + ".quality.detected_count must equal the manifest ground-truth count");
         test.expect(
+            quality.contains("rejected_proximity_count") &&
+                quality.at("rejected_proximity_count").is_number_integer() &&
+                quality.at("rejected_proximity_count").get<int>() >= 0,
+            context + ".quality.rejected_proximity_count must be a non-negative integer");
+        test.expect(
             quality.contains("is_usable") && quality.at("is_usable").is_boolean() && quality.at("is_usable").get<bool>(),
             context + ".quality.is_usable must be true");
     }
@@ -666,6 +675,8 @@ std::optional<std::vector<cv::Point2d>> expectExperimentalSuccessDocument(
             spot.contains("y") && spot.at("y").is_number() &&
             spot.contains("confidence") && spot.at("confidence").is_number() &&
             spot.contains("area_pixel2") && spot.at("area_pixel2").is_number() &&
+            spot.contains("bounding_box_elongation_ratio") &&
+                spot.at("bounding_box_elongation_ratio").is_number() &&
             spot.contains("mean_intensity_8bit") && spot.at("mean_intensity_8bit").is_number() &&
             spot.contains("peak_intensity_8bit") && spot.at("peak_intensity_8bit").is_number() &&
             spot.contains("peak_residual_intensity_8bit") && spot.at("peak_residual_intensity_8bit").is_number() &&
@@ -683,6 +694,7 @@ std::optional<std::vector<cv::Point2d>> expectExperimentalSuccessDocument(
         const double y = spot.at("y").get<double>();
         const double confidence = spot.at("confidence").get<double>();
         const double area = spot.at("area_pixel2").get<double>();
+        const double elongation = spot.at("bounding_box_elongation_ratio").get<double>();
         const double mean_intensity = spot.at("mean_intensity_8bit").get<double>();
         const double peak_residual = spot.at("peak_residual_intensity_8bit").get<double>();
         const double peak_intensity = spot.at("peak_intensity_8bit").get<double>();
@@ -695,6 +707,9 @@ std::optional<std::vector<cv::Point2d>> expectExperimentalSuccessDocument(
             std::isfinite(confidence) && confidence >= 0.0 && confidence <= 1.0,
             spot_context + " confidence must be within [0, 1]");
         test.expect(std::isfinite(area) && area > 0.0, spot_context + " area must be positive");
+        test.expect(
+            std::isfinite(elongation) && elongation >= 1.0,
+            spot_context + " bounding-box elongation must be finite and at least one");
         test.expect(std::isfinite(mean_intensity) && mean_intensity > 0.0, spot_context + " mean_intensity must be positive");
         test.expect(
             std::isfinite(peak_intensity) && peak_intensity >= mean_intensity && peak_intensity <= 255.0,
@@ -743,8 +758,8 @@ void expectExperimentalFailureDocument(
         document.contains("validation_status") && document.at("validation_status") == "software_verified",
         context + ".validation_status must remain software_verified");
     test.expect(
-        document.contains("validation_scope") && document.at("validation_scope") == "simulation_only",
-        context + ".validation_scope must remain simulation_only");
+        document.contains("validation_scope") && document.at("validation_scope") == "software_only",
+        context + ".validation_scope must remain software_only");
     test.expect(
         document.contains("metrology_validated") && document.at("metrology_validated").is_boolean() &&
             !document.at("metrology_validated").get<bool>(),
@@ -803,14 +818,14 @@ void verifyRequiredCoverage(TestContext& test, const std::vector<FixtureCase>& f
     }
     const std::set<std::string> required_success_tags{
         "clean", "grid_25", "grid_94", "shifted", "deformed", "noisy", "gradient", "low_contrast", "brightness",
-        "16bit_container"};
+        "16bit_container", "edge"};
     for (const auto& required_tag : required_success_tags) {
         test.expect(
             successful_tags.count(required_tag) == 1,
             "manifest tag '" + required_tag + "' must be covered by a successful fixture");
     }
     const std::set<std::string> required_failure_tags{
-        "missing", "extra", "merged", "edge", "abnormal_area", "blank"};
+        "missing", "extra", "merged", "abnormal_area", "blank"};
     for (const auto& required_tag : required_failure_tags) {
         test.expect(
             failure_tags.count(required_tag) == 1,
@@ -1063,6 +1078,14 @@ void runFixture(
             measurement_analysis.diagnostics.rejected_area_count == 25,
             fixture.id + " must reject all 25 undersized components by area");
     }
+    if (fixture.tags.count("edge") == 1) {
+        test.expect(
+            measurement_analysis.diagnostics.rejected_border_count == 1,
+            fixture.id + " must reject exactly one edge-clipped component");
+        test.expect(
+            measurement_analysis.ok(),
+            fixture.id + " must keep the remaining interior components usable");
+    }
     if (fixture.expect_success) {
         test.expect(calibration_analysis.ok(), fixture.id + " calibration must pass the experimental detector");
         test.expect(measurement_analysis.ok(), fixture.id + " measurement must pass the experimental detector");
@@ -1114,7 +1137,7 @@ void runFixture(
                 run_log->contains("data_source") && run_log->at("data_source") == "synthetic" &&
                 run_log->contains("validation_status") &&
                 run_log->at("validation_status") == "software_verified" &&
-                run_log->contains("validation_scope") && run_log->at("validation_scope") == "simulation_only" &&
+                run_log->contains("validation_scope") && run_log->at("validation_scope") == "software_only" &&
                 run_log->contains("metrology_validated") &&
                 run_log->at("metrology_validated").is_boolean() &&
                 !run_log->at("metrology_validated").get<bool>(),

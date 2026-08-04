@@ -1,5 +1,47 @@
 # M2 更新日志
 
+## 0.4.0 - 2026-08-04
+
+### 新增
+
+- 新增 `1600 x 1200`、8-bit RGB 绿色光斑 JPEG 的实验检测适配；亮度图负责分割，绿色通道负责质心加权和强度诊断。
+- 新增 `m2_jpeg_detection_and_determinism` 测试，覆盖 JPEG 两次编码、94 点保持、暗心/过曝核心、尘点、小碎片、完整近边点、边缘亮点串扰、不等面积近邻短暗缝、连续低亮度光晕下的独立双峰、斜向粘连、候选安全上限和三次重复序列化确定性。
+- 新增两组仓库真实 JPEG 输入包的 CLI 软件回归，固定验证触边候选非致命、实验接口边界和镜片一近圆大连通域不被误报为粘连；27 点仅作为当前软件回归基线，不是物理真值。
+- 邻近碎片抑制改为保守的双证据规则：峰间亮度不得出现深谷，或候选距离必须显著小于图内典型点间距；只有面积同时明显更小时才剔除。
+- 实验输出新增 `bounding_box_elongation_ratio`、`principal_axis_elongation_ratio`、`rejected_shape_count`、`rejected_proximity_count`、`segmentation_source` 和 `centroid_intensity_source` 诊断字段。
+- 新增 [REAL_JPEG_SOFTWARE_VALIDATION.md](REAL_JPEG_SOFTWARE_VALIDATION.md) 和不含原图的 M3 联调 JSON 样例 `samples/real_jpeg_software_verified/`。
+
+### 修复与强化
+
+- 触边候选由“使整图失败”改为单独剔除并报告 warning；候选靠近边缘时检查原始绿色信号是否实际延伸到图像边界，避免把留有暗背景的完整近边点误删。
+- 增加基于当前图中位面积的小候选剔除和低矩形填充率形状剔除，减少 JPEG 压缩碎片、尘点和异常连通域进入结果。
+- “疑似粘连”改为同时要求面积偏大和二阶矩主轴伸长，既避免把面积较大但近圆的真实光斑误判为粘连，也覆盖包围框接近正方形的斜向粘连。
+- `detection_id` 排序使用精确 `(y, x, component_label)` 次序，消除容差比较器不满足严格弱序的风险。
+- 置信度信号项结合绿色通道局部残差与原始峰值；它仍是未统计标定的工程评分，不是概率。
+- 彩色输入的绿色通道信号明显弱于 BT.601 亮度时，质心权重自动回退为亮度并报告 `GREEN_CHANNEL_SIGNAL_WEAK`，避免非绿色 RGB PNG/TIFF 产生空结果。
+- 邻近碎片抑制要求较小面积，并使用峰间 50% 深谷或图内中位最近邻间距 20% 的子间距证据；子间距规则在没有亮桥时额外报告 `SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED`，明确该规则尚无真实逐点身份真值。其他证据不足时保留并报告 `NEARBY_CANDIDATE_UNRESOLVED`。
+- 候选安全上限前移到两两邻近检查之前，避免高噪声图在返回数量错误前进入无界的二次复杂度扫描。
+
+### 接口
+
+- `schema_version=m2.multispot.experimental.1`、`matching.status=not_performed`、`id_scope=image_local`、`physical_identity_guaranteed=false` 和 `metrology_validated=false` 保持不变。
+- 不新增 `spot_id`，不执行跨图匹配，不修改统一 v1 契约、默认配置或 M1/M3/M4。
+
+### 验证状态
+
+- Visual Studio 2022/CMake 的 Debug 与 Release 构建均通过，两个配置各 `16/16` 项 CTest 通过；仓库统一 mock 校验 `42/42` 个 JSON 通过，并核验 3 个 mock 输入包路径。
+- 外置真实 JPEG：候选参考图和两张候选测量图均输出 27 点，三张图均为 `quality.is_usable=true`。
+- 参考图原始候选 `57`，剔除触边 `14`、面积异常 `15`、邻近碎片 `1`；测量图 1 为 `37/0/7/3`，测量图 2 为 `52/17/7/1`；三张图形状剔除均为 `0`。
+- 两组真实输入对各连续运行三次，覆盖当前参考图和两张测量图；每个输入对应的 JSON 均只有一个 SHA-256，坐标、`detection_id` 与质量字段保持确定性。
+- 旧/新参考 JPEG 均检测 27 点；贪心最近邻比较的坐标均值偏差 `0.927 px`、RMS `1.027 px`、最大 `1.891 px`。图像 MAE 为 `0.559/255`，PSNR 为 `40.625 dB`。
+- 验证状态始终为 `software_verified` / `software_only`、`metrology_validated=false`；JPEG 不是计量精度证据。
+
+### 已知限制
+
+- 本次只有一组来源相同的 JPEG，缺少相机原始格式、曝光/焦距、阵列参数、标准镜片证书和重复采集，不足以标定阈值或证明真实识别率。
+- 参考图和两张测量图的有效点数为 `27/27/27`，M2 未判断这些点的跨图物理身份；点数相同不是配对证据，M3 必须独立匹配并保守拒绝缺点、伪点和对称歧义。
+- 大面积近圆候选目前保留并标记 `AREA_ABOVE_MEDIAN`；它可能是合理的过曝光斑，也可能包含未分开的复杂结构，后续需要更多真实样本验证。
+
 ## 0.3.0 - 2026-07-27
 
 ### 新增

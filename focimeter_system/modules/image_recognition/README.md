@@ -1,6 +1,6 @@
 # M2 图像识别模块
 
-当前阶段版本：`0.3.0`
+当前阶段版本：`0.4.0`
 
 当前验证状态：`software_verified`。这表示接口、算法逻辑、错误链路和合成数据测试已经完成软件验证，不表示真实设备识别、光学参数或 S/C/A 计量准确性已经通过。达到 `metrology_validated` 前必须完成真实成对图像、硬件参数和标准镜片验证。
 
@@ -16,6 +16,14 @@ M2 读取 M1 的 `input_package.json`，对标定图和测量图执行同一套�
 | `hartmann_multispot_experimental` | `--experimental-multispot` | `experimental_multispot/spots_*_multispot.json` | `detection_id` 仅表示单张输出中的稳定排序号，**不是**跨图物理身份 | `proposed`，不属于统一 v1 契约 |
 
 实验模式使用整张图像作为检测区域，执行中值滤波、局部背景残差（顶帽）、边缘背景估计、自动阈值、连通域筛选和强度加权质心。它报告每个点的像素坐标、面积、均值/峰值/积分信号、置信度和质量标记；它不进行跨图最终匹配、不产生正式 `spot_id`、不计算位移场或 S/C/A。
+
+### 真实绿色 JPEG 适配
+
+`0.4.0` 使用一组 `1600 x 1200`、8-bit、三通道绿色光斑 JPEG 完成了软件级验证。原始 ZIP 仍保留在仓库外；最新 `develop` 已将负责人确认的软件联调副本放入 `data/real/multispot_lens_pairs/real_lens_pair_set_001/`，M2 只读使用，不在本次 PR 中新增或修改图片。RGB/JPEG 输入继续用 BT.601 亮度图做分割，以降低绿色通道中压缩碎片造成的伪候选；质心、强度和饱和诊断改用绿色通道。灰度 PNG/TIFF、16 位实验输入和默认五点路径保持原行为。
+
+候选筛选现在分别记录原始连通域、触边、面积异常和形状异常数量。触边候选会被单独剔除并产生 `EDGE_CLIPPED_CANDIDATE_REJECTED` warning，只要剩余候选仍满足数量和质量要求，整张图不再因此失败。`detection_id` 仍按单图内 `(y, x, component_label)` 确定性排序，不具有跨图身份语义。
+
+真实 JPEG 的统计、重编码稳定性和未验证项见 [REAL_JPEG_SOFTWARE_VALIDATION.md](REAL_JPEG_SOFTWARE_VALIDATION.md)。提供给 M3 的脱敏实验 JSON 位于 `samples/real_jpeg_software_verified/`；其中不含原图，也没有正式 `spot_id`。
 
 两份新增设计文档：
 
@@ -121,6 +129,8 @@ experimental_multispot/
 
 每个检测项使用 `detection_id`，它只是按 `y`、再按 `x` 排序得到的**单图局部编号**。`matching.physical_identity_guaranteed=false` 是硬性声明：M3 或未来经批准的 M2 匹配模块必须建立跨图对应关系，不能把两个文件里同号的 `detection_id` 当成同一条物理光线。
 
+实验 JSON 的 `quality` 还会报告 `raw_candidate_count`、`rejected_border_count`、`rejected_area_count`、`rejected_shape_count`、`rejected_proximity_count`、`segmentation_source` 和 `centroid_intensity_source`。各 `rejected_*_count` 是规则命中次数，分类不保证互斥，不能与原始候选数做简单守恒相加。绿色信号明显弱于亮度信号时，质心权重会从绿色通道回退为 BT.601 亮度并报告 `GREEN_CHANNEL_SIGNAL_WEAK`。每个 spot 的 `bounding_box_elongation_ratio` 与 `principal_axis_elongation_ratio` 分别描述轴对齐包围框和与方向无关的主轴伸长率；这些字段用于诊断异常形状及可能粘连，不是已批准的公共 v1 字段。
+
 实验输出中的 `quality.is_usable` 只有在全部候选达到内部 `minimum_usable_confidence` 时才为 `true`；低于该门限的点仍可保留用于诊断，但带有 `LOW_CONFIDENCE` 标记，调用方不得把它当作可直接计算的数据。该置信度是同一顶帽残差域中的信号、形状和面积工程评分，不是统计概率。
 
 ## 输入与输出
@@ -209,6 +219,9 @@ python focimeter_system/validate_mock_data.py
 - 统一配置缺段、额外字段、错误单位/路径策略、非标准注释或算法参数无效；
 - 配置缺失、图片缺失/无法解码、输入输出路径重叠、并发写者和输出写入失败；
 - 旧成功结果失效和双错误输出；
+- RGB 绿色 JPEG、JPEG 二次编码坐标偏差、过曝核心/暗心、尘点、小面积碎片和非致命触边剔除；
+- 仓库两组真实 JPEG 输入包的 CLI 软件回归，验证触边 warning 非致命、镜片一不因近圆大连通域误报粘连；
+- 同一 JPEG 连续三次的检测顺序、坐标、质量字段和序列化 JSON 确定性；
 - CLI 帮助和端到端输出。
 
 ## 错误处理
@@ -236,7 +249,7 @@ python focimeter_system/validate_mock_data.py
 
 ## 当前限制与 TODO_CONFIRM
 
-1. 真实标定图、测量图和专用配置尚未提供，只有合成数据完成成功路径验证。
+1. 已收到一张候选参考图和两张候选测量图的 JPEG 副本，并完成单图检测软件验证；没有相机原始文件、采集参数、阵列标定表、标准镜片证书或重复采集数据，因此不能评价物理匹配正确率和计量精度。
 2. M1 补充 bundle 的配置声明 `12 x 12`，实际 TIFF 为 `1280 x 1024`，当前先返回 `CONFIG_INVALID`；M1 修正配置后，这组 AI 生成的整张阵列类图片仍不是第一阶段五光斑成功样例，预期继续返回 `SPOT_COUNT_MISMATCH`。两种结果都不能当作真实识别成功。
 3. 仓库没有正式定义 `relative_to_project_root` 的根目录；当前按 `focimeter_system/` 解释，负责人需确认。
 4. `spot_id` 跨图同物理光线要求来自 M3 实际实现和团队确认，尚未写入统一接口契约。
@@ -251,9 +264,9 @@ python focimeter_system/validate_mock_data.py
 13. 两份 spots 是两个独立文件，无法在普通文件系统上完成一次跨文件原子重命名；正常返回路径会回滚第二次发布失败，但进程被强制终止时仍可能留下半组文件。调用方必须等待 CLI 正常结束且退出码为 `0`，运行日志只作为可选辅助审计信号。
 14. `TODO_CONFIRM`：负责人已选择方案 C，并要求身份不确定时报错；硬件侧暂时无法确认真实相对旋转范围。当前实现能拒绝直接超过 `35` 度的候选和已检测到的多解，但无法识别完全对称十字的 90 度隐藏别名；仓库外 `+60` 度探针当前会错误成功。负责人审查后仍需决定采用非对称标记、稳定外观特征还是硬件身份锚点，不能仅调整角度阈值后宣称问题已解决。
 15. 图像诊断的灰度统计基于转换后的 8 位 ROI；对于 16 位原图，这些数值不能替代原始传感器曝光分析。
-16. 当前顶帽核来自统一配置。合成测试已表明光斑直径接近或大于核尺寸时可能被削弱，真实图到位后必须按真实光斑尺度重新标定。
+16. 当前顶帽核来自统一配置并能处理本次 JPEG 样本。合成测试已表明光斑直径接近或大于核尺寸时可能被削弱，仍需用更多曝光、焦度和设备状态覆盖的数据重新标定。
 17. 标定图和测量图必须具有相同像素尺寸；否则两个文件的像素坐标不能直接配对，M2 返回 `COORDINATE_SYSTEM_INVALID`。
 18. 统一配置中的相机宽高若为已知整数，必须与两张解码图片一致；不一致返回 `CONFIG_INVALID`。使用 `null` 或 `TODO_CONFIRM` 时只执行两图彼此尺寸一致性检查。
-19. 多光斑检测目前使用连通域而不是老师网格原型中的局部极大值与最小间距去重；它会保守拒绝明显粘连，但对真实光斑碎裂、紧密多峰和不同阵列间距的适应性仍需实拍数据比较。
-20. 多光斑数量、面积、边界和置信度目前是 M2 内部实验参数，未写入统一配置；真实数据到位后应先形成配置提案，不能长期靠重新编译调参。
+19. 多光斑检测目前使用连通域而不是老师网格原型中的局部极大值。邻近候选只有在面积明显更小且满足以下证据之一时才作为碎片剔除：两中心之间不存在低于较弱峰值相对背景 50% 的深谷；或中心距离不超过图内中位最近邻间距的 20%。第二条是面向规则 Hartmann 阵列的内部启发式，命中但缺少亮桥时会报告 `SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED`；其物理正确性尚无人工逐点真值验证。其他证据不足的候选会保留并报告 `NEARBY_CANDIDATE_UNRESOLVED`。紧密多峰、严重粘连及极端局部阵列压缩仍缺少真实覆盖。
+20. 多光斑数量、相对面积、信号触边判定和置信度目前是 M2 内部实验参数，未写入统一配置；本次参数只经过一组 JPEG 与合成矩阵验证，扩大设备或曝光范围前应形成配置提案。
 21. 多光斑匹配所有者尚未由负责人批准，实验 JSON 使用 `matching.owner_status=unassigned`。当前建议由 M3 或未来独立匹配层处理，不能把该建议当作既定公共接口。
