@@ -31,6 +31,11 @@ class OutputContractTests(unittest.TestCase):
         result["result"]["C"] = 0.0
         self.assertFalse(validate_result(result).valid)
 
+    def test_cylindrical_axis_must_be_below_180_degrees(self) -> None:
+        result = copy.deepcopy(self.load("result_cylindrical_ok.json"))
+        result["result"]["A"] = 180.0
+        self.assertFalse(validate_result(result).valid)
+
     def test_wrong_diopter_unit_reports_unit_mismatch(self) -> None:
         result = copy.deepcopy(self.load("result_spherical_ok.json"))
         result["result"]["unit"] = "m-1"

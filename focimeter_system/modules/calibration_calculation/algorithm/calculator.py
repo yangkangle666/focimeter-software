@@ -129,7 +129,7 @@ def calculate(
         input_warnings = {
             str(warning)
             for document in (calibration, measurement)
-            for warning in document["quality"]["warnings"]
+            for warning in document["quality"].get("warnings", [])
         }
         if "MOCK_DATA_ONLY" in input_warnings:
             warnings.append("MOCK_DATA_ONLY")

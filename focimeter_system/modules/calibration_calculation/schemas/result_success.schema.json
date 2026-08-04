@@ -49,7 +49,7 @@
       "properties": {
         "S": {"type": "number"},
         "C": {"type": "number"},
-        "A": {"type": ["number", "null"]},
+        "A": {"type": ["number", "null"], "minimum": 0, "exclusiveMaximum": 180},
         "unit": {"const": "D"},
         "angle_unit": {"const": "degree"}
       }

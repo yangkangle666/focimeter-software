@@ -51,6 +51,14 @@ class InputContractTests(unittest.TestCase):
         report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
         self.assert_issue(report, "SPOT_COUNT_MISMATCH")
 
+    def test_configurable_minimum_spot_count_is_enforced(self) -> None:
+        self.config["recognition"]["min_spot_count"] = 6
+
+        report = validate_inputs(self.calibration, self.measurement, self.config, mode="calculation-ready")
+
+        self.assert_issue(report, "SPOT_COUNT_MISMATCH")
+        self.assertNotIn("CONFIG_INVALID", [issue.code for issue in report.issues], report.to_dict())
+
     def test_expected_count_mismatch_is_rejected(self) -> None:
         self.config["recognition"]["spot_count_mode"] = "fixed"
         self.config["recognition"]["expected_spot_count"] = 6

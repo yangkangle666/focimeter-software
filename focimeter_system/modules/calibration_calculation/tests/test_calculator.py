@@ -80,6 +80,29 @@ class CalculatorTests(unittest.TestCase):
         result = calculate(self.calibration, measurement, config, self.model, allow_simulation_model=True)
         self.assertEqual("CONFIG_INVALID", result["error"]["code"])
 
+    def test_quality_warnings_may_be_omitted(self) -> None:
+        calibration = copy.deepcopy(self.calibration)
+        calibration["quality"].pop("warnings")
+        measurement = self.measurement_for(Prescription(1.0, 0.0, None))
+        measurement["quality"].pop("warnings")
+
+        result = calculate(
+            calibration, measurement, self.config, self.model, allow_simulation_model=True
+        )
+
+        self.assertEqual("ok", result["status"], result)
+
+    def test_malformed_model_range_is_a_configuration_error(self) -> None:
+        measurement = self.measurement_for(Prescription(1.0, 0.0, None))
+        model = self.model.to_dict()
+        model["quality_limits"]["validated_sphere_range_D"] = [-5.0]
+
+        result = calculate(
+            self.calibration, measurement, self.config, model, allow_simulation_model=True
+        )
+
+        self.assertEqual("CONFIG_INVALID", result["error"]["code"], result)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -130,6 +130,8 @@ class CalibrationModel:
         numeric = np.concatenate([self.correction_matrix.ravel(), self.correction_bias])
         if not np.all(np.isfinite(numeric)):
             raise ModelError("Correction values must be finite.")
+        if len(self.quality_limits.validated_sphere_range_D) != 2:
+            raise ModelError("Validated sphere range must contain exactly two values.")
         low, high = self.quality_limits.validated_sphere_range_D
         if (
             not math.isfinite(low)
