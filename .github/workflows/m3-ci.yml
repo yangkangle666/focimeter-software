@@ -1,0 +1,45 @@
+name: M3 Python CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "focimeter_system/modules/calibration_calculation/**"
+      - "focimeter_system/config/**"
+      - "focimeter_system/data/mock/**"
+      - "focimeter_system/validate_mock_data.py"
+      - ".github/workflows/m3-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: focimeter_system
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: focimeter_system/modules/calibration_calculation/requirements.txt
+
+      - name: Install M3 dependencies
+        run: python -m pip install -r modules/calibration_calculation/requirements.txt
+
+      - name: Run M3 test suite
+        run: python -m unittest discover -s modules/calibration_calculation/tests -v
+
+      - name: Validate shared mock JSON
+        run: python validate_mock_data.py
