@@ -1,0 +1,30 @@
+{
+  "fixture_version": "1.0",
+  "source_input": "data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_known_prescription.json",
+  "source_input_sha256_lf": "a71ea5c61d33d3b27e25237036ea5e1c9f54cd4100a1e21f5e623be85ea95878",
+  "generator": "modules/image_recognition focimeter_m2",
+  "generator_version": "m2_multispot_synthetic_1.4.0",
+  "generation_command": "focimeter_m2 --input focimeter_system/data/mock/m2_image_recognition/synthetic_multispot/packages/input_package_94_known_prescription.json --output <output> --project-root focimeter_system --experimental-multispot --save-intermediate",
+  "schema_version": "m2.multispot.experimental.1",
+  "review_status": "generated_for_cross_module_regression",
+  "validation_status": "software_verified",
+  "metrology_validated": false,
+  "hash_normalization": "normalize_crlf_to_lf_before_sha256",
+  "target_prescription": {
+    "S": -2.0,
+    "C": -1.0,
+    "A": 45.0,
+    "unit": "D"
+  },
+  "files": {
+    "spots_calib_multispot.json": {
+      "sha256_lf": "38ebb4aa86335f166867116980f5e5e47ec8b986714f57d0077f69ea675c40f2",
+      "detected_count": 94
+    },
+    "spots_meas_multispot.json": {
+      "sha256_lf": "92bee63dfe150f398cf014468a1741a33c327046903178bdfac5082c63609a91",
+      "detected_count": 94
+    }
+  },
+  "scope_note": "Rendered-image M1-M2-M3 software integration fixture only; not certified lens or metrology data."
+}

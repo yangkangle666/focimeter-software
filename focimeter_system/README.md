@@ -15,6 +15,18 @@
 - `outputs/`：后续各模块运行时的标准输出目录。
 - `validate_mock_data.py`：检查 mock JSON 是否格式正确。
 
+## 本地模拟端到端运行
+
+先构建 M2，再从 `focimeter_system` 目录运行：
+
+```powershell
+python run_synthetic_e2e.py --m2-executable <focimeter_m2路径> --save-intermediate
+```
+
+该命令依次执行 M1 配置检查、M2 对已知处方模拟 PNG 的光斑识别和 M3 S/C/A 计算。目标处方为
+`S=-2.00 D, C=-1.00 D, A=45°`；结果保存在 `outputs/results/<task_id>/result.json`。
+该流程只表示软件联调成功，不表示真实镜片计量验证完成。
+
 ## 推荐开发顺序
 
 1. 先读 `docs/interface_contract_v1.md`。

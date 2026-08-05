@@ -1,0 +1,24 @@
+{
+  "data": {
+    "calibration_image": "data/mock/m2_image_recognition/synthetic_multispot/calibration/94_clean_reference.png",
+    "config_path": "config/default_config.json",
+    "created_at": "2026-07-27T00:00:00+08:00",
+    "measurement_image": "data/mock/m2_image_recognition/synthetic_multispot/measurement/94_measured_prescription_s-2_c-1_a45.png",
+    "run_mode": "local_image"
+  },
+  "data_source": "synthetic",
+  "error": null,
+  "module": "m1_input_config",
+  "quality": {
+    "config_checked": true,
+    "is_usable": true,
+    "paths_checked": true,
+    "warnings": [
+      "SYNTHETIC_MULTISPOT_EXPERIMENTAL",
+      "NOT_METROLOGY_VALIDATED"
+    ]
+  },
+  "schema_version": "1.0",
+  "status": "ok",
+  "task_id": "m2_multispot_94_known_prescription"
+}

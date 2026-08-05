@@ -22,7 +22,7 @@ using PointList = std::vector<cv::Point2d>;
 constexpr int kImageWidth = 1280;
 constexpr int kImageHeight = 1024;
 constexpr std::uint64_t kSeed = 20260727ULL;
-constexpr char kGeneratorVersion[] = "m2_multispot_synthetic_1.3.0";
+constexpr char kGeneratorVersion[] = "m2_multispot_synthetic_1.4.0";
 constexpr char kDatasetProjectPath[] = "data/mock/m2_image_recognition/synthetic_multispot";
 
 struct RenderOptions {
@@ -115,6 +115,25 @@ PointList locallyDeformed94(const PointList& source) {
         const double dx = 8.0 + 0.012 * local.x + 5.0 * std::sin(local.y / 145.0);
         const double dy = -6.0 - 0.010 * local.y + 4.0 * std::cos(local.x / 170.0);
         result.emplace_back(point.x + dx, point.y + dy);
+    }
+    return result;
+}
+
+PointList prescriptionDeformed94(const PointList& source) {
+    // S=-2.00 D, C=-1.00 D, A=45 degrees at distance_m=0.03.
+    // M3 uses transform = I - distance_m * power_matrix.
+    constexpr double xx = 1.075;
+    constexpr double xy = -0.015;
+    constexpr double yy = 1.075;
+    const cv::Point2d pivot(640.0, 512.0);
+    const cv::Point2d translation(8.0, -6.0);
+    PointList result;
+    result.reserve(source.size());
+    for (const cv::Point2d& point : source) {
+        const cv::Point2d local = point - pivot;
+        result.emplace_back(
+            pivot.x + translation.x + xx * local.x + xy * local.y,
+            pivot.y + translation.y + xy * local.x + yy * local.y);
     }
     return result;
 }
@@ -276,6 +295,10 @@ Json caseManifestJson(const CaseSpec& spec) {
     if (spec.id.find("deformation") != std::string::npos) {
         tags.push_back("deformed");
     }
+    if (spec.id.find("prescription") != std::string::npos) {
+        tags.push_back("known_prescription");
+        tags.push_back("m2_m3_e2e");
+    }
     if (spec.id.find("noisy") != std::string::npos) {
         tags.push_back("noisy");
         tags.push_back("gradient");
@@ -400,6 +423,7 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
     const PointList points151 = make151PointGrid();
     const PointList points25_shifted = translated(points25, {18.0, -13.0});
     const PointList points94_deformed = locallyDeformed94(points94);
+    const PointList points94_prescription = prescriptionDeformed94(points94);
 
     cv::Mat clean25_12bit;
     cv::Mat shifted25_12bit;
@@ -421,6 +445,7 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
     ok = writePng(output / "measurement/25_measured_shift_12bit.png", shifted25_12bit) && ok;
     ok = writePng(output / "calibration/94_clean_reference.png", render(points94, {})) && ok;
     ok = writePng(output / "measurement/94_measured_local_deformation.png", render(points94_deformed, {})) && ok;
+    ok = writePng(output / "measurement/94_measured_prescription_s-2_c-1_a45.png", render(points94_prescription, {})) && ok;
     ok = writePng(
              output / "measurement/94_measured_noisy_gradient.png",
              render(points94_deformed, {24.0, 20.0, 34.0, 5.5, 190.0, 6.5, kSeed + 94U})) &&
@@ -457,6 +482,12 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
         "measurement/94_measured_local_deformation.png", points94, points94_deformed, 94, 94,
         {{"kind", "translation_plus_smooth_local_deformation"}, {"base_translation_pixel", {8.0, -6.0}},
          {"deformation", "dx=0.012*x_local+5*sin(y_local/145); dy=-0.010*y_local+4*cos(x_local/170)"}}, expected_ok};
+    const CaseSpec prescription94{
+        "94_known_prescription", "input_package_94_known_prescription.json", "calibration/94_clean_reference.png",
+        "measurement/94_measured_prescription_s-2_c-1_a45.png", points94, points94_prescription, 94, 94,
+        {{"kind", "m3_power_matrix_simulation"}, {"distance_m", 0.03},
+         {"prescription", {{"S", -2.0}, {"C", -1.0}, {"A", 45.0}, {"unit", "D"}}},
+         {"matrix", {{1.075, -0.015}, {-0.015, 1.075}}}, {"translation_pixel", {8.0, -6.0}}}, expected_ok};
     const CaseSpec noisy94{
         "94_noisy_gradient", "input_package_94_noisy_gradient.json", "calibration/94_clean_reference.png",
         "measurement/94_measured_noisy_gradient.png", points94, points94_deformed, 94, 94,
@@ -509,7 +540,7 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
         {"error", "SPOT_COUNT_MISMATCH", {"IMAGE_OVEREXPOSED", "IMAGE_LOW_CONTRAST"}}};
 
     const std::vector<CaseSpec> specifications{
-        clean25, clean25_12bit_case, clean94, noisy94, lowContrast25, brightness25,
+        clean25, clean25_12bit_case, clean94, prescription94, noisy94, lowContrast25, brightness25,
         missing, extra, merged, edgeClipped, tiny, blankDark, blankBright};
     for (const CaseSpec& specification : specifications) {
         ok = writeCasePackage(output, specification) && ok;
