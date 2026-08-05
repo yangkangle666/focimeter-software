@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="980" viewBox="0 0 1500 980" role="img" aria-labelledby="title desc">
+  <title id="title">焦度计项目阶段会议开发流程图</title>
+  <desc id="desc">成员分支开发、PR 到 develop、集成修 BUG、合入 main 公开仓库的流程。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 34px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 18px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #475569; }
+      .section { font: 700 19px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1e293b; }
+      .box-title { font: 700 20px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #111827; }
+      .box-text { font: 400 16px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #334155; }
+      .small { font: 400 14px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #475569; }
+      .note { font: 700 16px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #991b1b; }
+      .line { stroke: #334155; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .thin { stroke: #64748b; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .loop { stroke: #b91c1c; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .panel { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 12; }
+      .branch { fill: #e0f2fe; stroke: #0284c7; stroke-width: 2; rx: 12; }
+      .meeting { fill: #fef3c7; stroke: #d97706; stroke-width: 2; rx: 12; }
+      .pr { fill: #ffedd5; stroke: #ea580c; stroke-width: 2; rx: 12; }
+      .develop { fill: #dcfce7; stroke: #16a34a; stroke-width: 2; rx: 12; }
+      .main { fill: #fee2e2; stroke: #dc2626; stroke-width: 2; rx: 12; }
+      .diamond { fill: #f1f5f9; stroke: #64748b; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1500" height="980"/>
+  <text class="title" x="60" y="66">焦度计项目阶段会议开发流程</text>
+  <text class="subtitle" x="60" y="102">2026-08-01｜成员分支开发 → PR 到 develop → 集成修 BUG → main 公开仓库</text>
+
+  <rect class="panel" x="50" y="140" width="1400" height="330"/>
+  <text class="section" x="80" y="178">1. 当前状态：成员仍在各自分支开发</text>
+
+  <rect class="branch" x="90" y="210" width="285" height="95"/>
+  <text class="box-title" x="115" y="246">M1 输入与配置</text>
+  <text class="box-text" x="115" y="276">origin/M1</text>
+
+  <rect class="branch" x="410" y="210" width="285" height="95"/>
+  <text class="box-title" x="435" y="246">M2 图像识别</text>
+  <text class="box-text" x="435" y="276">task/m2-w0rry-lm700-multispot</text>
+
+  <rect class="branch" x="730" y="210" width="285" height="95"/>
+  <text class="box-title" x="755" y="246">M3 标定与计算</text>
+  <text class="box-text" x="755" y="276">task/m3-gdfzs-calculation-algorithm</text>
+
+  <rect class="branch" x="1050" y="210" width="285" height="95"/>
+  <text class="box-title" x="1075" y="246">M4 本地系统与展示</text>
+  <text class="box-text" x="1075" y="276">feature/m4-system</text>
+
+  <rect class="meeting" x="530" y="350" width="440" height="82"/>
+  <text class="box-title" x="575" y="383">阶段会议确认交付边界</text>
+  <text class="box-text" x="575" y="412">确认每个模块：完成内容、输入输出、测试口径</text>
+
+  <path class="thin" d="M 232 305 C 232 336, 570 336, 570 350"/>
+  <path class="thin" d="M 552 305 C 552 333, 635 333, 635 350"/>
+  <path class="thin" d="M 872 305 C 872 333, 865 333, 865 350"/>
+  <path class="thin" d="M 1192 305 C 1192 336, 930 336, 930 350"/>
+
+  <rect class="panel" x="50" y="505" width="1400" height="350"/>
+  <text class="section" x="80" y="543">2. 会后主流程：PR、审查、合并、联调</text>
+
+  <rect class="pr" x="90" y="590" width="230" height="100"/>
+  <text class="box-title" x="122" y="626">成员发 PR</text>
+  <text class="box-text" x="122" y="656">目标分支：develop</text>
+  <text class="small" x="122" y="680">说明改动、运行方式、测试结果</text>
+
+  <rect class="pr" x="380" y="590" width="230" height="100"/>
+  <text class="box-title" x="410" y="626">负责人审查</text>
+  <text class="box-text" x="410" y="656">看 PR 说明和变更</text>
+  <text class="small" x="410" y="680">避免误提资料、临时输出、大文件</text>
+
+  <polygon class="diamond" points="740,575 835,640 740,705 645,640"/>
+  <text class="box-title" x="693" y="634">可合并？</text>
+  <text class="small" x="704" y="660">通过 / 退回</text>
+
+  <rect class="develop" x="895" y="590" width="230" height="100"/>
+  <text class="box-title" x="932" y="626">合入 develop</text>
+  <text class="box-text" x="932" y="656">一次合一个模块</text>
+  <text class="small" x="932" y="680">建议按 M1 → M2 → M3 → M4</text>
+
+  <rect class="develop" x="1185" y="590" width="230" height="100"/>
+  <text class="box-title" x="1218" y="626">集成测试</text>
+  <text class="box-text" x="1218" y="656">运行、联调、检查冲突</text>
+  <text class="small" x="1218" y="680">发现 BUG 就修复后再测</text>
+
+  <path class="line" d="M 320 640 L 380 640"/>
+  <path class="line" d="M 610 640 L 645 640"/>
+  <path class="line" d="M 835 640 L 895 640"/>
+  <path class="line" d="M 1125 640 L 1185 640"/>
+
+  <path class="loop" d="M 1300 690 C 1300 780, 740 780, 740 705"/>
+  <text class="note" x="918" y="760">发现 BUG：在 develop 修复，或开修复分支再 PR</text>
+  <path class="thin" d="M 740 575 C 740 545, 495 545, 495 590"/>
+  <text class="small" x="510" y="566">未通过：退回成员修改</text>
+
+  <rect class="panel" x="50" y="885" width="1400" height="70"/>
+  <rect class="develop" x="80" y="902" width="385" height="36"/>
+  <text class="box-text" x="105" y="926">develop 稳定：功能完整、测试通过、资料清理</text>
+  <path class="line" d="M 465 920 L 555 920"/>
+  <rect class="main" x="555" y="902" width="290" height="36"/>
+  <text class="box-text" x="588" y="926">合入 main，作为公开仓库版本</text>
+  <path class="line" d="M 845 920 L 935 920"/>
+  <text class="box-text" x="940" y="926">公开前检查 README、运行说明、依赖说明、测试说明</text>
+</svg>

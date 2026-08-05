@@ -28,6 +28,9 @@ focimeter_system/outputs/*
 # Local Git worktrees
 /.worktrees/
 
+# Local source images and reference material (kept outside version control)
+/local_data/
+
 # OS and editor noise
 .DS_Store
 Thumbs.db
