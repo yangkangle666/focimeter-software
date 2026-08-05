@@ -188,6 +188,20 @@ class MultispotMatchingTests(unittest.TestCase):
                 )
                 self.assertEqual(39, matched.diagnostics.matched_spot_count)
 
+    def test_exact_45_degree_installation_with_small_relative_rotation_is_accepted(self):
+        for degrees in (-10.0, -5.0, 0.0, 5.0, 10.0):
+            with self.subTest(degrees=degrees):
+                matrix, translation = centered_rotation(degrees)
+                matched = match_experimental_multispot(
+                    lattice_pair(
+                        transform=matrix,
+                        translation=translation,
+                        installation_degree=45.0,
+                    ),
+                    self.limits,
+                )
+                self.assertEqual(39, matched.diagnostics.matched_spot_count)
+
     def test_relative_rotation_over_limit_is_rejected_at_42_degree_installation(self):
         matrix, translation = centered_rotation(16.0)
         with self.assertRaises(CoordinateSystemError):

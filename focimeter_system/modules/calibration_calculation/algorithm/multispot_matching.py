@@ -83,21 +83,46 @@ def _candidate_bases(
     pitch: float,
     _limits: MatchingLimits,
 ) -> tuple[np.ndarray, ...]:
-    """Recover two image-oriented lattice vectors without constraining installation angle."""
+    """Recover two lattice vectors by relative direction, independent of image axes."""
 
     vectors = points[:, None, :] - points[None, :, :]
     flat = vectors.reshape(-1, 2)
     lengths = np.linalg.norm(flat, axis=1)
     neighbours = flat[(lengths >= 0.72 * pitch) & (lengths <= 1.28 * pitch)]
-    horizontal = neighbours[np.abs(neighbours[:, 0]) >= np.abs(neighbours[:, 1])]
-    vertical = neighbours[np.abs(neighbours[:, 1]) > np.abs(neighbours[:, 0])]
-    if len(horizontal) < 2 or len(vertical) < 2:
+    if len(neighbours) < 4:
         raise CoordinateSystemError("Spot topology cannot recover both lattice axes.")
-    horizontal = np.where(horizontal[:, :1] < 0, -horizontal, horizontal)
-    vertical = np.where(vertical[:, 1:2] < 0, -vertical, vertical)
-    hx = np.median(horizontal, axis=0)
-    vy = np.median(vertical, axis=0)
-    basis = np.column_stack([hx, vy])
+
+    # Classify directions against an observed lattice vector.  The comparison is
+    # relative to that vector, so no image-axis boundary (including 45 degrees)
+    # can put both physical axes in the same bucket.
+    unit_neighbours = neighbours / np.linalg.norm(neighbours, axis=1)[:, None]
+    reference = unit_neighbours[0]
+    parallel_score = np.abs(unit_neighbours @ reference)
+    perpendicular_score = np.abs(
+        unit_neighbours[:, 0] * reference[1] - unit_neighbours[:, 1] * reference[0]
+    )
+    first_axis = neighbours[parallel_score >= perpendicular_score]
+    second_axis = neighbours[parallel_score < perpendicular_score]
+    if len(first_axis) < 2 or len(second_axis) < 2:
+        raise CoordinateSystemError("Spot topology cannot recover both lattice axes.")
+
+    def oriented_median(axis_vectors: np.ndarray, direction: np.ndarray) -> np.ndarray:
+        oriented = np.where((axis_vectors @ direction)[:, None] < 0, -axis_vectors, axis_vectors)
+        return np.median(oriented, axis=0)
+
+    first = oriented_median(first_axis, reference)
+    second = oriented_median(second_axis, np.asarray([-reference[1], reference[0]]))
+    axis_vectors = [first, second]
+    orientation_tolerance = 1e-6 * pitch
+    canonical_axes = []
+    for axis in axis_vectors:
+        if axis[0] < -orientation_tolerance or (
+            abs(axis[0]) <= orientation_tolerance and axis[1] < 0
+        ):
+            axis = -axis
+        canonical_axes.append(axis)
+    canonical_axes.sort(key=lambda axis: math.atan2(float(axis[1]), float(axis[0])))
+    basis = np.column_stack(canonical_axes)
     if abs(float(np.linalg.det(basis))) <= np.finfo(float).eps * pitch * pitch:
         raise CoordinateSystemError("Recovered lattice axes are degenerate.")
     return (basis,)
