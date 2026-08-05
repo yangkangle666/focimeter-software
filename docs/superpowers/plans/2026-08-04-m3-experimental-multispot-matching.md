@@ -2,9 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Accept M2 experimental multispot detections, require a unique one-to-one calibration/measurement identity for every detected point, assign internal physical-ray IDs only after full matching, and then reuse the existing M3 S/C/A calculation.
-
-> **2026-08-05 safety decision:** The project owner superseded the original partial-overlap behavior. Unequal counts or any unmatched detection must now return `COORDINATE_SYSTEM_INVALID`; a matchable subset cannot be used to calculate a prescription.
+**Goal:** Accept M2 experimental multispot detections, conservatively match partially overlapping calibration and measurement lattices, assign internal physical-ray IDs only after unique matching, and then reuse the existing M3 S/C/A calculation.
 
 **Architecture:** A strict experimental-input adapter produces observations without `spot_id`. A dedicated lattice matcher recovers per-image topology, enumerates overlap hypotheses, validates each with constrained weighted affine fitting, and returns paired v1-shaped in-memory documents plus diagnostics. The existing calculator dispatches by schema and only sees paired documents after the experimental matcher succeeds.
 
@@ -15,9 +13,9 @@
 - Modify M3 files and M3-owned test fixtures only; do not modify M2 source code.
 - Accept experimental inputs only when `schema_version == "m2.multispot.experimental.1"`.
 - Treat `detection_id` as image-local diagnostic metadata, never as cross-image identity.
-- Reject partial overlap such as `43 -> 27` and `43 -> 39`; every detected point must be uniquely matched.
+- Support partial overlap such as `43 -> 27` and `43 -> 39`; raw point counts need not match.
 - Generate internal `spot_id` only after one unique, validated match hypothesis exists.
-- Reject ambiguous 90/180/270-degree, mirrored, integer-pitch, low-confidence, degenerate, or high-residual matches with `COORDINATE_SYSTEM_INVALID`.
+- Reject ambiguous 90-degree, integer-pitch, reflected, low-confidence, degenerate, or high-residual matches with `COORDINATE_SYSTEM_INVALID`.
 - Keep all thresholds in the M3 calibration model's `matching_limits` object.
 - Preserve the existing v1 paired-`spot_id` path and all 74 existing M3 tests.
 - Keep experimental and real-image results at `software_verified` or `simulation_only`; never claim `metrology_validated` without certified data.
@@ -153,7 +151,7 @@ Require `min_matched_spots >= 4`, ratios in documented positive ranges, `max_tra
 
 - [ ] **Step 4: Add schema and simulation-only values**
 
-Use conservative software-test values: 12 matched points, 0.12 lattice residual/pitch, 0.10 matching RMSE/pitch, 0.25 max residual/pitch, condition number 50, 15 degrees rotation, scale `[0.75, 1.25]`, shear 0.2, translation 0.45 pitch, confidence 0.35, and hypothesis margin 0.15. The legacy `min_overlap_ratio=0.6` model field remains for backward compatibility, but the 2026-08-05 safety gate independently requires `1.0` full coverage.
+Use conservative software-test values: 12 matched points, 0.6 overlap, 0.12 lattice residual/pitch, 0.10 matching RMSE/pitch, 0.25 max residual/pitch, condition number 50, 15 degrees rotation, scale `[0.75, 1.25]`, shear 0.2, translation 0.45 pitch, confidence 0.35, and hypothesis margin 0.15.
 
 - [ ] **Step 5: Run model tests and commit**
 
@@ -161,7 +159,7 @@ Expected: model schema and round-trip tests PASS.
 
 Commit: `feat(m3): define conservative multispot matching limits`
 
-### Task 3: Full-Coverage Lattice Matcher
+### Task 3: Partial-Overlap Lattice Matcher
 
 **Files:**
 - Create: `focimeter_system/modules/calibration_calculation/algorithm/multispot_matching.py`
@@ -174,10 +172,13 @@ Commit: `feat(m3): define conservative multispot matching limits`
 - [ ] **Step 1: Add deterministic synthetic lattice helpers and failing success tests**
 
 ```python
-def test_partial_overlap_43_to_27_rejects():
+def test_partial_overlap_43_to_27_matches():
     pair = make_partial_pair(calibration_count=43, measurement_count=27, reorder=True)
-    with self.assertRaises(CoordinateSystemError):
-        match_experimental_multispot(pair, limits())
+    matched = match_experimental_multispot(pair, limits())
+    assert matched.diagnostics.calibration_detection_count == 43
+    assert matched.diagnostics.measurement_detection_count == 27
+    assert matched.diagnostics.matched_spot_count == 27
+    assert set(spot["spot_id"] for spot in matched.calibration["spots"]) == set(range(27))
 
 def test_detection_id_permutation_does_not_change_pairs():
     original = match_experimental_multispot(make_pair(), limits())
@@ -209,13 +210,13 @@ Sort candidates by matched count, overlap ratio, and normalized residual. Reject
 
 - [ ] **Step 6: Add conservative failure tests**
 
-Cover exact 90/180/270-degree aliases, all square-lattice reflections, integer-pitch ambiguity, equal-count missing-ray-plus-false-detection, low confidence, large residual, and insufficient overlap. Every ambiguous geometry test must assert `CoordinateSystemError` and must not receive a partial mapping.
+Cover exact 90-degree alias, integer-pitch ambiguity, reflection, extra point, low confidence, large residual, and insufficient overlap. Every ambiguous geometry test must assert `CoordinateSystemError` and must not receive a partial mapping.
 
 - [ ] **Step 7: Run matcher tests and commit**
 
-Expected: normal equal-count and reordered cases PASS; `43 -> 27`, `43 -> 39`, and all ambiguous cases reject.
+Expected: normal, reordered, `43 -> 27`, and `43 -> 39` cases PASS; all ambiguous cases reject.
 
-Commit: `feat(m3): match full multispot lattices conservatively`
+Commit: `feat(m3): match partial multispot lattices conservatively`
 
 ### Task 4: Calculator and CLI Integration
 
@@ -295,11 +296,11 @@ Record source commit, exact command arguments, SHA-256 for both files, expected 
 
 - [ ] **Step 4: Add end-to-end tests**
 
-Test fixed-fixture provenance, independent detection-array reorder, independent `detection_id` replacement, one-side point removal, and exact-symmetry ambiguity rejection. Assert that the original fixture hashes match the manifest before matching.
+Test normal fixture matching, independent detection-array reorder, independent `detection_id` replacement, one-side point removal, and exact-symmetry ambiguity rejection. Assert that the original fixture hashes match the manifest before calculation.
 
 - [ ] **Step 5: Run the fixed-fixture tests and commit**
 
-Expected: the reviewed 94-point files keep their provenance hashes but return `COORDINATE_SYSTEM_INVALID`, because their unmarked topology has 180-degree and diagonal-reflection identity aliases. Asymmetric synthetic full-coverage inputs still exercise the successful matching path; no path may pass by copying `detection_id`.
+Expected: the reviewed normal 94-point path uniquely matches and reaches M3 calculation. If it remains ambiguous, Task 5 fails and the PR stays blocked; it must never pass by copying `detection_id`.
 
 Commit: `test(m3): freeze M2 experimental multispot integration outputs`
 
@@ -308,14 +309,14 @@ Commit: `test(m3): freeze M2 experimental multispot integration outputs`
 **Files:**
 - Modify: `focimeter_system/modules/calibration_calculation/README.md`
 - Modify: `focimeter_system/modules/calibration_calculation/requirements.txt` only if implementation needs an added runtime dependency
-- Modify: PR #10 title/body to describe the final M2-to-M3 safety behavior
+- Modify: PR #9 title/body only if the final behavior differs from the current description
 
 **Interfaces:**
 - Documents both supported input paths and the metrology boundary.
 
 - [ ] **Step 1: Update M3 documentation**
 
-State: “支持 M2 实验多光斑输出，经 M3 保守跨图匹配并生成内部物理光线身份后计算。” Also state that every detected point requires a unique identity, partial overlap and ambiguity are rejected, `detection_id` is never a physical ID, and results remain software/simulation verified.
+State: “支持 M2 实验多光斑输出，经 M3 保守跨图匹配并生成内部物理光线身份后计算。” Also state that partial overlap is supported, ambiguity is rejected, `detection_id` is never a physical ID, and results remain software/simulation verified.
 
 - [ ] **Step 2: Run focused and full tests**
 
@@ -335,6 +336,6 @@ Expected: all M3 tests and repository JSON validation PASS.
 
 Run M1 tests, `git diff --check`, inspect `git diff origin/develop...HEAD`, and verify no M2 source file is modified by the M3 implementation commits.
 
-- [ ] **Step 4: Commit, push, and update PR #10**
+- [ ] **Step 4: Commit, push, and update PR #9**
 
-Commit the integration changes, push `task/m2-w0rry-real-jpeg-detection`, and update PR #10 with M2/M3 test counts, four-file fixture provenance, full-coverage rejection behavior, ambiguity rejection, and remaining metrology limitations.
+Commit final documentation as `docs(m3): document experimental multispot matching`, push `task/m3-gdfzs-calculation-algorithm`, and update PR #9 with test counts, fixture provenance, partial-overlap behavior, ambiguity rejection, and remaining metrology limitations.

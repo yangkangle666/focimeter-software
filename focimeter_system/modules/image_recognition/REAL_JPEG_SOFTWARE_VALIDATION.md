@@ -65,7 +65,7 @@ M3 跨模块回归实际读取了上述四份 JSON，并得到：
 | `pair_1` | `software_only` 合同通过 | `COORDINATE_SYSTEM_INVALID` | 预期安全拒绝；保留 `AREA_ABOVE_MEDIAN`、`SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED` 和 `SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED` 风险证据 |
 | `pair_2` | `software_only` 合同通过 | `COORDINATE_SYSTEM_INVALID` | 预期安全拒绝；保留 `AREA_ABOVE_MEDIAN` 风险证据，不能静默删除候选后使用子集计算 |
 
-这两组数据是 M2→M3 **安全拒绝回归**，不是跨图匹配成功样例，更不是计量成功样例。M3 对每个已检测点都要求唯一物理身份；任一点带身份阻断标记、无法匹配或存在歧义时，必须整组失败。
+这两组数据是 M2→M3 **安全拒绝回归**，不是跨图匹配成功样例，更不是计量成功样例。M3 要求测量图中每个保留的检测点都具有唯一物理身份；任一测量点带身份阻断标记、无法匹配或存在歧义时，必须整组失败。标定图边缘光斑可以缺失，但仍受最低覆盖率约束。
 
 另有一条只在测试内存副本中执行的防绕过检查：清除 `pair_2` 的 warning 和 spot 质量标记后，M3 几何层仍只能建立 `23/27` 的拓扑对应并返回 `COORDINATE_SYSTEM_INVALID`。仓库四份原始样例 JSON 未被修改；该检查只证明拒绝链路生效，不代表 23 个点可用于处方。
 

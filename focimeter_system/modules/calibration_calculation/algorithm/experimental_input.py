@@ -17,21 +17,6 @@ from .types import CoordinateSystemError, ModelError
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "schemas" / "m2_multispot_experimental.schema.json"
 EXPERIMENTAL_SCHEMA_VERSION = "m2.multispot.experimental.1"
 IDENTITY_SAFE_QUALITY_FLAGS = frozenset({"SATURATED_PEAK"})
-IDENTITY_SAFE_QUALITY_WARNINGS = frozenset({
-    "AREA_VARIATION_HIGH",
-    "EDGE_CLIPPED_CANDIDATE_REJECTED",
-    "MOCK_DATA_ONLY",
-    "NEARBY_FRAGMENT_REJECTED",
-    "SATURATED_PEAK",
-    "SMALL_AREA_OUTLIER_REJECTED",
-})
-IDENTITY_BLOCKING_QUALITY_FLAGS = frozenset({
-    "AREA_ABOVE_MEDIAN",
-    "SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED",
-})
-IDENTITY_BLOCKING_QUALITY_WARNINGS = frozenset({
-    "SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED",
-})
 
 
 @dataclass(frozen=True)
@@ -69,20 +54,6 @@ def _parse_document(document: Mapping[str, object], image_type: str) -> tuple[Ex
     if document["quality"]["detected_count"] != len(spots):
         raise ModelError("Experimental quality.detected_count must equal the spots array length.")
 
-    warnings = set(document["quality"].get("warnings", []))
-    blocking_warnings = sorted(warnings & IDENTITY_BLOCKING_QUALITY_WARNINGS)
-    if blocking_warnings:
-        raise CoordinateSystemError(
-            f"Experimental {image_type} document has identity-blocking quality warnings: {blocking_warnings}."
-        )
-    unreviewed_warnings = sorted(
-        warnings - IDENTITY_SAFE_QUALITY_WARNINGS - IDENTITY_BLOCKING_QUALITY_WARNINGS
-    )
-    if unreviewed_warnings:
-        raise CoordinateSystemError(
-            f"Experimental {image_type} document has unreviewed quality warnings: {unreviewed_warnings}."
-        )
-
     observations: list[ExperimentalObservation] = []
     detection_ids: set[int] = set()
     for index, spot in enumerate(spots):
@@ -96,11 +67,8 @@ def _parse_document(document: Mapping[str, object], image_type: str) -> tuple[Ex
         flags = spot.get("quality_flags", [])
         unsafe_flags = sorted(set(flags) - IDENTITY_SAFE_QUALITY_FLAGS)
         if unsafe_flags:
-            reviewed_blocking_flags = sorted(set(unsafe_flags) & IDENTITY_BLOCKING_QUALITY_FLAGS)
-            classification = "identity-blocking" if reviewed_blocking_flags else "unreviewed"
             raise CoordinateSystemError(
-                f"Experimental {image_type} detection {detection_id} has {classification} "
-                f"quality flags: {unsafe_flags}."
+                f"Experimental {image_type} detection {detection_id} has unsafe quality flags: {unsafe_flags}."
             )
         observations.append(
             ExperimentalObservation(

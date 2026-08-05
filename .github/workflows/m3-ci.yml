@@ -4,8 +4,10 @@ on:
   pull_request:
     branches:
       - develop
+      - task/m2-w0rry-real-jpeg-detection
     paths:
       - "focimeter_system/modules/calibration_calculation/**"
+      - "focimeter_system/modules/image_recognition/samples/real_jpeg_software_verified/**"
       - "focimeter_system/config/**"
       - "focimeter_system/data/real/**"
       - "focimeter_system/data/mock/**"

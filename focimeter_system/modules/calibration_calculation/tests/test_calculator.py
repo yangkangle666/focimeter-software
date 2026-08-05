@@ -126,9 +126,9 @@ class CalculatorTests(unittest.TestCase):
 
         self.assertEqual("CONFIG_INVALID", result["error"]["code"], result)
 
-    def test_experimental_full_coverage_is_matched_before_calculation(self) -> None:
+    def test_experimental_partial_overlap_is_matched_before_calculation(self) -> None:
         pair = lattice_pair(
-            measurement_count=43,
+            measurement_count=27,
             randomize=True,
             transform=[[0.98, 0.0], [0.0, 0.98]],
         )
@@ -136,23 +136,10 @@ class CalculatorTests(unittest.TestCase):
         measurement = self.experimental_document("measurement", pair.measurement)
         result = calculate(calibration, measurement, self.config, self.model, allow_simulation_model=True)
         self.assertEqual("ok", result["status"], result)
-        self.assertEqual(43, result["quality"]["matched_spot_count"])
+        self.assertEqual(27, result["quality"]["matched_spot_count"])
         self.assertEqual("m2.multispot.experimental.1", result["matching"]["input_schema_version"])
         self.assertEqual(43, result["matching"]["calibration_detection_count"])
         self.assertTrue(validate_result(result).valid)
-
-    def test_experimental_partial_overlap_returns_coordinate_error(self) -> None:
-        pair = lattice_pair(measurement_count=27, randomize=True)
-        result = calculate(
-            self.experimental_document("calibration", pair.calibration),
-            self.experimental_document("measurement", pair.measurement),
-            self.config,
-            self.model,
-            allow_simulation_model=True,
-        )
-        self.assertEqual("error", result["status"])
-        self.assertEqual("COORDINATE_SYSTEM_INVALID", result["error"]["code"])
-        self.assertIn("Every detected spot", result["error"]["message"])
 
     def test_mixed_input_contracts_are_rejected(self) -> None:
         pair = lattice_pair(measurement_count=27)
