@@ -25,7 +25,8 @@
 ### 接口
 
 - `schema_version=m2.multispot.experimental.1`、`matching.status=not_performed`、`id_scope=image_local`、`physical_identity_guaranteed=false` 和 `metrology_validated=false` 保持不变。
-- 不新增 `spot_id`，不执行跨图匹配，不修改统一 v1 契约、默认配置或 M1/M3/M4。
+- 不新增 `spot_id`，不执行 M2 跨图匹配，不修改统一 v1 契约、默认配置或 M1/M4。
+- M3 实验适配层兼容 `validation_scope=software_only`，继续整组拒绝 `AREA_ABOVE_MEDIAN`、`SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED` 和 `SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED` 风险证据；`quality.is_usable` 明确仅表示 M2 单图检测可用。
 
 ### 验证状态
 
@@ -35,6 +36,8 @@
 - 两组真实输入对各连续运行三次，覆盖当前参考图和两张测量图；每个输入对应的 JSON 均只有一个 SHA-256，坐标、`detection_id` 与质量字段保持确定性。
 - 旧/新参考 JPEG 均检测 27 点；贪心最近邻比较的坐标均值偏差 `0.927 px`、RMS `1.027 px`、最大 `1.891 px`。图像 MAE 为 `0.559/255`，PSNR 为 `40.625 dB`。
 - 验证状态始终为 `software_verified` / `software_only`、`metrology_validated=false`；JPEG 不是计量精度证据。
+- M3 跨模块回归实际读取四份真实 JSON，两个输入对均返回 `COORDINATE_SYSTEM_INVALID`；这是负责人安全策略下的预期拒绝，不是处方或计量成功。
+- `pair_2` 的测试内存副本即使清除质量标记，几何层也只能建立 `23/27` 对应并整组拒绝；正式样例文件和风险标记保持不变。
 
 ### 已知限制
 

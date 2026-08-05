@@ -81,7 +81,6 @@ def _estimate_pitch(points: np.ndarray) -> float:
 def _candidate_bases(
     points: np.ndarray,
     pitch: float,
-    limits: MatchingLimits,
 ) -> tuple[np.ndarray, ...]:
     """Recover image-oriented horizontal/vertical lattice vectors."""
 
@@ -89,21 +88,68 @@ def _candidate_bases(
     flat = vectors.reshape(-1, 2)
     lengths = np.linalg.norm(flat, axis=1)
     neighbours = flat[(lengths >= 0.72 * pitch) & (lengths <= 1.28 * pitch)]
-    horizontal = neighbours[np.abs(neighbours[:, 0]) >= np.abs(neighbours[:, 1])]
-    vertical = neighbours[np.abs(neighbours[:, 1]) > np.abs(neighbours[:, 0])]
-    if len(horizontal) < 2 or len(vertical) < 2:
+    angles = np.arctan2(neighbours[:, 1], neighbours[:, 0])
+    fourfold_direction = np.asarray([
+        float(np.cos(4.0 * angles).sum()),
+        float(np.sin(4.0 * angles).sum()),
+    ])
+    if float(np.linalg.norm(fourfold_direction)) <= np.finfo(float).eps * len(neighbours):
+        raise CoordinateSystemError("Spot topology cannot recover a stable lattice orientation.")
+    axis_angle = 0.25 * math.atan2(fourfold_direction[1], fourfold_direction[0])
+    first_direction = np.asarray([math.cos(axis_angle), math.sin(axis_angle)])
+    second_direction = np.asarray([-math.sin(axis_angle), math.cos(axis_angle)])
+    first_mask = np.abs(neighbours @ first_direction) >= np.abs(neighbours @ second_direction)
+    first_axis = neighbours[first_mask]
+    second_axis = neighbours[~first_mask]
+    if len(first_axis) < 2 or len(second_axis) < 2:
         raise CoordinateSystemError("Spot topology cannot recover both lattice axes.")
-    horizontal = np.where(horizontal[:, :1] < 0, -horizontal, horizontal)
-    vertical = np.where(vertical[:, 1:2] < 0, -vertical, vertical)
-    hx = np.median(horizontal, axis=0)
-    vy = np.median(vertical, axis=0)
-    basis = np.column_stack([hx, vy])
+    first_axis = np.where((first_axis @ first_direction)[:, None] < 0, -first_axis, first_axis)
+    second_axis = np.where((second_axis @ second_direction)[:, None] < 0, -second_axis, second_axis)
+    basis = np.column_stack([
+        np.median(first_axis, axis=0),
+        np.median(second_axis, axis=0),
+    ])
     if abs(float(np.linalg.det(basis))) <= np.finfo(float).eps * pitch * pitch:
         raise CoordinateSystemError("Recovered lattice axes are degenerate.")
-    angle = math.degrees(math.atan2(float(hx[1]), float(hx[0])))
-    if abs(angle) > limits.max_rotation_degree:
-        raise CoordinateSystemError("Lattice orientation exceeds the conservative matching range.")
+    # Absolute installation angle is not a cross-image rotation. The relative
+    # calibration-to-measurement rotation is constrained in _fit_candidate.
     return (basis,)
+
+
+def _align_measurement_basis(
+    calibration_basis: np.ndarray,
+    measurement_basis: np.ndarray,
+    max_relative_rotation_degree: float,
+) -> np.ndarray:
+    """Choose the measurement quarter-turn representation closest to the reference axes."""
+
+    first = measurement_basis[:, 0]
+    second = measurement_basis[:, 1]
+    equivalents = (
+        measurement_basis,
+        np.column_stack([second, -first]),
+        -measurement_basis,
+        np.column_stack([-second, first]),
+    )
+    candidates: list[tuple[float, np.ndarray]] = []
+    inverse_calibration = np.linalg.inv(calibration_basis)
+    for basis in equivalents:
+        relative = basis @ inverse_calibration
+        if float(np.linalg.det(relative)) <= 0:
+            continue
+        u, _, vt = np.linalg.svd(relative)
+        rotation_matrix = u @ vt
+        angle = abs(math.degrees(math.atan2(
+            float(rotation_matrix[1, 0]),
+            float(rotation_matrix[0, 0]),
+        )))
+        candidates.append((angle, basis))
+    if not candidates:
+        raise CoordinateSystemError("Lattice axes cannot be aligned without reflection.")
+    candidates.sort(key=lambda item: item[0])
+    if candidates[0][0] > max_relative_rotation_degree:
+        raise CoordinateSystemError("Relative lattice rotation exceeds the conservative matching range.")
+    return candidates[0][1]
 
 
 def _assign_lattice(
@@ -148,16 +194,11 @@ def _fit_candidate(
 ) -> _ScoredHypothesis | None:
     if len(pairs) < limits.min_matched_spots:
         return None
-    # The reviewed real-data direction is reference -> fewer measurement spots.
-    # Missing reference rays are allowed, but silently discarding an unclaimed
-    # measurement detection could hide a false/merged spot.
-    if len(pairs) != len(measurement_points):
+    # Every detected point must receive one unique cross-image identity. Using
+    # only a matchable subset could silently discard a false or misidentified ray.
+    if len(pairs) != len(calibration_points) or len(pairs) != len(measurement_points):
         return None
-    # The supported direction is reference/calibration -> measurement. Report
-    # how much of the physical reference lattice remains observable, not how
-    # completely the smaller measurement set was consumed (which is already
-    # required above).
-    overlap = len(pairs) / len(calibration_points)
+    overlap = 1.0
     if overlap < limits.min_overlap_ratio:
         return None
     c = calibration_points[[item[0] for item in pairs]]
@@ -234,14 +275,30 @@ def _candidate_matches(
             yield pairs
 
 
-def _has_quarter_turn_alias(points: np.ndarray, pitch: float, tolerance_ratio: float) -> bool:
-    """Return whether an unmarked point set is invariant under a 90-degree turn."""
+def _lattice_identity_aliases(coordinates: tuple[tuple[int, int], ...]) -> frozenset[str]:
+    """Return non-identity square-lattice symmetries that preserve the point set."""
 
-    centered = points - np.mean(points, axis=0)
-    rotated = np.column_stack([-centered[:, 1], centered[:, 0]])
-    distances = np.linalg.norm(rotated[:, None, :] - centered[None, :, :], axis=2)
-    nearest = np.min(distances, axis=1)
-    return bool(float(nearest.max(initial=0.0)) <= tolerance_ratio * pitch)
+    values = np.asarray(coordinates, dtype=int)
+
+    def normalized(points: np.ndarray) -> tuple[tuple[int, int], ...]:
+        shifted = points - np.min(points, axis=0)
+        return tuple(sorted((int(point[0]), int(point[1])) for point in shifted))
+
+    reference = normalized(values)
+    transforms = {
+        "rotation_90": np.asarray([[0, -1], [1, 0]]),
+        "rotation_180": np.asarray([[-1, 0], [0, -1]]),
+        "rotation_270": np.asarray([[0, 1], [-1, 0]]),
+        "reflection_x": np.asarray([[-1, 0], [0, 1]]),
+        "reflection_y": np.asarray([[1, 0], [0, -1]]),
+        "reflection_diagonal": np.asarray([[0, 1], [1, 0]]),
+        "reflection_antidiagonal": np.asarray([[0, -1], [-1, 0]]),
+    }
+    return frozenset(
+        name
+        for name, transform in transforms.items()
+        if normalized(values @ transform.T) == reference
+    )
 
 
 def _document(task_id: str, image_type: str, spots: list[dict[str, object]]) -> dict[str, object]:
@@ -269,33 +326,53 @@ def match_experimental_multispot(
     pair: ExperimentalPair,
     limits: MatchingLimits,
 ) -> MatchedExperimentalPair:
-    """Match a unique partial-overlap lattice before assigning physical-ray IDs."""
+    """Require one unique cross-image identity for every detected spot."""
+
+    if len(pair.calibration) != len(pair.measurement):
+        raise CoordinateSystemError(
+            "Every detected spot requires a unique cross-image identity; "
+            f"calibration has {len(pair.calibration)} detections and measurement has "
+            f"{len(pair.measurement)}."
+        )
 
     calibration_points = _points(pair.calibration)
     measurement_points = _points(pair.measurement)
     calibration_pitch = _estimate_pitch(calibration_points)
     measurement_pitch = _estimate_pitch(measurement_points)
+    calibration_basis = _candidate_bases(calibration_points, calibration_pitch)[0]
+    measurement_basis = _align_measurement_basis(
+        calibration_basis,
+        _candidate_bases(measurement_points, measurement_pitch)[0],
+        limits.max_rotation_degree,
+    )
     calibration_lattice = _assign_lattice(
         calibration_points,
-        _candidate_bases(calibration_points, calibration_pitch, limits)[0],
+        calibration_basis,
         limits,
     )
     measurement_lattice = _assign_lattice(
         measurement_points,
-        _candidate_bases(measurement_points, measurement_pitch, limits)[0],
+        measurement_basis,
         limits,
     )
     pitch = 0.5 * (calibration_lattice.pitch + measurement_lattice.pitch)
-    if _has_quarter_turn_alias(
-        calibration_points, calibration_lattice.pitch, limits.max_lattice_residual_pitch_ratio
-    ) and _has_quarter_turn_alias(
-        measurement_points, measurement_lattice.pitch, limits.max_lattice_residual_pitch_ratio
-    ):
+    shared_aliases = sorted(
+        _lattice_identity_aliases(calibration_lattice.coordinates)
+        & _lattice_identity_aliases(measurement_lattice.coordinates)
+    )
+    if shared_aliases:
         raise CoordinateSystemError(
-            "Unmarked symmetric lattices have an unresolved 90-degree physical-ray identity alias."
+            "Unmarked symmetric lattices have unresolved physical-ray identity aliases: "
+            f"{shared_aliases}."
         )
     hypotheses = tuple(_candidate_matches(calibration_lattice, measurement_lattice))
     maximum_topological_overlap = max((len(item) for item in hypotheses), default=0)
+    if maximum_topological_overlap < len(pair.calibration):
+        raise CoordinateSystemError(
+            f"Cross-image matching assigned {maximum_topological_overlap} of "
+            f"{len(pair.calibration)} detections; every calibration and measurement "
+            "detection requires one unique physical identity."
+        )
     candidates = [
         scored
         for hypothesis in hypotheses

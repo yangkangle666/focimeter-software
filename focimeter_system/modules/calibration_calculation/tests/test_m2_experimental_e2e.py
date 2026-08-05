@@ -8,7 +8,7 @@ from pathlib import Path
 from modules.calibration_calculation.algorithm.experimental_input import parse_experimental_pair
 from modules.calibration_calculation.algorithm.input_preparation import prepare_calculation_inputs
 from modules.calibration_calculation.algorithm.multispot_matching import match_experimental_multispot
-from modules.calibration_calculation.algorithm.types import CalibrationModel
+from modules.calibration_calculation.algorithm.types import CalibrationModel, CoordinateSystemError
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
@@ -44,22 +44,16 @@ class M2ExperimentalEndToEndTests(unittest.TestCase):
             hashlib.sha256(canonical_bytes).hexdigest(),
         )
 
-    def test_normal_94_point_outputs_are_uniquely_matched(self):
-        prepared = prepare_calculation_inputs(self.calibration, self.measurement, self.model)
-        self.assertIsNotNone(prepared.matching)
-        self.assertEqual(94, prepared.matching.calibration_detection_count)
-        self.assertEqual(94, prepared.matching.measurement_detection_count)
-        self.assertEqual(94, prepared.matching.matched_spot_count)
-        self.assertEqual(
-            set(range(94)),
-            {spot["spot_id"] for spot in prepared.calibration["spots"]},
-        )
+    def test_94_point_outputs_reject_unmarked_symmetry(self):
+        with self.assertRaisesRegex(CoordinateSystemError, "rotation_180"):
+            prepare_calculation_inputs(self.calibration, self.measurement, self.model)
 
-    def test_array_order_and_detection_ids_do_not_define_identity(self):
-        baseline = match_experimental_multispot(
-            parse_experimental_pair(self.calibration, self.measurement),
-            self.model.matching_limits,
-        )
+    def test_array_order_and_detection_ids_cannot_resolve_symmetry(self):
+        with self.assertRaisesRegex(CoordinateSystemError, "rotation_180"):
+            match_experimental_multispot(
+                parse_experimental_pair(self.calibration, self.measurement),
+                self.model.matching_limits,
+            )
         calibration = copy.deepcopy(self.calibration)
         measurement = copy.deepcopy(self.measurement)
         random.Random(20260804).shuffle(calibration["spots"])
@@ -68,32 +62,21 @@ class M2ExperimentalEndToEndTests(unittest.TestCase):
             spot["detection_id"] = 5000 + index
         for index, spot in enumerate(measurement["spots"]):
             spot["detection_id"] = 9000 + index
-        matched = match_experimental_multispot(
-            parse_experimental_pair(calibration, measurement),
-            self.model.matching_limits,
-        )
-        self.assertEqual(94, matched.diagnostics.matched_spot_count)
-        self.assertTrue({item[0] for item in matched.detection_pairs}.isdisjoint({item[1] for item in matched.detection_pairs}))
-        baseline_pairs = [
-            (c["x"], c["y"], m["x"], m["y"])
-            for c, m in zip(baseline.calibration["spots"], baseline.measurement["spots"], strict=True)
-        ]
-        reordered_pairs = [
-            (c["x"], c["y"], m["x"], m["y"])
-            for c, m in zip(matched.calibration["spots"], matched.measurement["spots"], strict=True)
-        ]
-        self.assertEqual(baseline_pairs, reordered_pairs)
+        with self.assertRaisesRegex(CoordinateSystemError, "rotation_180"):
+            match_experimental_multispot(
+                parse_experimental_pair(calibration, measurement),
+                self.model.matching_limits,
+            )
 
-    def test_one_side_point_loss_uses_partial_overlap(self):
+    def test_one_side_point_loss_rejects_the_whole_pair(self):
         measurement = copy.deepcopy(self.measurement)
         measurement["spots"].pop()
         measurement["quality"]["detected_count"] = len(measurement["spots"])
-        matched = match_experimental_multispot(
-            parse_experimental_pair(self.calibration, measurement),
-            self.model.matching_limits,
-        )
-        self.assertEqual(93, matched.diagnostics.matched_spot_count)
-        self.assertEqual(1, matched.diagnostics.unmatched_calibration_count)
+        with self.assertRaisesRegex(CoordinateSystemError, "Every detected spot"):
+            match_experimental_multispot(
+                parse_experimental_pair(self.calibration, measurement),
+                self.model.matching_limits,
+            )
 
 
 if __name__ == "__main__":

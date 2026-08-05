@@ -131,7 +131,7 @@ experimental_multispot/
 
 实验 JSON 的 `quality` 还会报告 `raw_candidate_count`、`rejected_border_count`、`rejected_area_count`、`rejected_shape_count`、`rejected_proximity_count`、`segmentation_source` 和 `centroid_intensity_source`。各 `rejected_*_count` 是规则命中次数，分类不保证互斥，不能与原始候选数做简单守恒相加。绿色信号明显弱于亮度信号时，质心权重会从绿色通道回退为 BT.601 亮度并报告 `GREEN_CHANNEL_SIGNAL_WEAK`。每个 spot 的 `bounding_box_elongation_ratio` 与 `principal_axis_elongation_ratio` 分别描述轴对齐包围框和与方向无关的主轴伸长率；这些字段用于诊断异常形状及可能粘连，不是已批准的公共 v1 字段。
 
-实验输出中的 `quality.is_usable` 只有在全部候选达到内部 `minimum_usable_confidence` 时才为 `true`；低于该门限的点仍可保留用于诊断，但带有 `LOW_CONFIDENCE` 标记，调用方不得把它当作可直接计算的数据。该置信度是同一顶帽残差域中的信号、形状和面积工程评分，不是统计概率。
+实验输出中的 `quality.is_usable` 只有在全部候选达到内部 `minimum_usable_confidence` 时才为 `true`；它只表示 M2 单图检测可供诊断或匹配层读取，不表示跨图物理身份已经建立，也不授权 M3 生成处方。低于该门限的点仍可保留用于诊断，但带有 `LOW_CONFIDENCE` 标记，调用方不得把它当作可直接计算的数据。该置信度是同一顶帽残差域中的信号、形状和面积工程评分，不是统计概率。
 
 ## 输入与输出
 

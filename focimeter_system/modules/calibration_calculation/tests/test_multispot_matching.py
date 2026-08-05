@@ -11,11 +11,11 @@ from modules.calibration_calculation.algorithm.multispot_matching import match_e
 from modules.calibration_calculation.algorithm.types import CoordinateSystemError, MatchingLimits
 
 
-def lattice_pair(measurement_count=39, randomize=False, transform=None, translation=(5.0, -3.0), symmetric=False):
+def lattice_pair(measurement_count=43, randomize=False, transform=None, translation=(5.0, -3.0), symmetric=False):
     if symmetric:
         coordinates = [(x, y) for y in range(-3, 4) for x in range(-3, 4) if x * x + y * y <= 11]
     else:
-        removed = {(-3, -3), (-2, -3), (3, -2), (-3, 2), (2, 3), (3, 3)}
+        removed = {(-3, -3), (-2, -3), (3, -2), (-3, 2), (2, 3), (1, 3)}
         coordinates = [(x, y) for y in range(-3, 4) for x in range(-3, 4) if (x, y) not in removed]
     measurement_coordinates = sorted(coordinates, key=lambda item: (item[0] * item[0] + item[1] * item[1], item[1], item[0]))[:measurement_count]
     matrix = np.asarray(transform if transform is not None else [[0.98, 0.015], [-0.01, 1.02]])
@@ -50,6 +50,25 @@ def shifted_pair(pair, offset):
     )
 
 
+def rotated_pair(pair, degrees, center=(640.0, 512.0)):
+    radians = np.deg2rad(degrees)
+    matrix = np.asarray([
+        [np.cos(radians), -np.sin(radians)],
+        [np.sin(radians), np.cos(radians)],
+    ])
+    center_vector = np.asarray(center)
+
+    def rotate(item):
+        point = matrix @ (np.asarray([item.x, item.y]) - center_vector) + center_vector
+        return ExperimentalObservation(item.detection_id, *point, item.confidence)
+
+    return ExperimentalPair(
+        pair.task_id,
+        tuple(rotate(item) for item in pair.calibration),
+        tuple(rotate(item) for item in pair.measurement),
+    )
+
+
 def centered_rotation(degrees, center=(640.0, 512.0), displacement=(2.0, -1.0)):
     radians = np.deg2rad(degrees)
     matrix = np.asarray([
@@ -65,35 +84,41 @@ class MultispotMatchingTests(unittest.TestCase):
     def setUp(self):
         self.limits = MatchingLimits.simulation_defaults()
 
-    def test_partial_overlap_and_order_change_match(self):
+    @staticmethod
+    def _pair_from_coordinates(coordinates):
+        matrix = np.asarray([[0.98, 0.015], [-0.01, 1.02]])
+        offset = np.asarray([5.0, -3.0])
+        calibration = []
+        measurement = []
+        for index, (x, y) in enumerate(coordinates):
+            source = np.asarray([640.0 + 40.0 * x, 512.0 + 40.0 * y])
+            target = matrix @ source + offset
+            calibration.append(ExperimentalObservation(1000 + index, *source, 0.95))
+            measurement.append(ExperimentalObservation(2000 + index, *target, 0.93))
+        return ExperimentalPair("custom_symmetric_lattice", tuple(calibration), tuple(measurement))
+
+    def test_partial_overlap_and_order_change_is_rejected(self):
         pair = lattice_pair(measurement_count=27, randomize=True)
-        matched = match_experimental_multispot(pair, self.limits)
+        with self.assertRaisesRegex(CoordinateSystemError, "Every detected spot"):
+            match_experimental_multispot(pair, self.limits)
+
+    def test_full_coverage_and_order_change_match(self):
+        matched = match_experimental_multispot(lattice_pair(measurement_count=43, randomize=True), self.limits)
         self.assertEqual(43, matched.diagnostics.calibration_detection_count)
-        self.assertEqual(27, matched.diagnostics.measurement_detection_count)
-        self.assertEqual(len(pair.measurement), matched.diagnostics.matched_spot_count)
-        self.assertAlmostEqual(27 / 43, matched.diagnostics.overlap_ratio)
-        self.assertGreater(len(pair.calibration), matched.diagnostics.matched_spot_count)
-        self.assertEqual(
-            set(range(matched.diagnostics.matched_spot_count)),
-            {spot["spot_id"] for spot in matched.calibration["spots"]},
-        )
+        self.assertEqual(43, matched.diagnostics.measurement_detection_count)
+        self.assertEqual(43, matched.diagnostics.matched_spot_count)
+        self.assertEqual(1.0, matched.diagnostics.overlap_ratio)
+        self.assertEqual(0, matched.diagnostics.unmatched_calibration_count)
+        self.assertEqual(0, matched.diagnostics.unmatched_measurement_count)
 
-    def test_partial_overlap_43_to_39_matches(self):
-        matched = match_experimental_multispot(lattice_pair(measurement_count=39), self.limits)
-        self.assertEqual(43, matched.diagnostics.calibration_detection_count)
-        self.assertEqual(39, matched.diagnostics.measurement_detection_count)
-        self.assertEqual(39, matched.diagnostics.matched_spot_count)
-        self.assertAlmostEqual(39 / 43, matched.diagnostics.overlap_ratio)
-
-    def test_reference_overlap_43_to_25_is_rejected(self):
-        with self.assertRaises(CoordinateSystemError):
-            match_experimental_multispot(lattice_pair(measurement_count=25), self.limits)
-
-    def test_reference_overlap_43_to_26_passes_at_configured_boundary(self):
-        matched = match_experimental_multispot(lattice_pair(measurement_count=26), self.limits)
-        self.assertEqual(26, matched.diagnostics.matched_spot_count)
-        self.assertAlmostEqual(26 / 43, matched.diagnostics.overlap_ratio)
-        self.assertGreaterEqual(matched.diagnostics.overlap_ratio, self.limits.min_overlap_ratio)
+    def test_all_partial_overlap_counts_are_rejected(self):
+        for measurement_count in (25, 26, 27, 39):
+            with self.subTest(measurement_count=measurement_count):
+                with self.assertRaisesRegex(CoordinateSystemError, "Every detected spot"):
+                    match_experimental_multispot(
+                        lattice_pair(measurement_count=measurement_count),
+                        self.limits,
+                    )
 
     def test_detection_ids_are_not_copied_to_spot_ids(self):
         matched = match_experimental_multispot(lattice_pair(randomize=True), self.limits)
@@ -131,6 +156,16 @@ class MultispotMatchingTests(unittest.TestCase):
                 self.limits,
             )
 
+    def test_equal_count_missing_ray_plus_false_detection_is_rejected(self):
+        pair = lattice_pair()
+        measurement = list(pair.measurement)
+        measurement[0] = ExperimentalObservation(99999, 333.3, 777.7, 0.95)
+        with self.assertRaises(CoordinateSystemError):
+            match_experimental_multispot(
+                ExperimentalPair(pair.task_id, pair.calibration, tuple(measurement)),
+                self.limits,
+            )
+
     def test_insufficient_overlap_is_rejected(self):
         pair = lattice_pair(measurement_count=10)
         with self.assertRaises(CoordinateSystemError):
@@ -142,6 +177,28 @@ class MultispotMatchingTests(unittest.TestCase):
                 lattice_pair(measurement_count=37, transform=[[0.0, -1.0], [1.0, 0.0]], translation=(1152.0, -128.0), symmetric=True),
                 self.limits,
             )
+
+    def test_unmarked_half_turn_symmetric_lattice_is_rejected(self):
+        removed = {(3, 2), (-3, -2), (2, -2), (-2, 2)}
+        coordinates = [
+            (x, y)
+            for y in range(-2, 3)
+            for x in range(-3, 4)
+            if (x, y) not in removed
+        ]
+        with self.assertRaisesRegex(CoordinateSystemError, "rotation_180"):
+            match_experimental_multispot(self._pair_from_coordinates(coordinates), self.limits)
+
+    def test_unmarked_mirror_symmetric_lattice_is_rejected(self):
+        removed = {(-3, 2), (3, 2), (-2, -1), (2, -1)}
+        coordinates = [
+            (x, y)
+            for y in range(-2, 3)
+            for x in range(-3, 4)
+            if (x, y) not in removed
+        ]
+        with self.assertRaisesRegex(CoordinateSystemError, "reflection_x"):
+            match_experimental_multispot(self._pair_from_coordinates(coordinates), self.limits)
 
     def test_integer_pitch_translation_is_rejected(self):
         with self.assertRaises(CoordinateSystemError):
@@ -155,7 +212,31 @@ class MultispotMatchingTests(unittest.TestCase):
                     lattice_pair(transform=matrix, translation=translation),
                     self.limits,
                 )
-                self.assertEqual(39, matched.diagnostics.matched_spot_count)
+                self.assertEqual(43, matched.diagnostics.matched_spot_count)
+
+    def test_real_installation_angle_does_not_count_as_relative_rotation(self):
+        for installation_degrees in (42.32, 45.0):
+            with self.subTest(installation_degrees=installation_degrees):
+                matched = match_experimental_multispot(
+                    rotated_pair(lattice_pair(), installation_degrees),
+                    self.limits,
+                )
+                self.assertEqual(43, matched.diagnostics.matched_spot_count)
+
+    def test_real_installation_angle_with_small_relative_rotation_is_accepted(self):
+        for installation_degrees in (42.32, 45.0):
+            for relative_degrees in (-10.0, -5.0, 0.0, 5.0, 10.0):
+                with self.subTest(
+                    installation_degrees=installation_degrees,
+                    relative_degrees=relative_degrees,
+                ):
+                    matrix, translation = centered_rotation(relative_degrees)
+                    pair = rotated_pair(
+                        lattice_pair(transform=matrix, translation=translation),
+                        installation_degrees,
+                    )
+                    matched = match_experimental_multispot(pair, self.limits)
+                    self.assertEqual(43, matched.diagnostics.matched_spot_count)
 
     def test_common_coordinate_origin_shift_does_not_change_matching(self):
         matrix, translation = centered_rotation(10.0)
