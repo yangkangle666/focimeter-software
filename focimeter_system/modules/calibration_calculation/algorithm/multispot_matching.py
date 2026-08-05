@@ -81,9 +81,9 @@ def _estimate_pitch(points: np.ndarray) -> float:
 def _candidate_bases(
     points: np.ndarray,
     pitch: float,
-    limits: MatchingLimits,
+    _limits: MatchingLimits,
 ) -> tuple[np.ndarray, ...]:
-    """Recover image-oriented horizontal/vertical lattice vectors."""
+    """Recover two image-oriented lattice vectors without constraining installation angle."""
 
     vectors = points[:, None, :] - points[None, :, :]
     flat = vectors.reshape(-1, 2)
@@ -100,9 +100,6 @@ def _candidate_bases(
     basis = np.column_stack([hx, vy])
     if abs(float(np.linalg.det(basis))) <= np.finfo(float).eps * pitch * pitch:
         raise CoordinateSystemError("Recovered lattice axes are degenerate.")
-    angle = math.degrees(math.atan2(float(hx[1]), float(hx[0])))
-    if abs(angle) > limits.max_rotation_degree:
-        raise CoordinateSystemError("Lattice orientation exceeds the conservative matching range.")
     return (basis,)
 
 
@@ -212,26 +209,40 @@ def _candidate_matches(
     calibration: LatticeAssignment,
     measurement: LatticeAssignment,
 ) -> Iterable[tuple[tuple[int, int], ...]]:
-    """Enumerate topology-preserving integer offsets, independent of array order."""
+    """Enumerate square-lattice axis conventions and integer offsets."""
 
     calibration_by_coordinate = {coordinate: index for index, coordinate in enumerate(calibration.coordinates)}
-    measurement_coordinates = measurement.coordinates
-    offsets = {
-        (calibration_coordinate[0] - measurement_coordinate[0], calibration_coordinate[1] - measurement_coordinate[1])
-        for calibration_coordinate, measurement_coordinate in itertools.product(
-            calibration.coordinates, measurement_coordinates
-        )
-    }
+    coordinate_transforms = (
+        lambda x, y: (x, y),
+        lambda x, y: (-x, y),
+        lambda x, y: (x, -y),
+        lambda x, y: (-x, -y),
+        lambda x, y: (y, x),
+        lambda x, y: (-y, x),
+        lambda x, y: (y, -x),
+        lambda x, y: (-y, -x),
+    )
     seen: set[tuple[tuple[int, int], ...]] = set()
-    for dx, dy in offsets:
-        pairs = tuple(sorted(
-            (calibration_by_coordinate[(coordinate[0] + dx, coordinate[1] + dy)], measurement_index)
-            for measurement_index, coordinate in enumerate(measurement_coordinates)
-            if (coordinate[0] + dx, coordinate[1] + dy) in calibration_by_coordinate
-        ))
-        if pairs and pairs not in seen:
-            seen.add(pairs)
-            yield pairs
+    for transform in coordinate_transforms:
+        measurement_coordinates = tuple(transform(*coordinate) for coordinate in measurement.coordinates)
+        offsets = {
+            (
+                calibration_coordinate[0] - measurement_coordinate[0],
+                calibration_coordinate[1] - measurement_coordinate[1],
+            )
+            for calibration_coordinate, measurement_coordinate in itertools.product(
+                calibration.coordinates, measurement_coordinates
+            )
+        }
+        for dx, dy in offsets:
+            pairs = tuple(sorted(
+                (calibration_by_coordinate[(coordinate[0] + dx, coordinate[1] + dy)], measurement_index)
+                for measurement_index, coordinate in enumerate(measurement_coordinates)
+                if (coordinate[0] + dx, coordinate[1] + dy) in calibration_by_coordinate
+            ))
+            if pairs and pairs not in seen:
+                seen.add(pairs)
+                yield pairs
 
 
 def _has_quarter_turn_alias(points: np.ndarray, pitch: float, tolerance_ratio: float) -> bool:
@@ -296,6 +307,12 @@ def match_experimental_multispot(
         )
     hypotheses = tuple(_candidate_matches(calibration_lattice, measurement_lattice))
     maximum_topological_overlap = max((len(item) for item in hypotheses), default=0)
+    if maximum_topological_overlap < len(measurement_points):
+        raise CoordinateSystemError(
+            f"Cross-image matching assigned {maximum_topological_overlap} of "
+            f"{len(measurement_points)} measurement detections; every measurement "
+            "detection requires one unique physical identity."
+        )
     candidates = [
         scored
         for hypothesis in hypotheses

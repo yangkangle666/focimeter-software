@@ -30,7 +30,7 @@
     "contract_status": {"const": "proposed"},
     "data_source": {"type": "string", "minLength": 1},
     "validation_status": {"const": "software_verified"},
-    "validation_scope": {"const": "simulation_only"},
+    "validation_scope": {"enum": ["simulation_only", "software_only"]},
     "metrology_validated": {"const": false},
     "image_type": {"enum": ["calibration", "measurement"]},
     "coordinate_type": {"const": "image_pixel"},
