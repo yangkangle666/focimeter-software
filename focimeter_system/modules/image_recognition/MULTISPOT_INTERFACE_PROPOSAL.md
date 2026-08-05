@@ -2,7 +2,7 @@
 
 ## 状态
 
-本文件是 M2 的接口提案，不修改 [统一 v1 接口](../../docs/interface_contract_v1.md)。当前输出只用于 `software_verified`、`simulation_only` 的合成数据验证；它不是 M3/M4 已批准的正式公共接口，也不是 LM700 或真实焦度计的计量接口。
+本文件是 M2 的接口提案，不修改 [统一 v1 接口](../../docs/interface_contract_v1.md)。当前输出支持 mock、合成图和真实离线图片上的 `software_verified` 检测验证，但固定为 `validation_scope=software_only`；它不是 M3/M4 已批准的正式公共接口，也不是 LM700 或真实焦度计的计量接口。
 
 ## 为什么需要单独的多光斑输出
 
@@ -31,7 +31,7 @@
   "contract_status": "proposed",
   "data_source": "synthetic",
   "validation_status": "software_verified",
-  "validation_scope": "simulation_only",
+  "validation_scope": "software_only",
   "metrology_validated": false,
   "image_type": "calibration",
   "coordinate_type": "image_pixel",
@@ -42,6 +42,8 @@
       "y": 292.0,
       "confidence": 0.98,
       "area_pixel2": 58.0,
+      "bounding_box_elongation_ratio": 1.05,
+      "principal_axis_elongation_ratio": 1.03,
       "mean_intensity_8bit": 178.2,
       "peak_intensity_8bit": 245.0,
       "peak_residual_intensity_8bit": 151.0,
@@ -57,8 +59,12 @@
     "raw_candidate_count": 25,
     "rejected_area_count": 0,
     "rejected_border_count": 0,
+    "rejected_shape_count": 0,
+    "rejected_proximity_count": 0,
     "background_intensity_8bit": 0.0,
     "detection_threshold_8bit": 8.0,
+    "segmentation_source": "bt601_luminance",
+    "centroid_intensity_source": "green_channel",
     "minimum_usable_confidence": 0.35,
     "is_usable": true,
     "warnings": []
@@ -85,7 +91,11 @@
 | `mean_intensity_8bit`、`peak_intensity_8bit` | 当前归一化 8-bit 灰度图中，候选连通域的均值与峰值 | 原始传感器辐射量、曝光或功率测量值 |
 | `peak_residual_intensity_8bit` | 顶帽增强值减检测阈值后的最大非负残差 | 能与原图峰值或原图背景直接相减 |
 | `integrated_residual_8bit_pixel` | 每个候选中上述非负残差的像素求和 | 原图积分强度或真实光功率 |
+| `bounding_box_elongation_ratio` | 连通域包围框长边与短边之比，最小为 1；用于诊断细长、可能粘连的候选 | 光斑椭圆拟合、像差或计量参数 |
+| `principal_axis_elongation_ratio` | 连通域二阶矩主轴长短比，最小为 1；与图像轴方向无关，用于拒绝斜向粘连 | 光学像差、镜片轴位或计量参数 |
 | `quality.background_intensity_8bit`、`detection_threshold_8bit` | 顶帽增强残差域中的边缘背景估计与检测阈值 | 原始灰度图中的背景与阈值 |
+| `quality.rejected_*_count` | 分别记录面积、边界、形状和邻近碎片规则的命中次数；分类不保证互斥，不能与 `raw_candidate_count` 做简单守恒相加；触边或碎片剔除本身不是整图失败 | 被剔除候选可安全恢复或具有物理身份 |
+| `quality.segmentation_source`、`centroid_intensity_source` | 说明检测掩膜和质心/强度分别使用的图像通道；RGB 绿色 JPEG 当前为亮度分割、绿色通道质心，绿色信号不足时明确回退为亮度 | 已完成颜色或光谱标定 |
 | `quality` | 当前图的候选与阈值诊断；`status=ok` 只表示流程完成，只有标定与测量两份结果都满足 `is_usable=true` 才能进入后续计算 | 相机、光阑或镜片的正式标定结果 |
 | `matching` | 明确宣告未做跨图最终匹配 | M2 已完成 Hartmann 阵列的物理点配对 |
 | `data_source` | 实验输入可选的非空字符串扩展；当前建议值为 `synthetic`、`mock`、`real` 或缺省 `unknown` | 已成为正式 M1 v1 字段，或 `real` 自动代表计量验证通过 |
@@ -104,7 +114,7 @@
 4. v1 只有固定的正式结果文件名；实验文件必须留在 `experimental_multispot/`，避免 M3 当前五点读取器误消费。
 5. `data_source`、`validation_status`、`validation_scope` 与 `metrology_validated` 是实验元数据，不代表已修改 v1 公共 schema。
 
-当前实现为兼容资料来源标注，接受任意非空 `data_source` 字符串；缺省值为 `unknown`。正式接口升级时应由负责人批准固定枚举。无论 `data_source` 是什么，本阶段都固定 `validation_scope=simulation_only`、`metrology_validated=false`；不能仅把值写成 `real` 就升级验证状态。
+当前实现为兼容资料来源标注，接受任意非空 `data_source` 字符串；缺省值为 `unknown`。正式接口升级时应由负责人批准固定枚举。无论 `data_source` 是什么，本阶段都固定 `validation_scope=software_only`、`metrology_validated=false`；`data_source=real` 只说明输入来源，不代表计量验证通过。
 
 ## 需要负责人确认的内容
 

@@ -30,7 +30,10 @@
     "contract_status": {"const": "proposed"},
     "data_source": {"type": "string", "minLength": 1},
     "validation_status": {"const": "software_verified"},
-    "validation_scope": {"const": "simulation_only"},
+    "validation_scope": {
+      "enum": ["simulation_only", "software_only"],
+      "description": "simulation_only is used by synthetic fixtures; software_only is used by real-image software validation without metrology claims."
+    },
     "metrology_validated": {"const": false},
     "image_type": {"enum": ["calibration", "measurement"]},
     "coordinate_type": {"const": "image_pixel"},
@@ -39,6 +42,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
+        "not": {"required": ["spot_id"]},
         "required": ["detection_id", "x", "y", "confidence"],
         "properties": {
           "detection_id": {"type": "integer", "minimum": 0},
@@ -54,7 +58,10 @@
       "required": ["detected_count", "is_usable"],
       "properties": {
         "detected_count": {"type": "integer", "minimum": 1},
-        "is_usable": {"const": true},
+        "is_usable": {
+          "const": true,
+          "description": "M2 single-image detection is usable; this does not authorize M3 matching or prescription calculation."
+        },
         "warnings": {"type": "array", "items": {"type": "string"}}
       }
     },

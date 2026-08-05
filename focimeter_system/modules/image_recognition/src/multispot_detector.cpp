@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <exception>
+#include <limits>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -88,13 +89,158 @@ double medianArea(const std::vector<SpotObservation>& observations) {
     return areas[areas.size() / 2U];
 }
 
+bool hasContinuousBrightLine(
+    const cv::Mat& intensity,
+    const cv::Point start,
+    const cv::Point end,
+    const double threshold) {
+    if (start == end) {
+        return true;
+    }
+    const cv::Rect image_bounds(0, 0, intensity.cols, intensity.rows);
+    if (!image_bounds.contains(start) || !image_bounds.contains(end)) {
+        return false;
+    }
+    cv::LineIterator iterator(intensity, start, end, 8);
+    if (iterator.count <= 0) {
+        return false;
+    }
+    for (int sample = 0; sample < iterator.count; ++sample, ++iterator) {
+        if (**iterator < threshold) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool hasCommonBrightBridge(
+    const SpotObservation& primary,
+    const SpotObservation& candidate,
+    const cv::Mat& intensity,
+    const cv::Rect& roi_rect,
+    const double background) {
+    const cv::Point primary_point(
+        cvRound(primary.center.x - roi_rect.x),
+        cvRound(primary.center.y - roi_rect.y));
+    const cv::Point candidate_point(
+        cvRound(candidate.center.x - roi_rect.x),
+        cvRound(candidate.center.y - roi_rect.y));
+    constexpr double kMinimumPeakBridgeFraction = 0.50;
+    const double lower_peak = std::min(primary.peak_intensity, candidate.peak_intensity);
+    const double bridge_threshold = background +
+        std::max(8.0, kMinimumPeakBridgeFraction * std::max(0.0, lower_peak - background));
+    return hasContinuousBrightLine(
+        intensity, primary_point, candidate_point, bridge_threshold);
+}
+
+double medianNearestNeighborDistance(const std::vector<SpotObservation>& observations) {
+    if (observations.size() < 3U) {
+        return std::numeric_limits<double>::infinity();
+    }
+    std::vector<double> nearest_distances;
+    nearest_distances.reserve(observations.size());
+    for (std::size_t left = 0; left < observations.size(); ++left) {
+        double nearest = std::numeric_limits<double>::infinity();
+        for (std::size_t right = 0; right < observations.size(); ++right) {
+            if (left == right) {
+                continue;
+            }
+            nearest = std::min(
+                nearest,
+                cv::norm(observations[left].center - observations[right].center));
+        }
+        nearest_distances.push_back(nearest);
+    }
+    std::sort(nearest_distances.begin(), nearest_distances.end());
+    return nearest_distances[nearest_distances.size() / 2U];
+}
+
+void rejectNearbyFragments(
+    std::vector<SpotObservation>& observations,
+    const cv::Mat& centroid_intensity,
+    const cv::Rect& roi_rect,
+    const double background,
+    const ProcessingConfig& config,
+    ImageDiagnostics& diagnostics) {
+    constexpr double kSubpitchFragmentDistanceFraction = 0.20;
+    const double typical_spacing = medianNearestNeighborDistance(observations);
+    std::vector<std::size_t> priority(observations.size());
+    std::iota(priority.begin(), priority.end(), 0U);
+    std::sort(priority.begin(), priority.end(), [&observations](const std::size_t left, const std::size_t right) {
+        const auto& left_observation = observations[left];
+        const auto& right_observation = observations[right];
+        if (left_observation.area != right_observation.area) {
+            return left_observation.area > right_observation.area;
+        }
+        if (left_observation.integrated_intensity != right_observation.integrated_intensity) {
+            return left_observation.integrated_intensity > right_observation.integrated_intensity;
+        }
+        return left_observation.source_component_label < right_observation.source_component_label;
+    });
+
+    std::vector<bool> rejected(observations.size(), false);
+    for (std::size_t primary_position = 0; primary_position < priority.size(); ++primary_position) {
+        const std::size_t primary_index = priority[primary_position];
+        if (rejected[primary_index]) {
+            continue;
+        }
+        auto& primary = observations[primary_index];
+        for (std::size_t candidate_position = primary_position + 1U;
+             candidate_position < priority.size();
+             ++candidate_position) {
+            const std::size_t candidate_index = priority[candidate_position];
+            if (rejected[candidate_index]) {
+                continue;
+            }
+            auto& candidate = observations[candidate_index];
+            const bool is_smaller_fragment =
+                candidate.area <= primary.area * config.multispot_fragment_max_area_ratio;
+            const double proximity_limit = config.multispot_fragment_proximity_factor *
+                (std::sqrt(primary.area) + std::sqrt(candidate.area));
+            const double center_distance = cv::norm(primary.center - candidate.center);
+            const bool nearby = center_distance <= proximity_limit;
+            const bool common_bright_bridge = nearby && hasCommonBrightBridge(
+                primary, candidate, centroid_intensity, roi_rect, background);
+            const bool subpitch_fragment = nearby && std::isfinite(typical_spacing) &&
+                center_distance <= typical_spacing * kSubpitchFragmentDistanceFraction;
+            if (is_smaller_fragment && (common_bright_bridge || subpitch_fragment)) {
+                rejected[candidate_index] = true;
+                ++diagnostics.rejected_proximity_count;
+                addWarning(diagnostics, "NEARBY_FRAGMENT_REJECTED");
+                if (subpitch_fragment && !common_bright_bridge) {
+                    addFlag(primary, "SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED");
+                    addWarning(diagnostics, "SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED");
+                }
+            } else if (nearby) {
+                addFlag(primary, "NEARBY_CANDIDATE_UNRESOLVED");
+                addFlag(candidate, "NEARBY_CANDIDATE_UNRESOLVED");
+                addWarning(diagnostics, "NEARBY_CANDIDATE_UNRESOLVED");
+            }
+        }
+    }
+
+    std::vector<SpotObservation> kept;
+    kept.reserve(observations.size() -
+        static_cast<std::size_t>(diagnostics.rejected_proximity_count));
+    for (std::size_t index = 0; index < observations.size(); ++index) {
+        if (!rejected[index]) {
+            kept.push_back(std::move(observations[index]));
+        }
+    }
+    observations = std::move(kept);
+}
+
 void appendCountDetails(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["detected_count"] = diagnostics.candidate_count;
     error.number_details["raw_candidate_count"] = diagnostics.raw_candidate_count;
     error.number_details["rejected_area_count"] = diagnostics.rejected_area_count;
     error.number_details["rejected_border_count"] = diagnostics.rejected_border_count;
+    error.number_details["rejected_shape_count"] = diagnostics.rejected_shape_count;
+    error.number_details["rejected_proximity_count"] = diagnostics.rejected_proximity_count;
     error.number_details["background_intensity"] = diagnostics.background_intensity;
     error.number_details["detection_threshold"] = diagnostics.detection_threshold;
+    error.string_details["segmentation_source"] = diagnostics.segmentation_source;
+    error.string_details["centroid_intensity_source"] = diagnostics.centroid_intensity_source;
 }
 
 bool touchesMargin(
@@ -107,6 +253,55 @@ bool touchesMargin(
     const int margin) {
     return left <= margin || top <= margin ||
         left + width >= image_width - margin || top + height >= image_height - margin;
+}
+
+bool hasBrightEdgeContact(
+    const cv::Mat& image,
+    const cv::Mat& labels,
+    const int component_label,
+    const int left,
+    const int top,
+    const int width,
+    const int height,
+    const int probe_margin,
+    const double signal_threshold) {
+    cv::Point leftmost(image.cols, -1);
+    cv::Point rightmost(-1, -1);
+    cv::Point topmost(-1, image.rows);
+    cv::Point bottommost(-1, -1);
+    for (int y = top; y < top + height; ++y) {
+        const int* label_row = labels.ptr<int>(y);
+        for (int x = left; x < left + width; ++x) {
+            if (label_row[x] != component_label) {
+                continue;
+            }
+            if (x < leftmost.x) {
+                leftmost = {x, y};
+            }
+            if (x > rightmost.x) {
+                rightmost = {x, y};
+            }
+            if (y < topmost.y) {
+                topmost = {x, y};
+            }
+            if (y > bottommost.y) {
+                bottommost = {x, y};
+            }
+        }
+    }
+    if (leftmost.y < 0) {
+        return false;
+    }
+    return (left <= probe_margin &&
+            hasContinuousBrightLine(image, leftmost, {0, leftmost.y}, signal_threshold)) ||
+        (left + width >= image.cols - probe_margin &&
+         hasContinuousBrightLine(
+             image, rightmost, {image.cols - 1, rightmost.y}, signal_threshold)) ||
+        (top <= probe_margin &&
+         hasContinuousBrightLine(image, topmost, {topmost.x, 0}, signal_threshold)) ||
+        (top + height >= image.rows - probe_margin &&
+         hasContinuousBrightLine(
+             image, bottommost, {bottommost.x, image.rows - 1}, signal_threshold));
 }
 
 }  // namespace
@@ -130,11 +325,30 @@ ImageAnalysis MultispotDetector::detect(
         return analysis;
     }
 
+    cv::Mat centroid_intensity;
+    if (analysis.original.channels() == 1) {
+        centroid_intensity = analysis.gray;
+    } else {
+        cv::extractChannel(analysis.original(analysis.roi_rect), centroid_intensity, 1);
+        cv::Scalar green_stddev;
+        cv::Scalar luminance_stddev;
+        cv::meanStdDev(centroid_intensity, cv::noArray(), green_stddev);
+        cv::meanStdDev(analysis.gray, cv::noArray(), luminance_stddev);
+        if (green_stddev[0] < std::max(1.0, 0.20 * luminance_stddev[0])) {
+            centroid_intensity = analysis.gray;
+            analysis.diagnostics.centroid_intensity_source = "bt601_luminance_fallback";
+            addWarning(analysis.diagnostics, "GREEN_CHANNEL_SIGNAL_WEAK");
+        }
+    }
+
     cv::Mat filtered;
+    cv::Mat centroid_filtered;
     if (config.median_kernel > 1) {
         cv::medianBlur(analysis.gray, filtered, config.median_kernel);
+        cv::medianBlur(centroid_intensity, centroid_filtered, config.median_kernel);
     } else {
         filtered = analysis.gray.clone();
+        centroid_filtered = centroid_intensity.clone();
     }
 
     // A large odd top-hat kernel supplies a local-background residual. This is
@@ -143,6 +357,10 @@ ImageAnalysis MultispotDetector::detect(
     const cv::Mat top_hat_kernel = cv::getStructuringElement(
         cv::MORPH_ELLIPSE, cv::Size(top_hat_size, top_hat_size));
     cv::morphologyEx(filtered, analysis.enhanced, cv::MORPH_TOPHAT, top_hat_kernel);
+    cv::Mat centroid_enhanced;
+    cv::morphologyEx(
+        centroid_filtered, centroid_enhanced, cv::MORPH_TOPHAT, top_hat_kernel);
+    const double centroid_background = borderMean(centroid_enhanced);
 
     analysis.diagnostics.background_intensity = borderMean(analysis.enhanced);
     const double bright_cutoff =
@@ -179,6 +397,7 @@ ImageAnalysis MultispotDetector::detect(
     const double maximum_area = std::max(
         static_cast<double>(config.multispot_min_area_pixels + 1),
         analysis.gray.total() * config.multispot_max_area_ratio);
+    const double centroid_raw_background = percentile(centroid_intensity, 0.50);
     for (int label = 1; label < label_count; ++label) {
         const int area = stats.at<int>(label, cv::CC_STAT_AREA);
         const int left = stats.at<int>(label, cv::CC_STAT_LEFT);
@@ -189,46 +408,70 @@ ImageAnalysis MultispotDetector::detect(
             ++analysis.diagnostics.rejected_area_count;
             continue;
         }
-        if (touchesMargin(
-                left,
-                top,
-                width,
-                height,
-                analysis.gray.cols,
-                analysis.gray.rows,
-                config.multispot_border_margin_pixels)) {
-            ++analysis.diagnostics.rejected_border_count;
-            addWarning(analysis.diagnostics, "EDGE_CLIPPED_CANDIDATE_REJECTED");
-            continue;
-        }
-
         double integrated = 0.0;
         double weighted_x = 0.0;
         double weighted_y = 0.0;
         double raw_sum = 0.0;
         double peak = 0.0;
         double residual_peak = 0.0;
+        double moment_xx = 0.0;
+        double moment_xy = 0.0;
+        double moment_yy = 0.0;
+        const double component_center_x = centers.at<double>(label, 0);
+        const double component_center_y = centers.at<double>(label, 1);
         for (int y = top; y < top + height; ++y) {
             const int* label_row = labels.ptr<int>(y);
-            const unsigned char* enhanced_row = analysis.enhanced.ptr<unsigned char>(y);
-            const unsigned char* gray_row = analysis.gray.ptr<unsigned char>(y);
+            const unsigned char* centroid_enhanced_row =
+                centroid_enhanced.ptr<unsigned char>(y);
+            const unsigned char* intensity_row = centroid_intensity.ptr<unsigned char>(y);
             for (int x = left; x < left + width; ++x) {
                 if (label_row[x] != label) {
                     continue;
                 }
                 const double residual = std::max(
                     0.0,
-                    static_cast<double>(enhanced_row[x]) - analysis.diagnostics.detection_threshold);
+                    static_cast<double>(centroid_enhanced_row[x]) - centroid_background);
                 integrated += residual;
                 residual_peak = std::max(residual_peak, residual);
                 weighted_x += residual * x;
                 weighted_y += residual * y;
-                raw_sum += gray_row[x];
-                peak = std::max(peak, static_cast<double>(gray_row[x]));
+                raw_sum += intensity_row[x];
+                peak = std::max(peak, static_cast<double>(intensity_row[x]));
+                const double dx = static_cast<double>(x) - component_center_x;
+                const double dy = static_cast<double>(y) - component_center_y;
+                moment_xx += dx * dx;
+                moment_xy += dx * dy;
+                moment_yy += dy * dy;
             }
         }
         if (integrated <= 1e-9) {
             ++analysis.diagnostics.rejected_area_count;
+            continue;
+        }
+        const double edge_signal_threshold = centroid_raw_background +
+            std::max(8.0, 0.10 * std::max(0.0, peak - centroid_raw_background));
+        const int edge_probe_margin = std::max(width, height);
+        const bool segmented_support_touches_guard = touchesMargin(
+            left,
+            top,
+            width,
+            height,
+            analysis.gray.cols,
+            analysis.gray.rows,
+            config.multispot_border_margin_pixels);
+        if (segmented_support_touches_guard ||
+            hasBrightEdgeContact(
+                centroid_intensity,
+                labels,
+                label,
+                left,
+                top,
+                width,
+                height,
+                edge_probe_margin,
+                edge_signal_threshold)) {
+            ++analysis.diagnostics.rejected_border_count;
+            addWarning(analysis.diagnostics, "EDGE_CLIPPED_CANDIDATE_REJECTED");
             continue;
         }
 
@@ -238,22 +481,77 @@ ImageAnalysis MultispotDetector::detect(
             weighted_y / integrated + analysis.roi_rect.y};
         observation.area = area;
         observation.circularity = static_cast<double>(area) / static_cast<double>(width * height);
+        observation.bounding_box_elongation = std::max(
+            static_cast<double>(width) / static_cast<double>(height),
+            static_cast<double>(height) / static_cast<double>(width));
+        const double covariance_xx = moment_xx / static_cast<double>(area);
+        const double covariance_xy = moment_xy / static_cast<double>(area);
+        const double covariance_yy = moment_yy / static_cast<double>(area);
+        const double trace = covariance_xx + covariance_yy;
+        const double discriminant = std::sqrt(
+            std::max(0.0,
+                (covariance_xx - covariance_yy) * (covariance_xx - covariance_yy) +
+                    4.0 * covariance_xy * covariance_xy));
+        const double largest_eigenvalue = std::max(0.0, 0.5 * (trace + discriminant));
+        const double smallest_eigenvalue = std::max(1e-9, 0.5 * (trace - discriminant));
+        observation.principal_axis_elongation =
+            std::sqrt(largest_eigenvalue / smallest_eigenvalue);
         observation.mean_intensity = raw_sum / static_cast<double>(area);
         observation.peak_intensity = peak;
         observation.peak_residual_intensity = residual_peak;
         observation.integrated_intensity = integrated;
+        observation.source_component_label = label;
         analysis.observations.push_back(std::move(observation));
     }
 
+    if (!analysis.observations.empty()) {
+        const double preliminary_median_area = medianArea(analysis.observations);
+        const double relative_minimum_area =
+            preliminary_median_area * config.multispot_relative_min_area_ratio;
+        analysis.observations.erase(
+            std::remove_if(
+                analysis.observations.begin(),
+                analysis.observations.end(),
+                [&analysis, relative_minimum_area](const SpotObservation& observation) {
+                    const bool area_outlier = observation.area < relative_minimum_area;
+                    const bool shape_outlier = observation.circularity < 0.35;
+                    if (area_outlier) {
+                        ++analysis.diagnostics.rejected_area_count;
+                        addWarning(analysis.diagnostics, "SMALL_AREA_OUTLIER_REJECTED");
+                    }
+                    if (shape_outlier) {
+                        ++analysis.diagnostics.rejected_shape_count;
+                        addWarning(analysis.diagnostics, "IRREGULAR_COMPONENT_REJECTED");
+                    }
+                    return area_outlier || shape_outlier;
+                }),
+            analysis.observations.end());
+    }
+
     analysis.diagnostics.candidate_count = static_cast<int>(analysis.observations.size());
-    if (analysis.diagnostics.rejected_border_count > 0) {
+    if (analysis.diagnostics.candidate_count > config.multispot_max_count) {
+        analysis.diagnostics.candidate_limit_exceeded = true;
+        addWarning(analysis.diagnostics, "SPOT_LIMIT_EXCEEDED");
         analysis.error = makeError(
-            "CENTROID_FAILED",
-            "Experimental multispot detection rejected an edge-clipped candidate.",
+            "SPOT_COUNT_MISMATCH",
+            "Experimental multispot detection found more candidates than the safe limit before proximity filtering.",
             true);
+        analysis.error.number_details["max_spot_count"] = config.multispot_max_count;
         appendCountDetails(analysis.error, analysis.diagnostics);
         return analysis;
     }
+
+    // A dark or saturated core can split one optical spot into nearby components.
+    // Keep the larger support region and report the discarded satellite explicitly.
+    rejectNearbyFragments(
+        analysis.observations,
+        centroid_intensity,
+        analysis.roi_rect,
+        centroid_raw_background,
+        config,
+        analysis.diagnostics);
+
+    analysis.diagnostics.candidate_count = static_cast<int>(analysis.observations.size());
     if (analysis.diagnostics.candidate_count > config.multispot_max_count) {
         analysis.diagnostics.candidate_limit_exceeded = true;
         addWarning(analysis.diagnostics, "SPOT_LIMIT_EXCEEDED");
@@ -281,15 +579,24 @@ ImageAnalysis MultispotDetector::detect(
         const double area_ratio = std::max(observation.area / median_area, 1e-9);
         const double area_score = std::exp(-std::abs(std::log(area_ratio)));
         const double shape_score = clamp01(observation.circularity / 0.70);
-        const double signal_score = clamp01(
+        const double residual_signal_score = clamp01(
             observation.peak_residual_intensity /
-            std::max(1.0, 255.0 - analysis.diagnostics.detection_threshold));
+            std::max(1.0, 255.0 - centroid_background));
+        const double raw_peak_score = clamp01(observation.peak_intensity / 255.0);
+        const double signal_score = 0.5 * residual_signal_score + 0.5 * raw_peak_score;
         observation.confidence = clamp01(
             0.45 * signal_score + 0.30 * shape_score + 0.25 * area_score);
-        if (observation.area > median_area * 1.5 || observation.circularity < 0.35) {
+        const bool large_area =
+            observation.area > median_area * config.multispot_merged_area_ratio;
+        const bool elongated =
+            observation.principal_axis_elongation > config.multispot_merged_elongation_ratio;
+        if (large_area && elongated) {
             addFlag(observation, "POSSIBLE_MERGED_COMPONENT");
             addWarning(analysis.diagnostics, "POSSIBLE_MERGED_COMPONENT");
             possible_merged_component = true;
+        } else if (large_area) {
+            addFlag(observation, "AREA_ABOVE_MEDIAN");
+            addWarning(analysis.diagnostics, "AREA_VARIATION_HIGH");
         }
         if (observation.peak_intensity >= 253.0) {
             addFlag(observation, "SATURATED_PEAK");
@@ -313,10 +620,13 @@ ImageAnalysis MultispotDetector::detect(
         analysis.observations.begin(),
         analysis.observations.end(),
         [](const SpotObservation& left, const SpotObservation& right) {
-            if (std::abs(left.center.y - right.center.y) > 1e-6) {
+            if (left.center.y != right.center.y) {
                 return left.center.y < right.center.y;
             }
-            return left.center.x < right.center.x;
+            if (left.center.x != right.center.x) {
+                return left.center.x < right.center.x;
+            }
+            return left.source_component_label < right.source_component_label;
         });
 
     cv::rectangle(analysis.annotated, analysis.roi_rect, cv::Scalar(255, 160, 0), 1, cv::LINE_AA);

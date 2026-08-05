@@ -11,7 +11,14 @@ from modules.calibration_calculation.algorithm.multispot_matching import match_e
 from modules.calibration_calculation.algorithm.types import CoordinateSystemError, MatchingLimits
 
 
-def lattice_pair(measurement_count=39, randomize=False, transform=None, translation=(5.0, -3.0), symmetric=False):
+def lattice_pair(
+    measurement_count=39,
+    randomize=False,
+    transform=None,
+    translation=(5.0, -3.0),
+    symmetric=False,
+    installation_degree=0.0,
+):
     if symmetric:
         coordinates = [(x, y) for y in range(-3, 4) for x in range(-3, 4) if x * x + y * y <= 11]
     else:
@@ -20,13 +27,23 @@ def lattice_pair(measurement_count=39, randomize=False, transform=None, translat
     measurement_coordinates = sorted(coordinates, key=lambda item: (item[0] * item[0] + item[1] * item[1], item[1], item[0]))[:measurement_count]
     matrix = np.asarray(transform if transform is not None else [[0.98, 0.015], [-0.01, 1.02]])
     offset = np.asarray(translation)
+    installation_radians = np.deg2rad(installation_degree)
+    installation = np.asarray([
+        [np.cos(installation_radians), -np.sin(installation_radians)],
+        [np.sin(installation_radians), np.cos(installation_radians)],
+    ])
+    center = np.asarray([640.0, 512.0])
     calibration = [
-        ExperimentalObservation(1000 + index * 7, 640.0 + 40.0 * x, 512.0 + 40.0 * y, 0.95)
+        ExperimentalObservation(
+            1000 + index * 7,
+            *(center + installation @ np.asarray([40.0 * x, 40.0 * y])),
+            0.95,
+        )
         for index, (x, y) in enumerate(coordinates)
     ]
     measurement = []
     for index, (x, y) in enumerate(measurement_coordinates):
-        source = np.asarray([640.0 + 40.0 * x, 512.0 + 40.0 * y])
+        source = center + installation @ np.asarray([40.0 * x, 40.0 * y])
         target = matrix @ source + offset
         measurement.append(ExperimentalObservation(17 + index * 11, *target, 0.93))
     if randomize:
@@ -125,7 +142,7 @@ class MultispotMatchingTests(unittest.TestCase):
     def test_off_lattice_extra_detection_is_rejected(self):
         pair = lattice_pair()
         measurement = pair.measurement + (ExperimentalObservation(99999, 333.3, 777.7, 0.95),)
-        with self.assertRaises(CoordinateSystemError):
+        with self.assertRaisesRegex(CoordinateSystemError, "39 of 40"):
             match_experimental_multispot(
                 ExperimentalPair(pair.task_id, pair.calibration, measurement),
                 self.limits,
@@ -156,6 +173,46 @@ class MultispotMatchingTests(unittest.TestCase):
                     self.limits,
                 )
                 self.assertEqual(39, matched.diagnostics.matched_spot_count)
+
+    def test_common_42_degree_installation_with_small_relative_rotation_is_accepted(self):
+        for degrees in (-5.0, 5.0, 10.0):
+            with self.subTest(degrees=degrees):
+                matrix, translation = centered_rotation(degrees)
+                matched = match_experimental_multispot(
+                    lattice_pair(
+                        transform=matrix,
+                        translation=translation,
+                        installation_degree=42.0,
+                    ),
+                    self.limits,
+                )
+                self.assertEqual(39, matched.diagnostics.matched_spot_count)
+
+    def test_exact_45_degree_installation_with_small_relative_rotation_is_accepted(self):
+        for degrees in (-10.0, -5.0, 0.0, 5.0, 10.0):
+            with self.subTest(degrees=degrees):
+                matrix, translation = centered_rotation(degrees)
+                matched = match_experimental_multispot(
+                    lattice_pair(
+                        transform=matrix,
+                        translation=translation,
+                        installation_degree=45.0,
+                    ),
+                    self.limits,
+                )
+                self.assertEqual(39, matched.diagnostics.matched_spot_count)
+
+    def test_relative_rotation_over_limit_is_rejected_at_42_degree_installation(self):
+        matrix, translation = centered_rotation(16.0)
+        with self.assertRaises(CoordinateSystemError):
+            match_experimental_multispot(
+                lattice_pair(
+                    transform=matrix,
+                    translation=translation,
+                    installation_degree=42.0,
+                ),
+                self.limits,
+            )
 
     def test_common_coordinate_origin_shift_does_not_change_matching(self):
         matrix, translation = centered_rotation(10.0)

@@ -7510,10 +7510,271 @@
       }
     },
     {
+      "expected": {
+        "calibration": {
+          "expected_count": 25,
+          "known_centers": [
+            {
+              "synthetic_point_id": 0,
+              "x": 420.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 1,
+              "x": 530.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 2,
+              "x": 640.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 3,
+              "x": 750.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 4,
+              "x": 860.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 5,
+              "x": 420.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 6,
+              "x": 530.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 7,
+              "x": 640.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 8,
+              "x": 750.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 9,
+              "x": 860.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 10,
+              "x": 420.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 11,
+              "x": 530.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 12,
+              "x": 640.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 13,
+              "x": 750.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 14,
+              "x": 860.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 15,
+              "x": 420.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 16,
+              "x": 530.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 17,
+              "x": 640.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 18,
+              "x": 750.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 19,
+              "x": 860.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 20,
+              "x": 420.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 21,
+              "x": 530.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 22,
+              "x": 640.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 23,
+              "x": 750.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 24,
+              "x": 860.0,
+              "y": 732.0
+            }
+          ],
+          "max_error_px": 1.0,
+          "max_rms_error_px": 0.6
+        },
+        "measurement": {
+          "expected_count": 24,
+          "known_centers": [
+            {
+              "synthetic_point_id": 0,
+              "x": 530.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 1,
+              "x": 640.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 2,
+              "x": 750.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 3,
+              "x": 860.0,
+              "y": 292.0
+            },
+            {
+              "synthetic_point_id": 4,
+              "x": 420.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 5,
+              "x": 530.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 6,
+              "x": 640.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 7,
+              "x": 750.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 8,
+              "x": 860.0,
+              "y": 402.0
+            },
+            {
+              "synthetic_point_id": 9,
+              "x": 420.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 10,
+              "x": 530.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 11,
+              "x": 640.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 12,
+              "x": 750.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 13,
+              "x": 860.0,
+              "y": 512.0
+            },
+            {
+              "synthetic_point_id": 14,
+              "x": 420.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 15,
+              "x": 530.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 16,
+              "x": 640.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 17,
+              "x": 750.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 18,
+              "x": 860.0,
+              "y": 622.0
+            },
+            {
+              "synthetic_point_id": 19,
+              "x": 420.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 20,
+              "x": 530.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 21,
+              "x": 640.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 22,
+              "x": 750.0,
+              "y": 732.0
+            },
+            {
+              "synthetic_point_id": 23,
+              "x": 860.0,
+              "y": 732.0
+            }
+          ],
+          "max_error_px": 1.0,
+          "max_rms_error_px": 0.6
+        }
+      },
       "expected_detection": {
         "detector_mode": "hartmann_multispot_experimental",
         "expected_calibration_count": 25,
-        "expected_error_code": "CENTROID_FAILED",
+        "expected_error_code": null,
         "expected_measurement_count": 24,
         "expected_warnings": [
           "EDGE_CLIPPED_CANDIDATE_REJECTED"
@@ -7521,7 +7782,7 @@
         "input_white_level": null,
         "max_spot_count": 150,
         "min_spot_count": 12,
-        "status": "error"
+        "status": "ok"
       },
       "ground_truth": {
         "calibration_known_centers": [
@@ -7654,126 +7915,121 @@
         "measurement_known_centers": [
           {
             "synthetic_point_id": 0,
-            "x": 3.0,
-            "y": 512.0
+            "x": 530.0,
+            "y": 292.0
           },
           {
             "synthetic_point_id": 1,
-            "x": 530.0,
+            "x": 640.0,
             "y": 292.0
           },
           {
             "synthetic_point_id": 2,
-            "x": 640.0,
+            "x": 750.0,
             "y": 292.0
           },
           {
             "synthetic_point_id": 3,
-            "x": 750.0,
+            "x": 860.0,
             "y": 292.0
           },
           {
             "synthetic_point_id": 4,
-            "x": 860.0,
-            "y": 292.0
+            "x": 420.0,
+            "y": 402.0
           },
           {
             "synthetic_point_id": 5,
-            "x": 420.0,
+            "x": 530.0,
             "y": 402.0
           },
           {
             "synthetic_point_id": 6,
-            "x": 530.0,
+            "x": 640.0,
             "y": 402.0
           },
           {
             "synthetic_point_id": 7,
-            "x": 640.0,
+            "x": 750.0,
             "y": 402.0
           },
           {
             "synthetic_point_id": 8,
-            "x": 750.0,
+            "x": 860.0,
             "y": 402.0
           },
           {
             "synthetic_point_id": 9,
-            "x": 860.0,
-            "y": 402.0
+            "x": 420.0,
+            "y": 512.0
           },
           {
             "synthetic_point_id": 10,
-            "x": 420.0,
+            "x": 530.0,
             "y": 512.0
           },
           {
             "synthetic_point_id": 11,
-            "x": 530.0,
+            "x": 640.0,
             "y": 512.0
           },
           {
             "synthetic_point_id": 12,
-            "x": 640.0,
+            "x": 750.0,
             "y": 512.0
           },
           {
             "synthetic_point_id": 13,
-            "x": 750.0,
+            "x": 860.0,
             "y": 512.0
           },
           {
             "synthetic_point_id": 14,
-            "x": 860.0,
-            "y": 512.0
+            "x": 420.0,
+            "y": 622.0
           },
           {
             "synthetic_point_id": 15,
-            "x": 420.0,
+            "x": 530.0,
             "y": 622.0
           },
           {
             "synthetic_point_id": 16,
-            "x": 530.0,
+            "x": 640.0,
             "y": 622.0
           },
           {
             "synthetic_point_id": 17,
-            "x": 640.0,
+            "x": 750.0,
             "y": 622.0
           },
           {
             "synthetic_point_id": 18,
-            "x": 750.0,
-            "y": 622.0
-          },
-          {
-            "synthetic_point_id": 19,
             "x": 860.0,
             "y": 622.0
           },
           {
-            "synthetic_point_id": 20,
+            "synthetic_point_id": 19,
             "x": 420.0,
             "y": 732.0
           },
           {
-            "synthetic_point_id": 21,
+            "synthetic_point_id": 20,
             "x": 530.0,
             "y": 732.0
           },
           {
-            "synthetic_point_id": 22,
+            "synthetic_point_id": 21,
             "x": 640.0,
             "y": 732.0
           },
           {
-            "synthetic_point_id": 23,
+            "synthetic_point_id": 22,
             "x": 750.0,
             "y": 732.0
           },
           {
-            "synthetic_point_id": 24,
+            "synthetic_point_id": 23,
             "x": 860.0,
             "y": 732.0
           }
@@ -7785,7 +8041,7 @@
         "measurement": "failure/edge_clipped_25.png"
       },
       "input_package": "packages/input_package_edge_clipped_25.json",
-      "outcome": "failure",
+      "outcome": "success",
       "tags": [
         "grid_25",
         "edge"
@@ -8411,7 +8667,7 @@
     "min_spot_count": 12
   },
   "error": null,
-  "generator_version": "m2_multispot_synthetic_1.2.1",
+  "generator_version": "m2_multispot_synthetic_1.3.0",
   "identity_contract": {
     "physical_identity_guaranteed": false,
     "reason": "This dataset validates detection only; cross-image physical-ray matching is intentionally outside this generator."

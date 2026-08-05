@@ -91,6 +91,8 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
     set(M2_SYNTHETIC_ROOT "${M2_SYSTEM_ROOT}/data/mock/m2_image_recognition/synthetic")
     set(M2_MULTISPOT_SYNTHETIC_ROOT
         "${M2_SYSTEM_ROOT}/data/mock/m2_image_recognition/synthetic_multispot")
+    set(M2_REAL_LENS_ROOT
+        "${M2_SYSTEM_ROOT}/data/real/multispot_lens_pairs/real_lens_pair_set_001")
     set(M2_TEST_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/Testing/m2-$<CONFIG>")
 
     add_executable(m2_tests
@@ -112,6 +114,15 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
         target_compile_options(m2_multispot_tests PRIVATE /W4 /permissive- /utf-8)
     endif()
 
+    add_executable(m2_jpeg_tests tests/test_jpeg.cpp)
+    target_link_libraries(m2_jpeg_tests
+        PRIVATE focimeter_m2_core nlohmann_json::nlohmann_json)
+    target_compile_features(m2_jpeg_tests PRIVATE cxx_std_17)
+    m2_deploy_windows_runtime(m2_jpeg_tests)
+    if(MSVC)
+        target_compile_options(m2_jpeg_tests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+
     add_test(
         NAME m2_unit_and_integration
         COMMAND m2_tests
@@ -127,6 +138,14 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
             --system-root "${M2_SYSTEM_ROOT}"
     )
     list(APPEND M2_REGISTERED_TESTS m2_multispot_unit_and_integration)
+    add_test(
+        NAME m2_jpeg_detection_and_determinism
+        COMMAND m2_jpeg_tests
+            --temp-dir "${M2_TEST_OUTPUT_ROOT}/jpeg"
+            --synthetic-root "${M2_MULTISPOT_SYNTHETIC_ROOT}"
+            --real-root "${M2_REAL_LENS_ROOT}"
+    )
+    list(APPEND M2_REGISTERED_TESTS m2_jpeg_detection_and_determinism)
     if(M2_BUILD_CLI)
         add_test(NAME m2_cli_help COMMAND focimeter_m2 --help)
         list(APPEND M2_REGISTERED_TESTS m2_cli_help)
@@ -184,6 +203,26 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_multispot_cli_failure.cmake"
         )
         list(APPEND M2_REGISTERED_TESTS m2_cli_multispot_missing)
+
+        foreach(lens_id IN ITEMS 001 002)
+            if(lens_id STREQUAL "001")
+                set(expected_measurement_warning "SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED")
+            else()
+                set(expected_measurement_warning "EDGE_CLIPPED_CANDIDATE_REJECTED")
+            endif()
+            add_test(
+                NAME m2_cli_real_jpeg_lens_${lens_id}
+                COMMAND ${CMAKE_COMMAND}
+                    "-DM2_EXECUTABLE=$<TARGET_FILE:focimeter_m2>"
+                    "-DM2_INPUT=${M2_REAL_LENS_ROOT}/packages/input_package_lens_${lens_id}.json"
+                    "-DM2_OUTPUT=${M2_TEST_OUTPUT_ROOT}/real-jpeg-lens-${lens_id}"
+                    "-DM2_PROJECT_ROOT=${M2_SYSTEM_ROOT}"
+                    "-DM2_EXPECTED_MEASUREMENT_WARNING=${expected_measurement_warning}"
+                    "-DM2_EXPECTED_SPOT_COUNT=27"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_real_multispot_cli_success.cmake"
+            )
+            list(APPEND M2_REGISTERED_TESTS m2_cli_real_jpeg_lens_${lens_id})
+        endforeach()
     endif()
     if(M2_BUILD_TOOLS)
         add_test(
@@ -206,4 +245,5 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
     set_tests_properties(${M2_REGISTERED_TESTS} PROPERTIES TIMEOUT 120)
     set_tests_properties(m2_unit_and_integration PROPERTIES TIMEOUT 90)
     set_tests_properties(m2_multispot_unit_and_integration PROPERTIES TIMEOUT 180)
+    set_tests_properties(m2_jpeg_detection_and_determinism PROPERTIES TIMEOUT 180)
 endif()

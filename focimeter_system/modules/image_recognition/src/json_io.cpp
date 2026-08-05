@@ -509,6 +509,11 @@ bool readProcessingConfig(
     config.multispot_max_count = requested.multispot_max_count;
     config.multispot_min_area_pixels = requested.multispot_min_area_pixels;
     config.multispot_max_area_ratio = requested.multispot_max_area_ratio;
+    config.multispot_relative_min_area_ratio = requested.multispot_relative_min_area_ratio;
+    config.multispot_fragment_proximity_factor = requested.multispot_fragment_proximity_factor;
+    config.multispot_fragment_max_area_ratio = requested.multispot_fragment_max_area_ratio;
+    config.multispot_merged_area_ratio = requested.multispot_merged_area_ratio;
+    config.multispot_merged_elongation_ratio = requested.multispot_merged_elongation_ratio;
     config.multispot_border_margin_pixels = requested.multispot_border_margin_pixels;
     config.multispot_background_factor = requested.multispot_background_factor;
     config.multispot_min_threshold = requested.multispot_min_threshold;
@@ -918,6 +923,10 @@ bool writeExperimentalMultispotSuccess(
             !std::isfinite(observation.area) || observation.area <= 0.0 ||
             observation.area > static_cast<double>(analysis.diagnostics.image_width) *
                 analysis.diagnostics.image_height ||
+            !std::isfinite(observation.bounding_box_elongation) ||
+            observation.bounding_box_elongation < 1.0 ||
+            !std::isfinite(observation.principal_axis_elongation) ||
+            observation.principal_axis_elongation < 1.0 ||
             !std::isfinite(observation.mean_intensity) || observation.mean_intensity < 0.0 ||
             observation.mean_intensity > 255.0 ||
             !std::isfinite(observation.peak_intensity) ||
@@ -941,6 +950,8 @@ bool writeExperimentalMultispotSuccess(
             {"y", observation.center.y},
             {"confidence", observation.confidence},
             {"area_pixel2", observation.area},
+            {"bounding_box_elongation_ratio", observation.bounding_box_elongation},
+            {"principal_axis_elongation_ratio", observation.principal_axis_elongation},
             {"mean_intensity_8bit", observation.mean_intensity},
             {"peak_intensity_8bit", observation.peak_intensity},
             {"peak_residual_intensity_8bit", observation.peak_residual_intensity},
@@ -953,6 +964,10 @@ bool writeExperimentalMultispotSuccess(
     if (diagnostics.candidate_count != static_cast<int>(analysis.observations.size()) ||
         diagnostics.raw_candidate_count < 0 || diagnostics.rejected_area_count < 0 ||
         diagnostics.rejected_border_count < 0 ||
+        diagnostics.rejected_shape_count < 0 ||
+        diagnostics.rejected_proximity_count < 0 ||
+        diagnostics.segmentation_source.empty() ||
+        diagnostics.centroid_intensity_source.empty() ||
         !std::isfinite(diagnostics.background_intensity) || diagnostics.background_intensity < 0.0 ||
         diagnostics.background_intensity > 255.0 ||
         !std::isfinite(diagnostics.detection_threshold) || diagnostics.detection_threshold < 0.0 ||
@@ -978,7 +993,7 @@ bool writeExperimentalMultispotSuccess(
         {"contract_status", "proposed"},
         {"data_source", input.data_source},
         {"validation_status", "software_verified"},
-        {"validation_scope", "simulation_only"},
+        {"validation_scope", "software_only"},
         {"metrology_validated", false},
         {"image_type", image_type},
         {"coordinate_type", "image_pixel"},
@@ -991,8 +1006,12 @@ bool writeExperimentalMultispotSuccess(
             {"raw_candidate_count", diagnostics.raw_candidate_count},
             {"rejected_area_count", diagnostics.rejected_area_count},
             {"rejected_border_count", diagnostics.rejected_border_count},
+            {"rejected_shape_count", diagnostics.rejected_shape_count},
+            {"rejected_proximity_count", diagnostics.rejected_proximity_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"detection_threshold_8bit", diagnostics.detection_threshold},
+            {"segmentation_source", diagnostics.segmentation_source},
+            {"centroid_intensity_source", diagnostics.centroid_intensity_source},
             {"minimum_usable_confidence", config.multispot_min_confidence},
             {"is_usable", is_usable},
             {"warnings", diagnostics.warnings},
@@ -1032,7 +1051,7 @@ bool writeExperimentalMultispotError(
         {"contract_status", "proposed"},
         {"data_source", input == nullptr ? "unknown" : input->data_source},
         {"validation_status", "software_verified"},
-        {"validation_scope", "simulation_only"},
+        {"validation_scope", "software_only"},
         {"metrology_validated", false},
         {"image_type", image_type},
         {"coordinate_type", "image_pixel"},
@@ -1093,8 +1112,12 @@ bool writeImageDiagnostics(
             {"raw_candidate_count", diagnostics.raw_candidate_count},
             {"rejected_area_count", diagnostics.rejected_area_count},
             {"rejected_border_count", diagnostics.rejected_border_count},
+            {"rejected_shape_count", diagnostics.rejected_shape_count},
+            {"rejected_proximity_count", diagnostics.rejected_proximity_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"threshold_8bit", diagnostics.detection_threshold},
+            {"segmentation_source", diagnostics.segmentation_source},
+            {"centroid_intensity_source", diagnostics.centroid_intensity_source},
             {"candidate_limit_exceeded", diagnostics.candidate_limit_exceeded},
         }},
         {"warnings", diagnostics.warnings},
@@ -1143,7 +1166,7 @@ bool writeRunLog(
         document["experimental"] = true;
         document["contract_status"] = "proposed";
         document["data_source"] = input == nullptr ? "unknown" : input->data_source;
-        document["validation_scope"] = "simulation_only";
+        document["validation_scope"] = "software_only";
     }
     return writeJson(path, document, write_error);
 }

@@ -22,7 +22,7 @@ using PointList = std::vector<cv::Point2d>;
 constexpr int kImageWidth = 1280;
 constexpr int kImageHeight = 1024;
 constexpr std::uint64_t kSeed = 20260727ULL;
-constexpr char kGeneratorVersion[] = "m2_multispot_synthetic_1.2.1";
+constexpr char kGeneratorVersion[] = "m2_multispot_synthetic_1.3.0";
 constexpr char kDatasetProjectPath[] = "data/mock/m2_image_recognition/synthetic_multispot";
 
 struct RenderOptions {
@@ -412,6 +412,7 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
     points25_merged[13] = {648.0, 512.0};
     PointList points25_edge = points25;
     points25_edge[0] = {3.0, 512.0};
+    const PointList points24_edge_filtered(points25_edge.begin() + 1, points25_edge.end());
 
     bool ok = true;
     ok = writePng(output / "calibration/25_clean_reference.png", render(points25, {})) && ok;
@@ -489,9 +490,9 @@ int runGenerator(const std::vector<std::filesystem::path>& arguments) {
         {"error", "CENTROID_FAILED", {"POSSIBLE_MERGED_COMPONENT", "SATURATED_PEAK"}}};
     const CaseSpec edgeClipped{
         "edge_clipped_25", "input_package_edge_clipped_25.json", "calibration/25_clean_reference.png", "failure/edge_clipped_25.png",
-        points25, points25_edge, 25, 24,
+        points25, points24_edge_filtered, 25, 24,
         {{"kind", "spot_center_near_image_edge"}, {"edge_center_x_pixel", 3.0}},
-        {"error", "CENTROID_FAILED", {"EDGE_CLIPPED_CANDIDATE_REJECTED"}}};
+        {"ok", "", {"EDGE_CLIPPED_CANDIDATE_REJECTED"}}};
     const CaseSpec tiny{
         "tiny_25", "input_package_tiny_25.json", "calibration/25_clean_reference.png", "failure/tiny_25.png",
         points25, points25, 25, 0,

@@ -1,0 +1,478 @@
+{
+  "contract_status": "proposed",
+  "coordinate_type": "image_pixel",
+  "data_source": "real",
+  "error": null,
+  "experimental": true,
+  "image_type": "calibration",
+  "matching": {
+    "id_scope": "image_local",
+    "owner_status": "unassigned",
+    "physical_identity_guaranteed": false,
+    "status": "not_performed"
+  },
+  "metrology_validated": false,
+  "module": "m2_image_recognition",
+  "quality": {
+    "background_intensity_8bit": 2.3323455459770113,
+    "centroid_intensity_source": "green_channel",
+    "count_policy": "range",
+    "detected_count": 27,
+    "detection_threshold_8bit": 8.0,
+    "is_usable": true,
+    "max_count": 150,
+    "min_count": 12,
+    "minimum_usable_confidence": 0.35,
+    "raw_candidate_count": 57,
+    "rejected_area_count": 15,
+    "rejected_border_count": 14,
+    "rejected_proximity_count": 1,
+    "rejected_shape_count": 0,
+    "segmentation_source": "bt601_luminance",
+    "warnings": [
+      "EDGE_CLIPPED_CANDIDATE_REJECTED",
+      "SMALL_AREA_OUTLIER_REJECTED",
+      "NEARBY_FRAGMENT_REJECTED",
+      "SATURATED_PEAK",
+      "AREA_VARIATION_HIGH"
+    ]
+  },
+  "schema_version": "m2.multispot.experimental.1",
+  "spots": [
+    {
+      "area_pixel2": 470.0,
+      "bounding_box_elongation_ratio": 1.0416666666666667,
+      "confidence": 0.7311034831243531,
+      "detection_id": 0,
+      "integrated_residual_8bit_pixel": 3682.947265625018,
+      "mean_intensity_8bit": 252.72978723404256,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 9.645855783045977,
+      "principal_axis_elongation_ratio": 1.1323680238918277,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1543.6360694767939,
+      "y": 105.73821277357126
+    },
+    {
+      "area_pixel2": 578.0,
+      "bounding_box_elongation_ratio": 1.037037037037037,
+      "confidence": 0.7711169523566189,
+      "detection_id": 1,
+      "integrated_residual_8bit_pixel": 828.4456492456839,
+      "mean_intensity_8bit": 252.3961937716263,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 3.645855783045977,
+      "principal_axis_elongation_ratio": 1.0732914108553893,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1236.8061383085803,
+      "y": 119.25985479001481
+    },
+    {
+      "area_pixel2": 673.0,
+      "bounding_box_elongation_ratio": 1.1071428571428572,
+      "confidence": 0.753755637886059,
+      "detection_id": 2,
+      "integrated_residual_8bit_pixel": 4141.6609419899705,
+      "mean_intensity_8bit": 253.45616641901933,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 8.645855783045977,
+      "principal_axis_elongation_ratio": 1.153187561582736,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 934.1185847424945,
+      "y": 133.41340283846188
+    },
+    {
+      "area_pixel2": 693.0,
+      "bounding_box_elongation_ratio": 1.103448275862069,
+      "confidence": 0.7491650698455522,
+      "detection_id": 3,
+      "integrated_residual_8bit_pixel": 4243.578057650885,
+      "mean_intensity_8bit": 253.32756132756134,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 10.645855783045977,
+      "principal_axis_elongation_ratio": 1.1289646209908963,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 627.5897987091594,
+      "y": 147.03610876350496
+    },
+    {
+      "area_pixel2": 565.0,
+      "bounding_box_elongation_ratio": 1.037037037037037,
+      "confidence": 0.7674429948254153,
+      "detection_id": 4,
+      "integrated_residual_8bit_pixel": 1728.261584051735,
+      "mean_intensity_8bit": 252.18053097345134,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 5.6458557830459775,
+      "principal_axis_elongation_ratio": 1.0538454582359584,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 321.38540380842073,
+      "y": 161.0020622161956
+    },
+    {
+      "area_pixel2": 531.0,
+      "bounding_box_elongation_ratio": 1.1153846153846154,
+      "confidence": 0.7549455078824473,
+      "detection_id": 5,
+      "integrated_residual_8bit_pixel": 2575.115189475591,
+      "mean_intensity_8bit": 251.8662900188324,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 7.6458557830459775,
+      "principal_axis_elongation_ratio": 1.110003385866866,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1397.766879072705,
+      "y": 264.88481834474453
+    },
+    {
+      "area_pixel2": 635.0,
+      "bounding_box_elongation_ratio": 1.0740740740740742,
+      "confidence": 0.7669823463602784,
+      "detection_id": 6,
+      "integrated_residual_8bit_pixel": 4377.118422234206,
+      "mean_intensity_8bit": 253.26456692913385,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 8.645855783045977,
+      "principal_axis_elongation_ratio": 1.0943850253266425,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 787.4476250551968,
+      "y": 291.64228694005243
+    },
+    {
+      "area_pixel2": 579.0,
+      "bounding_box_elongation_ratio": 1.0740740740740742,
+      "confidence": 0.774219461437965,
+      "detection_id": 7,
+      "integrated_residual_8bit_pixel": 2120.116267061797,
+      "mean_intensity_8bit": 251.706390328152,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 6.6458557830459775,
+      "principal_axis_elongation_ratio": 1.0953351767116801,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 175.53077547569777,
+      "y": 319.72949520491295
+    },
+    {
+      "area_pixel2": 446.0,
+      "bounding_box_elongation_ratio": 1.0,
+      "confidence": 0.7219135631822808,
+      "detection_id": 8,
+      "integrated_residual_8bit_pixel": 3884.7179867097893,
+      "mean_intensity_8bit": 252.73766816143498,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 10.645855783045977,
+      "principal_axis_elongation_ratio": 1.0034851722306941,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1557.9130683213402,
+      "y": 410.94308935487334
+    },
+    {
+      "area_pixel2": 636.0,
+      "bounding_box_elongation_ratio": 1.1481481481481481,
+      "confidence": 0.7666140256550835,
+      "detection_id": 9,
+      "integrated_residual_8bit_pixel": 2348.7642780172614,
+      "mean_intensity_8bit": 252.94496855345912,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 8.645855783045977,
+      "principal_axis_elongation_ratio": 1.139600427899111,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1253.4090097148003,
+      "y": 424.6675548431038
+    },
+    {
+      "area_pixel2": 596.0,
+      "bounding_box_elongation_ratio": 1.0740740740740742,
+      "confidence": 0.7769462327408547,
+      "detection_id": 10,
+      "integrated_residual_8bit_pixel": 569.84069683908,
+      "mean_intensity_8bit": 252.88087248322148,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 2.645855783045977,
+      "principal_axis_elongation_ratio": 1.0772246526969773,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 332.46835746341,
+      "y": 465.8343861383669
+    },
+    {
+      "area_pixel2": 595.0,
+      "bounding_box_elongation_ratio": 1.0740740740740742,
+      "confidence": 0.7809421505135953,
+      "detection_id": 11,
+      "integrated_residual_8bit_pixel": 2381.846084770133,
+      "mean_intensity_8bit": 252.12268907563026,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 6.6458557830459775,
+      "principal_axis_elongation_ratio": 1.092978262004363,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1411.096116352136,
+      "y": 570.5562338020748
+    },
+    {
+      "area_pixel2": 593.0,
+      "bounding_box_elongation_ratio": 1.037037037037037,
+      "confidence": 0.7765253596936492,
+      "detection_id": 12,
+      "integrated_residual_8bit_pixel": 642.3649200790225,
+      "mean_intensity_8bit": 253.29342327150084,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 2.645855783045977,
+      "principal_axis_elongation_ratio": 1.111830523230872,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1106.0192457036806,
+      "y": 585.382480642096
+    },
+    {
+      "area_pixel2": 621.0,
+      "bounding_box_elongation_ratio": 1.0357142857142858,
+      "confidence": 0.772263389128483,
+      "detection_id": 13,
+      "integrated_residual_8bit_pixel": 4297.076441271568,
+      "mean_intensity_8bit": 253.2769726247987,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 8.645855783045977,
+      "principal_axis_elongation_ratio": 1.0795722120660707,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 495.3103982904694,
+      "y": 611.5922358404811
+    },
+    {
+      "area_pixel2": 3308.0,
+      "bounding_box_elongation_ratio": 1.0769230769230769,
+      "confidence": 0.752943404724788,
+      "detection_id": 14,
+      "integrated_residual_8bit_pixel": 228460.4909303225,
+      "mean_intensity_8bit": 198.21160822249092,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 204.645855783046,
+      "principal_axis_elongation_ratio": 1.0898848086282587,
+      "quality_flags": [
+        "AREA_ABOVE_MEDIAN",
+        "SATURATED_PEAK"
+      ],
+      "x": 196.7596885966295,
+      "y": 614.7346671984498
+    },
+    {
+      "area_pixel2": 575.0,
+      "bounding_box_elongation_ratio": 1.0740740740740742,
+      "confidence": 0.7698564481549383,
+      "detection_id": 15,
+      "integrated_residual_8bit_pixel": 760.1130343031549,
+      "mean_intensity_8bit": 252.25391304347826,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 3.645855783045977,
+      "principal_axis_elongation_ratio": 1.0971686007468728,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1264.6048049712917,
+      "y": 729.5506730294313
+    },
+    {
+      "area_pixel2": 712.0,
+      "bounding_box_elongation_ratio": 1.1785714285714286,
+      "confidence": 0.7488018265531687,
+      "detection_id": 16,
+      "integrated_residual_8bit_pixel": 5028.849317528708,
+      "mean_intensity_8bit": 252.81039325842696,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 16.645855783045977,
+      "principal_axis_elongation_ratio": 1.2439231309114616,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 349.9506764097103,
+      "y": 770.4720091908333
+    },
+    {
+      "area_pixel2": 643.0,
+      "bounding_box_elongation_ratio": 1.0714285714285714,
+      "confidence": 0.7649619720875901,
+      "detection_id": 17,
+      "integrated_residual_8bit_pixel": 4345.701845366388,
+      "mean_intensity_8bit": 252.06998444790045,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 9.645855783045977,
+      "principal_axis_elongation_ratio": 1.0806095685019523,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 43.59269357501494,
+      "y": 784.4332268975513
+    },
+    {
+      "area_pixel2": 549.0,
+      "bounding_box_elongation_ratio": 1.0769230769230769,
+      "confidence": 0.7616144194211583,
+      "detection_id": 18,
+      "integrated_residual_8bit_pixel": 2115.927891523003,
+      "mean_intensity_8bit": 251.88342440801458,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 6.6458557830459775,
+      "principal_axis_elongation_ratio": 1.077040786716177,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1425.0959044089966,
+      "y": 876.1143919954337
+    },
+    {
+      "area_pixel2": 257.0,
+      "bounding_box_elongation_ratio": 1.35,
+      "confidence": 0.5807991938627278,
+      "detection_id": 19,
+      "integrated_residual_8bit_pixel": 8686.98493624279,
+      "mean_intensity_8bit": 152.88715953307394,
+      "peak_intensity_8bit": 225.0,
+      "peak_residual_intensity_8bit": 78.64585578304597,
+      "principal_axis_elongation_ratio": 2.707201404434138,
+      "quality_flags": [],
+      "x": 534.8921136989508,
+      "y": 884.8671575916801
+    },
+    {
+      "area_pixel2": 651.0,
+      "bounding_box_elongation_ratio": 1.0,
+      "confidence": 0.7576485468267631,
+      "detection_id": 20,
+      "integrated_residual_8bit_pixel": 1850.4521147629455,
+      "mean_intensity_8bit": 253.17357910906298,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 4.6458557830459775,
+      "principal_axis_elongation_ratio": 1.1069749735612229,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 814.4178631593339,
+      "y": 904.7692322008005
+    },
+    {
+      "area_pixel2": 607.0,
+      "bounding_box_elongation_ratio": 1.0740740740740742,
+      "confidence": 0.7751056974682518,
+      "detection_id": 21,
+      "integrated_residual_8bit_pixel": 1741.9709500718516,
+      "mean_intensity_8bit": 251.99176276771004,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 5.6458557830459775,
+      "principal_axis_elongation_ratio": 1.068958391657165,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 201.33776435589493,
+      "y": 931.3010750240853
+    },
+    {
+      "area_pixel2": 575.0,
+      "bounding_box_elongation_ratio": 1.0769230769230769,
+      "confidence": 0.7734329028404305,
+      "detection_id": 22,
+      "integrated_residual_8bit_pixel": 2746.7416711566284,
+      "mean_intensity_8bit": 251.9373913043478,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 7.6458557830459775,
+      "principal_axis_elongation_ratio": 1.1346387354663512,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 1280.2586522950498,
+      "y": 1035.1877837050868
+    },
+    {
+      "area_pixel2": 605.0,
+      "bounding_box_elongation_ratio": 1.0357142857142858,
+      "confidence": 0.7741275780945174,
+      "detection_id": 23,
+      "integrated_residual_8bit_pixel": 858.3853717672334,
+      "mean_intensity_8bit": 252.56198347107437,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 3.645855783045977,
+      "principal_axis_elongation_ratio": 1.1172009215700907,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 972.7530196868914,
+      "y": 1048.9818055368876
+    },
+    {
+      "area_pixel2": 590.0,
+      "bounding_box_elongation_ratio": 1.0740740740740742,
+      "confidence": 0.7752648554919686,
+      "detection_id": 24,
+      "integrated_residual_8bit_pixel": 528.1119567169559,
+      "mean_intensity_8bit": 252.95593220338984,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 2.645855783045977,
+      "principal_axis_elongation_ratio": 1.0689423662834956,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 666.6213495121751,
+      "y": 1061.8411812949005
+    },
+    {
+      "area_pixel2": 564.0,
+      "bounding_box_elongation_ratio": 1.037037037037037,
+      "confidence": 0.7688110541009348,
+      "detection_id": 25,
+      "integrated_residual_8bit_pixel": 2755.6996901939847,
+      "mean_intensity_8bit": 252.0195035460993,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 7.6458557830459775,
+      "principal_axis_elongation_ratio": 1.068132076381622,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 362.48996756306354,
+      "y": 1076.9295168638207
+    },
+    {
+      "area_pixel2": 618.0,
+      "bounding_box_elongation_ratio": 1.1111111111111112,
+      "confidence": 0.7770026254220926,
+      "detection_id": 26,
+      "integrated_residual_8bit_pixel": 5795.7427487427585,
+      "mean_intensity_8bit": 251.51618122977345,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 12.645855783045977,
+      "principal_axis_elongation_ratio": 1.0953896752489567,
+      "quality_flags": [
+        "SATURATED_PEAK"
+      ],
+      "x": 57.63801071610826,
+      "y": 1090.6567160302889
+    }
+  ],
+  "status": "ok",
+  "task_id": "m2_real_jpeg_measurement_2",
+  "validation_scope": "software_only",
+  "validation_status": "software_verified"
+}

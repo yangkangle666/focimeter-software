@@ -47,7 +47,7 @@
 4. 标定图/测量图的真实点阵对应关系，以及缺失、遮挡、饱和时的业务规则。
 5. 标准镜片上的识别率、匹配正确率和 S/C/A 计量误差。
 
-因此，所有本阶段结果都只能写作 `software_verified` / `simulation_only`，且 `metrology_validated=false`。
+因此，所有本阶段结果都只能写作 `software_verified` / `software_only`，且 `metrology_validated=false`；`data_source=real` 只表示输入来源，不代表计量验证。
 
 ## 真实资料到位后的路线
 

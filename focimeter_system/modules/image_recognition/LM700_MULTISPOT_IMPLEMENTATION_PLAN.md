@@ -13,7 +13,7 @@
 - Do not modify `interface_contract_v1.md`, `default_config.json`, M1, M3, M4, governance documents, or teacher-provided material.
 - Do not connect hardware or install drivers/dependencies.
 - Do not calculate S/C/A, displacement fields, wavefronts, or optical power.
-- Keep all multispot outputs under `experimental_multispot/` and label them `experimental`, `proposed`, `software_verified`, `simulation_only`, and `metrology_validated=false`.
+- Keep all multispot outputs under `experimental_multispot/` and label them `experimental`, `proposed`, `software_verified`, `software_only`, and `metrology_validated=false`; use `data_source` to distinguish synthetic, mock, and real file inputs.
 - Reject ambiguous or unsafe conditions; never claim row-major IDs are physical-ray identities.
 - Preserve all current five-spot Debug and Release tests.
 - Do not commit build artifacts, caches, teacher materials, archives, secrets, or personal absolute paths.

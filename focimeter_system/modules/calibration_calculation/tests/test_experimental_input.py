@@ -63,6 +63,35 @@ class ExperimentalInputTests(unittest.TestCase):
         pair = parse_experimental_pair(calibration, measurement)
         self.assertEqual(4, len(pair.measurement))
 
+    def test_software_only_scope_is_accepted_without_changing_metrology_status(self) -> None:
+        calibration = experimental_document("calibration", [0, 1, 2, 3])
+        measurement = experimental_document("measurement", [10, 11, 12, 13])
+        calibration["validation_scope"] = "software_only"
+        measurement["validation_scope"] = "software_only"
+        calibration["data_source"] = "real"
+        measurement["data_source"] = "real"
+
+        pair = parse_experimental_pair(calibration, measurement)
+
+        self.assertEqual(4, len(pair.calibration))
+        self.assertFalse(calibration["metrology_validated"])
+
+    def test_named_identity_risk_flags_are_rejected(self) -> None:
+        unsafe_flags = (
+            "AREA_ABOVE_MEDIAN",
+            "SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED",
+            "NEARBY_CANDIDATE_UNRESOLVED",
+            "POSSIBLE_MERGED_COMPONENT",
+            "LOW_CONFIDENCE",
+        )
+        for flag in unsafe_flags:
+            with self.subTest(flag=flag):
+                calibration = experimental_document("calibration", [0, 1, 2, 3])
+                measurement = experimental_document("measurement", [10, 11, 12, 13])
+                measurement["spots"][1]["quality_flags"] = [flag]
+                with self.assertRaises(CoordinateSystemError):
+                    parse_experimental_pair(calibration, measurement)
+
     def test_duplicate_detection_id_is_rejected(self) -> None:
         calibration = experimental_document("calibration", [0, 0, 2, 3])
         with self.assertRaises(ModelError):
