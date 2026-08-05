@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "model_type": "hybrid_power_matrix_v1",
+  "model_id": "m3_image_pipeline_simulation_001",
+  "validation_status": "simulation_only",
+  "source_dataset_sha256": "a71ea5c61d33d3b27e25237036ea5e1c9f54cd4100a1e21f5e623be85ea95878",
+  "hardware": {
+    "distance_m": 0.03,
+    "expected_spot_count": 5
+  },
+  "correction": {
+    "matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    "bias": [0.0, 0.0, 0.0]
+  },
+  "quality_limits": {
+    "validated_sphere_range_D": [-5.0, 5.0],
+    "validated_abs_cylinder_max_D": 1.5,
+    "cylinder_threshold_D": 0.01,
+    "max_fit_rmse_pixel": 0.15,
+    "max_condition_number": 10.0,
+    "max_skew_power_D": 0.05,
+    "min_confidence": 0.7,
+    "validation_confidence": 1.0
+  },
+  "matching_limits": {
+    "min_matched_spots": 12,
+    "min_overlap_ratio": 0.6,
+    "max_lattice_residual_pitch_ratio": 0.12,
+    "max_matching_rmse_pitch_ratio": 0.1,
+    "max_matching_residual_pitch_ratio": 0.25,
+    "max_condition_number": 50.0,
+    "max_rotation_degree": 15.0,
+    "min_scale_ratio": 0.75,
+    "max_scale_ratio": 1.25,
+    "max_shear_ratio": 0.2,
+    "max_translation_pitch_ratio": 0.45,
+    "min_confidence": 0.35,
+    "minimum_hypothesis_margin": 0.15
+  },
+  "fit_metrics": {
+    "mode": "deterministic_rendered_image_simulation",
+    "purpose": "M1-M2-M3 software integration only"
+  },
+  "standard_lenses": [
+    {
+      "sample_id": "synthetic_image_prescription_s-2_c-1_a45",
+      "serial_number": "SIM-IMAGE-SN20-CN10-A045"
+    }
+  ]
+}

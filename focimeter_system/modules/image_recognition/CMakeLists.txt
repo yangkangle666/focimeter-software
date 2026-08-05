@@ -181,6 +181,15 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
         )
         list(APPEND M2_REGISTERED_TESTS m2_cli_multispot_25)
         add_test(
+            NAME m2_cli_multispot_known_prescription
+            COMMAND focimeter_m2
+                --input "${M2_MULTISPOT_SYNTHETIC_ROOT}/packages/input_package_94_known_prescription.json"
+                --output "${M2_TEST_OUTPUT_ROOT}/multispot-known-prescription"
+                --project-root "${M2_SYSTEM_ROOT}"
+                --experimental-multispot
+        )
+        list(APPEND M2_REGISTERED_TESTS m2_cli_multispot_known_prescription)
+        add_test(
             NAME m2_cli_multispot_16bit
             COMMAND focimeter_m2
                 --input "${M2_MULTISPOT_SYNTHETIC_ROOT}/packages/input_package_25_12bit_shift.json"
