@@ -39,6 +39,11 @@ def _parser() -> argparse.ArgumentParser:
         default=Path("modules/calibration_calculation/calibration_model.json"),
     )
     run.add_argument("--allow-simulation-model", action="store_true")
+    run.add_argument(
+        "--engineering-mode",
+        action="store_true",
+        help="Run reviewed real M2 inputs as software-only engineering output.",
+    )
     return parser
 
 
@@ -108,6 +113,7 @@ def _calculate(args: argparse.Namespace) -> tuple[dict[str, object], int]:
         config,
         model,
         allow_simulation_model=args.allow_simulation_model,
+        engineering_mode=args.engineering_mode,
     )
     return result, 0 if result["status"] == "ok" else 2
 

@@ -17,6 +17,12 @@ from .types import CoordinateSystemError, ModelError
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "schemas" / "m2_multispot_experimental.schema.json"
 EXPERIMENTAL_SCHEMA_VERSION = "m2.multispot.experimental.1"
 IDENTITY_SAFE_QUALITY_FLAGS = frozenset({"SATURATED_PEAK"})
+ENGINEERING_REVIEWED_QUALITY_FLAGS = frozenset({
+    "AREA_ABOVE_MEDIAN",
+    "LATTICE_RECOVERED_UNVERIFIED",
+    "SATURATED_PEAK",
+    "SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED",
+})
 
 
 @dataclass(frozen=True)
@@ -32,6 +38,7 @@ class ExperimentalPair:
     task_id: str
     calibration: tuple[ExperimentalObservation, ...]
     measurement: tuple[ExperimentalObservation, ...]
+    source_markers: tuple[str, ...] = ()
 
 
 @lru_cache(maxsize=1)
@@ -41,7 +48,11 @@ def _validator() -> Draft202012Validator:
     return Draft202012Validator(schema)
 
 
-def _parse_document(document: Mapping[str, object], image_type: str) -> tuple[ExperimentalObservation, ...]:
+def _parse_document(
+    document: Mapping[str, object],
+    image_type: str,
+    engineering_mode: bool,
+) -> tuple[tuple[ExperimentalObservation, ...], set[str]]:
     errors = sorted(_validator().iter_errors(document), key=lambda error: list(error.absolute_path))
     if errors:
         error = errors[0]
@@ -55,6 +66,7 @@ def _parse_document(document: Mapping[str, object], image_type: str) -> tuple[Ex
         raise ModelError("Experimental quality.detected_count must equal the spots array length.")
 
     observations: list[ExperimentalObservation] = []
+    source_markers = {str(item) for item in document["quality"].get("warnings", [])}
     detection_ids: set[int] = set()
     for index, spot in enumerate(spots):
         detection_id = int(spot["detection_id"])
@@ -65,7 +77,13 @@ def _parse_document(document: Mapping[str, object], image_type: str) -> tuple[Ex
         if not all(math.isfinite(value) for value in values):
             raise ModelError(f"Experimental spot {index} contains a non-finite numeric value.")
         flags = spot.get("quality_flags", [])
-        unsafe_flags = sorted(set(flags) - IDENTITY_SAFE_QUALITY_FLAGS)
+        source_markers.update(str(item) for item in flags)
+        allowed_flags = (
+            ENGINEERING_REVIEWED_QUALITY_FLAGS
+            if engineering_mode
+            else IDENTITY_SAFE_QUALITY_FLAGS
+        )
+        unsafe_flags = sorted(set(flags) - allowed_flags)
         if unsafe_flags:
             raise CoordinateSystemError(
                 f"Experimental {image_type} detection {detection_id} has unsafe quality flags: {unsafe_flags}."
@@ -78,21 +96,27 @@ def _parse_document(document: Mapping[str, object], image_type: str) -> tuple[Ex
                 confidence=values[2],
             )
         )
-    return tuple(observations)
+    return tuple(observations), source_markers
 
 
 def parse_experimental_pair(
     calibration: Mapping[str, object],
     measurement: Mapping[str, object],
+    engineering_mode: bool = False,
 ) -> ExperimentalPair:
     """Validate experimental inputs without assigning cross-image physical IDs."""
 
-    calibration_observations = _parse_document(calibration, "calibration")
-    measurement_observations = _parse_document(measurement, "measurement")
+    calibration_observations, calibration_markers = _parse_document(
+        calibration, "calibration", engineering_mode
+    )
+    measurement_observations, measurement_markers = _parse_document(
+        measurement, "measurement", engineering_mode
+    )
     if calibration["task_id"] != measurement["task_id"]:
         raise ModelError("Experimental calibration and measurement task_id values must match.")
     return ExperimentalPair(
         task_id=str(calibration["task_id"]),
         calibration=calibration_observations,
         measurement=measurement_observations,
+        source_markers=tuple(sorted(calibration_markers | measurement_markers)),
     )
