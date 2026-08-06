@@ -276,7 +276,7 @@ bool matchesRepeatedLatticeStep(
     constexpr double kMinimumLengthRatio = 0.85;
     constexpr double kMaximumLengthRatio = 1.18;
     constexpr double kMinimumDirectionCosine = 0.97;
-    constexpr int kMinimumRepeatedSteps = 2;
+    constexpr int kMinimumRepeatedSteps = 1;
     int matching_steps = 0;
     for (const auto& step : lattice_steps) {
         const double step_length = cv::norm(step);
@@ -717,11 +717,7 @@ ImageAnalysis MultispotDetector::detect(
                         [&](const SpotObservation& existing) {
                             const double existing_radius =
                                 std::sqrt(std::max(1.0, existing.area) / 3.14159265358979323846);
-                            const double area_ratio =
-                                std::min(existing.area, static_cast<double>(area)) /
-                                std::max(existing.area, static_cast<double>(area));
-                            return area_ratio >= 0.50 &&
-                                cv::norm(existing.center - geometric_center) <=
+                            return cv::norm(existing.center - geometric_center) <=
                                 0.50 * std::max(existing_radius, candidate_radius);
                         });
                     if (duplicate) {
@@ -885,8 +881,7 @@ ImageAnalysis MultispotDetector::detect(
                 anchor_candidates.push_back(observation);
             }
         }
-        std::vector<SpotObservation> anchors =
-            selectStableLatticeAnchors(anchor_candidates);
+        std::vector<SpotObservation> anchors = std::move(anchor_candidates);
         const double typical_spacing = medianNearestNeighborDistance(anchors);
         const std::vector<cv::Point2d> lattice_steps =
             collectLatticeStepVectors(anchors, typical_spacing);
