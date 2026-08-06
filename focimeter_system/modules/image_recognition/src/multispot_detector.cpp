@@ -635,6 +635,19 @@ ImageAnalysis MultispotDetector::detect(
         analysis.observations.push_back(std::move(observation));
     }
 
+    analysis.diagnostics.candidate_count = static_cast<int>(analysis.observations.size());
+    if (analysis.diagnostics.candidate_count > config.multispot_max_count) {
+        analysis.diagnostics.candidate_limit_exceeded = true;
+        addWarning(analysis.diagnostics, "SPOT_LIMIT_EXCEEDED");
+        analysis.error = makeError(
+            "SPOT_COUNT_MISMATCH",
+            "Experimental multispot detection found more pre-filter candidates than the safe lattice-analysis limit.",
+            true);
+        analysis.error.number_details["max_spot_count"] = config.multispot_max_count;
+        appendCountDetails(analysis.error, analysis.diagnostics);
+        return analysis;
+    }
+
     if (!analysis.observations.empty()) {
         const double preliminary_median_area = medianArea(analysis.observations);
         const double relative_minimum_area =
@@ -655,36 +668,68 @@ ImageAnalysis MultispotDetector::detect(
             anchors.empty() ? 0.0 : medianResidualPeak(anchors);
 
         std::vector<SpotObservation> kept;
+        std::vector<SpotObservation> pending_area_outliers;
         kept.reserve(analysis.observations.size());
+        pending_area_outliers.reserve(analysis.observations.size());
         for (auto& observation : analysis.observations) {
             const bool area_outlier = observation.area < relative_minimum_area;
             const bool shape_outlier = observation.circularity < 0.35;
-            const bool lattice_supported = area_outlier && !shape_outlier &&
-                hasLatticeSupport(
-                    observation,
+            if (shape_outlier) {
+                if (area_outlier) {
+                    ++analysis.diagnostics.rejected_area_count;
+                    ++analysis.diagnostics.rejected_relative_area_count;
+                    addWarning(analysis.diagnostics, "SMALL_AREA_OUTLIER_REJECTED");
+                }
+                ++analysis.diagnostics.rejected_shape_count;
+                addWarning(analysis.diagnostics, "IRREGULAR_COMPONENT_REJECTED");
+            } else if (area_outlier) {
+                pending_area_outliers.push_back(std::move(observation));
+            } else {
+                kept.push_back(std::move(observation));
+            }
+        }
+
+        while (!pending_area_outliers.empty()) {
+            std::vector<bool> recovered(pending_area_outliers.size(), false);
+            bool recovered_any = false;
+            for (std::size_t index = 0; index < pending_area_outliers.size(); ++index) {
+                recovered[index] = hasLatticeSupport(
+                    pending_area_outliers[index],
                     anchors,
                     lattice_steps,
                     typical_spacing,
                     median_integrated_intensity,
                     median_residual_peak);
-            if (lattice_supported) {
+                recovered_any = recovered_any || recovered[index];
+            }
+            if (!recovered_any) {
+                break;
+            }
+
+            std::vector<SpotObservation> unresolved;
+            unresolved.reserve(pending_area_outliers.size());
+            for (std::size_t index = 0; index < pending_area_outliers.size(); ++index) {
+                auto& observation = pending_area_outliers[index];
+                if (!recovered[index]) {
+                    unresolved.push_back(std::move(observation));
+                    continue;
+                }
+                addFlag(observation, "LATTICE_RECOVERED_UNVERIFIED");
+                addWarning(analysis.diagnostics, "LATTICE_RECOVERED_UNVERIFIED");
                 ++analysis.diagnostics.lattice_recovered_count;
                 analysis.diagnostics.lattice_recovered_centers.push_back(observation.center);
-                kept.push_back(std::move(observation));
-                continue;
-            }
-            if (area_outlier) {
-                ++analysis.diagnostics.rejected_area_count;
-                ++analysis.diagnostics.rejected_relative_area_count;
-                addWarning(analysis.diagnostics, "SMALL_AREA_OUTLIER_REJECTED");
-            }
-            if (shape_outlier) {
-                ++analysis.diagnostics.rejected_shape_count;
-                addWarning(analysis.diagnostics, "IRREGULAR_COMPONENT_REJECTED");
-            }
-            if (!area_outlier && !shape_outlier) {
+                anchors.push_back(observation);
                 kept.push_back(std::move(observation));
             }
+            pending_area_outliers = std::move(unresolved);
+        }
+
+        if (!pending_area_outliers.empty()) {
+            analysis.diagnostics.rejected_area_count +=
+                static_cast<int>(pending_area_outliers.size());
+            analysis.diagnostics.rejected_relative_area_count +=
+                static_cast<int>(pending_area_outliers.size());
+            addWarning(analysis.diagnostics, "SMALL_AREA_OUTLIER_REJECTED");
         }
         analysis.observations = std::move(kept);
     }

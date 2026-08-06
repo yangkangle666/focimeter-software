@@ -970,6 +970,13 @@ bool writeExperimentalMultispotSuccess(
         diagnostics.rejected_shape_count < 0 ||
         diagnostics.rejected_proximity_count < 0 ||
         diagnostics.lattice_recovered_count < 0 ||
+        diagnostics.lattice_recovered_count > diagnostics.candidate_count ||
+        diagnostics.lattice_recovered_count !=
+            static_cast<int>(diagnostics.lattice_recovered_centers.size()) ||
+        diagnostics.rejected_area_count !=
+            diagnostics.rejected_absolute_area_count +
+                diagnostics.rejected_relative_area_count +
+                diagnostics.rejected_zero_signal_count ||
         diagnostics.segmentation_source.empty() ||
         diagnostics.centroid_intensity_source.empty() ||
         !std::isfinite(diagnostics.background_intensity) || diagnostics.background_intensity < 0.0 ||

@@ -297,33 +297,45 @@ GridFixture makeSizeAndBrightnessVariationFixture() {
     return fixture;
 }
 
-bool matchesExpectedCenters(
-    const std::vector<SpotObservation>& observations,
+bool matchesCenters(
+    const std::vector<cv::Point2d>& actual,
     const std::vector<cv::Point2d>& expected,
     const double tolerance) {
-    if (observations.size() != expected.size()) {
+    if (actual.size() != expected.size()) {
         return false;
     }
-    std::vector<bool> used(observations.size(), false);
+    std::vector<bool> used(actual.size(), false);
     for (const auto& center : expected) {
         double best_distance = std::numeric_limits<double>::infinity();
-        std::size_t best_index = observations.size();
-        for (std::size_t index = 0; index < observations.size(); ++index) {
+        std::size_t best_index = actual.size();
+        for (std::size_t index = 0; index < actual.size(); ++index) {
             if (used[index]) {
                 continue;
             }
-            const double distance = cv::norm(observations[index].center - center);
+            const double distance = cv::norm(actual[index] - center);
             if (distance < best_distance) {
                 best_distance = distance;
                 best_index = index;
             }
         }
-        if (best_index == observations.size() || best_distance > tolerance) {
+        if (best_index == actual.size() || best_distance > tolerance) {
             return false;
         }
         used[best_index] = true;
     }
     return true;
+}
+
+bool matchesExpectedCenters(
+    const std::vector<SpotObservation>& observations,
+    const std::vector<cv::Point2d>& expected,
+    const double tolerance) {
+    std::vector<cv::Point2d> actual;
+    actual.reserve(observations.size());
+    for (const auto& observation : observations) {
+        actual.push_back(observation.center);
+    }
+    return matchesCenters(actual, expected, tolerance);
 }
 
 void verifySizeAndBrightnessVariation(
@@ -351,7 +363,7 @@ void verifySizeAndBrightnessVariation(
 struct LatticeRecoveryFixture {
     cv::Mat image;
     std::vector<cv::Point2d> expected_centers;
-    cv::Point2d small_lattice_center;
+    std::vector<cv::Point2d> small_lattice_centers;
     cv::Point2d half_cell_distractor;
 };
 
@@ -381,25 +393,29 @@ LatticeRecoveryFixture makeLatticeRecoveryFixture(
                 origin.x + column * pitch,
                 origin.y + row * pitch);
             const cv::Point2d center = rotate(unrotated);
-            const bool small_lattice_spot = row == 2 && column == 2;
+            const cv::Point draw_center(cvRound(center.x), cvRound(center.y));
+            const bool small_lattice_spot = row == 0 && column <= 1;
             cv::circle(
                 fixture.image,
-                center,
+                draw_center,
                 small_lattice_spot ? 4 : 9,
                 cv::Scalar(5, 225, 4),
                 cv::FILLED,
                 cv::LINE_AA);
-            fixture.expected_centers.push_back(center);
+            fixture.expected_centers.emplace_back(draw_center);
             if (small_lattice_spot) {
-                fixture.small_lattice_center = center;
+                fixture.small_lattice_centers.emplace_back(draw_center);
             }
         }
     }
 
-    fixture.half_cell_distractor = rotate(origin + cv::Point2d(0.5 * pitch, 0.5 * pitch));
+    const cv::Point2d half_cell =
+        rotate(origin + cv::Point2d(0.5 * pitch, 0.5 * pitch));
+    const cv::Point half_cell_draw_center(cvRound(half_cell.x), cvRound(half_cell.y));
+    fixture.half_cell_distractor = half_cell_draw_center;
     cv::circle(
         fixture.image,
-        fixture.half_cell_distractor,
+        half_cell_draw_center,
         4,
         cv::Scalar(5, 225, 4),
         cv::FILLED,
@@ -434,12 +450,30 @@ void verifyLatticePhaseRecovery(
                 matchesExpectedCenters(analysis.observations, fixture.expected_centers, 3.0),
             "a small true lattice spot must be retained while an equally bright half-cell distractor is rejected");
         test.expect(
-            analysis.diagnostics.lattice_recovered_count == 1 &&
-                analysis.diagnostics.lattice_recovered_centers.size() == 1U &&
-                cv::norm(
-                    analysis.diagnostics.lattice_recovered_centers.front() -
-                    fixture.small_lattice_center) <= 3.0,
-            "only the known small lattice member may enter the final output through lattice recovery");
+            analysis.diagnostics.lattice_recovered_count ==
+                    static_cast<int>(fixture.small_lattice_centers.size()) &&
+                analysis.diagnostics.lattice_recovered_centers.size() ==
+                    fixture.small_lattice_centers.size() &&
+                matchesCenters(
+                    analysis.diagnostics.lattice_recovered_centers,
+                    fixture.small_lattice_centers,
+                    3.0),
+            "only the known adjacent small lattice members may enter the final output through iterative recovery");
+        for (const auto& expected_recovered_center : fixture.small_lattice_centers) {
+            const auto recovered = std::find_if(
+                analysis.observations.begin(),
+                analysis.observations.end(),
+                [&expected_recovered_center](const SpotObservation& observation) {
+                    return cv::norm(observation.center - expected_recovered_center) <= 3.0;
+                });
+            test.expect(
+                recovered != analysis.observations.end() &&
+                    std::find(
+                        recovered->quality_flags.begin(),
+                        recovered->quality_flags.end(),
+                        "LATTICE_RECOVERED_UNVERIFIED") != recovered->quality_flags.end(),
+                "each iteratively recovered point must remain visible to M3 as unverified");
+        }
         test.expect(
             analysis.diagnostics.rejected_relative_area_count >= 1,
             "the half-cell distractor must reach relative-area screening and be rejected by lattice phase");
