@@ -297,6 +297,37 @@ GridFixture makeSizeAndBrightnessVariationFixture() {
     return fixture;
 }
 
+cv::Mat makeLargeScaleCandidateStormFixture() {
+    cv::Mat image(900, 900, CV_8UC3, cv::Scalar(1, 2, 1));
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 4; ++column) {
+            cv::circle(
+                image,
+                cv::Point(80 + column * 75, 90 + row * 75),
+                4,
+                cv::Scalar(5, 230, 4),
+                cv::FILLED,
+                cv::LINE_AA);
+        }
+    }
+
+    cv::Mat broad = cv::Mat::zeros(image.size(), image.type());
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 4; ++column) {
+            cv::circle(
+                broad,
+                cv::Point(500 + column * 90, 180 + row * 220),
+                26,
+                cv::Scalar(4, 150, 3),
+                cv::FILLED,
+                cv::LINE_AA);
+        }
+    }
+    cv::GaussianBlur(broad, broad, cv::Size(19, 19), 5.0);
+    cv::max(image, broad, image);
+    return image;
+}
+
 bool matchesCenters(
     const std::vector<cv::Point2d>& actual,
     const std::vector<cv::Point2d>& expected,
@@ -373,6 +404,32 @@ void verifySizeAndBrightnessVariation(
     test.expect(
         analysis.diagnostics.lattice_recovered_count > 0,
         "the variation fixture must exercise lattice-supported recovery rather than a relaxed global threshold");
+}
+
+void verifyLargeScaleCandidateBudget(
+    TestContext& test,
+    const ProcessingConfig& config) {
+    ProcessingConfig bounded = config;
+    bounded.roi_width_ratio = 1.0;
+    bounded.roi_height_ratio = 1.0;
+    bounded.tophat_kernel = 9;
+    bounded.multispot_min_count = 8;
+    bounded.multispot_max_count = 16;
+
+    const ImageProcessor processor;
+    const ImageAnalysis analysis =
+        processor.processMat(makeLargeScaleCandidateStormFixture(), bounded);
+    const auto stage = analysis.error.string_details.find("candidate_stage");
+    test.expect(
+        !analysis.ok() && analysis.error.code == "SPOT_COUNT_MISMATCH" &&
+            analysis.diagnostics.candidate_limit_exceeded &&
+            stage != analysis.error.string_details.end() &&
+            stage->second == "large_scale_recovery",
+        "broad-scale candidate storms must fail before lattice recovery rather than entering unbounded analysis");
+    test.expect(
+        analysis.diagnostics.large_scale_raw_candidate_count > 0 &&
+            analysis.diagnostics.candidate_count > bounded.multispot_max_count,
+        "broad-scale candidate budget failures must preserve auditable candidate counts");
 }
 
 struct LatticeRecoveryFixture {
@@ -1074,6 +1131,7 @@ int runJpegTests(const std::vector<std::filesystem::path>& arguments) {
     TestContext test;
     verifyGreenJpegAndReencoding(test, temp_root, synthetic_root, config);
     verifySizeAndBrightnessVariation(test, temp_root, config);
+    verifyLargeScaleCandidateBudget(test, config);
     verifyLatticePhaseRecovery(test, temp_root, config);
     verifyDiagonalOnlyLatticeRecovery(test, temp_root, config);
     verifyDeterminismAndSerializer(test, temp_root, config);
