@@ -527,15 +527,37 @@ ImageAnalysis MultispotDetector::detect(
     constexpr double kTopHatRoiScale = 0.09;
     const int scaled_top_hat_size = makeOddKernel(cvRound(
         kTopHatRoiScale * static_cast<double>(std::min(filtered.rows, filtered.cols))));
-    const int top_hat_size = std::max(
-        makeOddKernel(config.tophat_kernel), scaled_top_hat_size);
-    analysis.diagnostics.top_hat_kernel_pixels = top_hat_size;
-    const cv::Mat top_hat_kernel = cv::getStructuringElement(
-        cv::MORPH_ELLIPSE, cv::Size(top_hat_size, top_hat_size));
-    cv::morphologyEx(filtered, analysis.enhanced, cv::MORPH_TOPHAT, top_hat_kernel);
-    cv::Mat centroid_enhanced;
+    const int configured_top_hat_size = makeOddKernel(config.tophat_kernel);
+    const int large_top_hat_size = std::max(configured_top_hat_size, scaled_top_hat_size);
+    analysis.diagnostics.top_hat_kernel_pixels = large_top_hat_size;
+    const cv::Mat configured_top_hat_kernel = cv::getStructuringElement(
+        cv::MORPH_ELLIPSE, cv::Size(configured_top_hat_size, configured_top_hat_size));
+    const cv::Mat large_top_hat_kernel = cv::getStructuringElement(
+        cv::MORPH_ELLIPSE, cv::Size(large_top_hat_size, large_top_hat_size));
+    cv::Mat small_scale_enhanced;
+    cv::Mat large_scale_enhanced;
     cv::morphologyEx(
-        centroid_filtered, centroid_enhanced, cv::MORPH_TOPHAT, top_hat_kernel);
+        filtered, small_scale_enhanced, cv::MORPH_TOPHAT, configured_top_hat_kernel);
+    cv::morphologyEx(
+        filtered, large_scale_enhanced, cv::MORPH_TOPHAT, large_top_hat_kernel);
+    cv::max(small_scale_enhanced, large_scale_enhanced, analysis.enhanced);
+    cv::Mat centroid_small_scale_enhanced;
+    cv::Mat centroid_large_scale_enhanced;
+    cv::morphologyEx(
+        centroid_filtered,
+        centroid_small_scale_enhanced,
+        cv::MORPH_TOPHAT,
+        configured_top_hat_kernel);
+    cv::morphologyEx(
+        centroid_filtered,
+        centroid_large_scale_enhanced,
+        cv::MORPH_TOPHAT,
+        large_top_hat_kernel);
+    cv::Mat centroid_enhanced;
+    cv::max(
+        centroid_small_scale_enhanced,
+        centroid_large_scale_enhanced,
+        centroid_enhanced);
     const double centroid_background = borderMean(centroid_enhanced);
 
     analysis.diagnostics.background_intensity = borderMean(analysis.enhanced);
@@ -559,6 +581,23 @@ ImageAnalysis MultispotDetector::detect(
         analysis.diagnostics.detection_threshold,
         255.0,
         cv::THRESH_BINARY);
+    cv::Mat raw_otsu_binary;
+    cv::threshold(
+        filtered,
+        raw_otsu_binary,
+        0.0,
+        255.0,
+        cv::THRESH_BINARY | cv::THRESH_OTSU);
+    const double raw_otsu_foreground_ratio =
+        static_cast<double>(cv::countNonZero(raw_otsu_binary)) /
+        static_cast<double>(raw_otsu_binary.total());
+    constexpr double kMaximumRawOtsuForegroundRatio = 0.35;
+    if (raw_otsu_foreground_ratio > 0.0 &&
+        raw_otsu_foreground_ratio <= kMaximumRawOtsuForegroundRatio) {
+        cv::bitwise_or(analysis.binary, raw_otsu_binary, analysis.binary);
+    } else if (raw_otsu_foreground_ratio > kMaximumRawOtsuForegroundRatio) {
+        addWarning(analysis.diagnostics, "RAW_OTSU_FOREGROUND_REJECTED");
+    }
     const cv::Mat cleanup_kernel = cv::getStructuringElement(
         cv::MORPH_ELLIPSE, cv::Size(3, 3));
     cv::morphologyEx(analysis.binary, analysis.binary, cv::MORPH_OPEN, cleanup_kernel);
