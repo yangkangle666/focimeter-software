@@ -813,6 +813,16 @@ void verifyDeterminismAndSerializer(
                       << ", shape=" << runs.back().diagnostics.rejected_shape_count
                       << ", proximity=" << runs.back().diagnostics.rejected_proximity_count
                       << "\n";
+            for (const auto& observation : runs.back().observations) {
+                std::cerr << "JPEG fragment observation: x=" << observation.center.x
+                          << ", y=" << observation.center.y
+                          << ", area=" << observation.area
+                          << ", flags=";
+                for (const auto& flag : observation.quality_flags) {
+                    std::cerr << flag << ",";
+                }
+                std::cerr << "\n";
+            }
         }
         test.expect(runs.back().ok(), "realistic green JPEG run must succeed");
         test.expect(
