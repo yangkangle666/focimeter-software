@@ -6,6 +6,10 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from modules.calibration_calculation.algorithm.calculator import calculate
+from modules.calibration_calculation.algorithm.experimental_input import parse_experimental_pair
+from modules.calibration_calculation.algorithm.multispot_matching import (
+    match_experimental_multispot,
+)
 from modules.calibration_calculation.algorithm.types import CalibrationModel
 from modules.calibration_calculation.validator.contract_validator import validate_result
 
@@ -74,7 +78,8 @@ class M2RealJpegIntegrationTests(unittest.TestCase):
                     self.assertEqual("software_only", document["validation_scope"])
                     self.assertFalse(document["metrology_validated"])
                     self.assertTrue(document["quality"]["is_usable"])
-                    self.assertEqual(27, len(document["spots"]))
+                    expected_count = 31 if document["image_type"] == "calibration" else 27
+                    self.assertEqual(expected_count, len(document["spots"]))
                     self.assertFalse(document["matching"]["physical_identity_guaranteed"])
                     self.assertTrue(all("spot_id" not in spot for spot in document["spots"]))
 
@@ -88,8 +93,15 @@ class M2RealJpegIntegrationTests(unittest.TestCase):
                 for spot in document["spots"]
             }
 
-        self.assertIn("AREA_ABOVE_MEDIAN", flags_by_detection(pair_1_calibration)[14])
-        self.assertIn("AREA_ABOVE_MEDIAN", flags_by_detection(pair_2_calibration)[14])
+        for calibration in (pair_1_calibration, pair_2_calibration):
+            calibration_flags = flags_by_detection(calibration).values()
+            self.assertTrue(any("AREA_ABOVE_MEDIAN" in flags for flags in calibration_flags))
+            self.assertTrue(
+                any(
+                    "LATTICE_RECOVERED_UNVERIFIED" in flags
+                    for flags in flags_by_detection(calibration).values()
+                )
+            )
         pair_1_measurement_flags = flags_by_detection(pair_1_measurement)
         self.assertIn("SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED", pair_1_measurement_flags[13])
         self.assertIn("SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED", pair_1_measurement_flags[18])
@@ -136,26 +148,29 @@ class M2RealJpegIntegrationTests(unittest.TestCase):
                 self.assertIn("unsafe quality flags", result["error"]["message"])
                 self.assertEqual(original, (calibration, measurement))
 
-    def test_pair_2_without_quality_flags_still_rejects_incomplete_identity_assignment(self) -> None:
-        calibration, measurement = self._load_pair("pair_2")
-        calibration = copy.deepcopy(calibration)
-        measurement = copy.deepcopy(measurement)
-        for document in (calibration, measurement):
-            document["quality"]["warnings"] = []
-            for spot in document["spots"]:
-                spot["quality_flags"] = []
+    def test_quality_cleared_copies_cover_all_measurements_for_detection_diagnostics(self) -> None:
+        for pair_name in ("pair_1", "pair_2"):
+            with self.subTest(pair=pair_name):
+                calibration, measurement = self._load_pair(pair_name)
+                calibration = copy.deepcopy(calibration)
+                measurement = copy.deepcopy(measurement)
+                # The formal calculation path above must reject these flags. This
+                # copy only isolates topology and never produces a prescription.
+                for document in (calibration, measurement):
+                    document["quality"]["warnings"] = []
+                    for spot in document["spots"]:
+                        spot["quality_flags"] = []
 
-        result = calculate(
-            calibration,
-            measurement,
-            self.config,
-            self.model,
-            allow_simulation_model=True,
-        )
+                matched = match_experimental_multispot(
+                    parse_experimental_pair(calibration, measurement),
+                    self.model.matching_limits,
+                )
 
-        self._assert_identity_error(result)
-        self.assertIn("23 of 27", result["error"]["message"])
-        self.assertIn("every measurement detection", result["error"]["message"])
+                self.assertEqual(31, matched.diagnostics.calibration_detection_count)
+                self.assertEqual(27, matched.diagnostics.measurement_detection_count)
+                self.assertEqual(27, matched.diagnostics.matched_spot_count)
+                self.assertEqual(4, matched.diagnostics.unmatched_calibration_count)
+                self.assertEqual(0, matched.diagnostics.unmatched_measurement_count)
 
 
 if __name__ == "__main__":
