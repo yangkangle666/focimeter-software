@@ -114,6 +114,7 @@ struct ImageDiagnostics {
     int lattice_recovered_count{0};
     double background_intensity{0.0};
     double detection_threshold{0.0};
+    int top_hat_kernel_pixels{0};
     bool candidate_limit_exceeded{false};
     std::string segmentation_source{"native_grayscale"};
     std::string centroid_intensity_source{"native_grayscale"};

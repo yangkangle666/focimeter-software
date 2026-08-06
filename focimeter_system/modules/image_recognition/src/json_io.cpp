@@ -977,6 +977,7 @@ bool writeExperimentalMultispotSuccess(
         diagnostics.lattice_recovered_count > diagnostics.candidate_count ||
         diagnostics.lattice_recovered_count !=
             static_cast<int>(diagnostics.lattice_recovered_centers.size()) ||
+        diagnostics.top_hat_kernel_pixels < 3 ||
         diagnostics.rejected_area_count !=
             diagnostics.rejected_absolute_area_count +
                 diagnostics.rejected_relative_area_count +
@@ -1033,6 +1034,7 @@ bool writeExperimentalMultispotSuccess(
             {"lattice_recovered_count", diagnostics.lattice_recovered_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"detection_threshold_8bit", diagnostics.detection_threshold},
+            {"top_hat_kernel_pixels", diagnostics.top_hat_kernel_pixels},
             {"segmentation_source", diagnostics.segmentation_source},
             {"centroid_intensity_source", diagnostics.centroid_intensity_source},
             {"minimum_usable_confidence", config.multispot_min_confidence},
@@ -1147,6 +1149,7 @@ bool writeImageDiagnostics(
             {"lattice_recovered_count", diagnostics.lattice_recovered_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"threshold_8bit", diagnostics.detection_threshold},
+            {"top_hat_kernel_pixels", diagnostics.top_hat_kernel_pixels},
             {"segmentation_source", diagnostics.segmentation_source},
             {"centroid_intensity_source", diagnostics.centroid_intensity_source},
             {"candidate_limit_exceeded", diagnostics.candidate_limit_exceeded},

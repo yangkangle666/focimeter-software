@@ -408,6 +408,7 @@ void appendCountDetails(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["lattice_recovered_count"] = diagnostics.lattice_recovered_count;
     error.number_details["background_intensity"] = diagnostics.background_intensity;
     error.number_details["detection_threshold"] = diagnostics.detection_threshold;
+    error.number_details["top_hat_kernel_pixels"] = diagnostics.top_hat_kernel_pixels;
     error.string_details["segmentation_source"] = diagnostics.segmentation_source;
     error.string_details["centroid_intensity_source"] = diagnostics.centroid_intensity_source;
 }
@@ -520,9 +521,15 @@ ImageAnalysis MultispotDetector::detect(
         centroid_filtered = centroid_intensity.clone();
     }
 
-    // A large odd top-hat kernel supplies a local-background residual. This is
-    // intentionally an internal research default, not a recovered LM700 constant.
-    const int top_hat_size = makeOddKernel(config.tophat_kernel);
+    // The configured kernel is a lower bound. Scaling the background estimator
+    // with the ROI prevents broad, defocused spots from disappearing before
+    // connected-component analysis while retaining one pipeline for all images.
+    constexpr double kTopHatRoiScale = 0.09;
+    const int scaled_top_hat_size = makeOddKernel(cvRound(
+        kTopHatRoiScale * static_cast<double>(std::min(filtered.rows, filtered.cols))));
+    const int top_hat_size = std::max(
+        makeOddKernel(config.tophat_kernel), scaled_top_hat_size);
+    analysis.diagnostics.top_hat_kernel_pixels = top_hat_size;
     const cv::Mat top_hat_kernel = cv::getStructuringElement(
         cv::MORPH_ELLIPSE, cv::Size(top_hat_size, top_hat_size));
     cv::morphologyEx(filtered, analysis.enhanced, cv::MORPH_TOPHAT, top_hat_kernel);

@@ -362,7 +362,8 @@ void verifySizeAndBrightnessVariation(
                   << analysis.diagnostics.lattice_recovery_rejected_step_count
                   << ", geometry_rejected="
                   << analysis.diagnostics.lattice_recovery_rejected_geometry_count
-                  << ", recovered=" << analysis.diagnostics.lattice_recovered_count << "\n";
+                  << ", recovered=" << analysis.diagnostics.lattice_recovered_count
+                  << ", top_hat_kernel=" << analysis.diagnostics.top_hat_kernel_pixels << "\n";
     }
     test.expect(analysis.ok(), "size and brightness variation fixture must remain usable");
     test.expect(
@@ -798,6 +799,7 @@ void verifyDeterminismAndSerializer(
             document.at("quality").contains("lattice_recovery_rejected_signal_count") &&
             document.at("quality").contains("lattice_recovery_rejected_step_count") &&
             document.at("quality").contains("lattice_recovery_rejected_geometry_count") &&
+            document.at("quality").contains("top_hat_kernel_pixels") &&
             document.at("quality").contains("lattice_recovered_count"),
         "JPEG output must expose auditable area-rejection and lattice-recovery counts");
     test.expect(
@@ -900,7 +902,8 @@ void verifyRealJpegComponentDistribution(
               << ", step_rejected="
               << reference.diagnostics.lattice_recovery_rejected_step_count
               << ", geometry_rejected="
-              << reference.diagnostics.lattice_recovery_rejected_geometry_count << "\n";
+              << reference.diagnostics.lattice_recovery_rejected_geometry_count
+              << ", top_hat_kernel=" << reference.diagnostics.top_hat_kernel_pixels << "\n";
     for (const auto& center : reference.diagnostics.lattice_rejected_step_centers) {
         std::cout << "Reference step-rejected candidate: x=" << center.x
                   << ", y=" << center.y << "\n";

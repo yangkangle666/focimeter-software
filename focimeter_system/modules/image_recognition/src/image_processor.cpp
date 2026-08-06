@@ -83,6 +83,7 @@ void appendDiagnostics(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["lattice_recovery_rejected_geometry_count"] =
         diagnostics.lattice_recovery_rejected_geometry_count;
     error.number_details["lattice_recovered_count"] = diagnostics.lattice_recovered_count;
+    error.number_details["top_hat_kernel_pixels"] = diagnostics.top_hat_kernel_pixels;
     error.string_details["segmentation_source"] = diagnostics.segmentation_source;
     error.string_details["centroid_intensity_source"] = diagnostics.centroid_intensity_source;
     if (!diagnostics.warnings.empty()) {
