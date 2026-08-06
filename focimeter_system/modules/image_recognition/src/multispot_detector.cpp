@@ -989,8 +989,7 @@ ImageAnalysis MultispotDetector::detect(
                 }
                 return left.source_component_label < right.source_component_label;
             });
-        const std::vector<SpotObservation> recovery_anchors =
-            selectStableLatticeAnchors(analysis.observations);
+        const std::vector<SpotObservation> recovery_anchors = analysis.observations;
         const double typical_spacing =
             medianNearestNeighborDistance(recovery_anchors);
         const std::vector<cv::Point2d> lattice_steps =
