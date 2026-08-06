@@ -428,8 +428,9 @@ void verifyLargeScaleCandidateBudget(
         "broad-scale candidate storms must fail before lattice recovery rather than entering unbounded analysis");
     test.expect(
         analysis.diagnostics.large_scale_raw_candidate_count > 0 &&
-            analysis.diagnostics.candidate_count > bounded.multispot_max_count,
-        "broad-scale candidate budget failures must preserve auditable candidate counts");
+            analysis.diagnostics.candidate_count > bounded.multispot_max_count &&
+            analysis.diagnostics.lattice_recovery_considered_count == 0,
+        "broad-scale candidate budget failures must preserve counts and stop before lattice recovery");
 }
 
 struct LatticeRecoveryFixture {
