@@ -541,8 +541,8 @@ ImageAnalysis MultispotDetector::detect(
     }
 
     // Keep the configured scale for compact spots and add an ROI-relative scale
-    // for broad spots. Each scale is thresholded independently before fusion so
-    // one population cannot suppress the other through a shared histogram.
+    // for broad spots. Each scale is thresholded independently; broad-scale
+    // candidates are added only after the primary result passes lattice checks.
     constexpr double kTopHatRoiScale = 0.09;
     const int scaled_top_hat_size = makeOddKernel(cvRound(
         kTopHatRoiScale * static_cast<double>(std::min(filtered.rows, filtered.cols))));
@@ -613,11 +613,13 @@ ImageAnalysis MultispotDetector::detect(
         analysis.gray.total() * config.multispot_max_area_ratio);
     const double centroid_raw_background = percentile(centroid_intensity, 0.50);
     analysis.diagnostics.raw_candidate_count = 0;
+    std::vector<SpotObservation> supplemental_candidates;
     const auto extract_candidates =
         [&](const cv::Mat& binary,
             const cv::Mat& weight_image,
             const int label_offset,
-            const bool suppress_cross_scale_duplicates) {
+            const bool supplemental,
+            std::vector<SpotObservation>& output) {
             cv::Mat labels;
             cv::Mat stats;
             cv::Mat centers;
@@ -633,7 +635,7 @@ ImageAnalysis MultispotDetector::detect(
                 const cv::Point2d geometric_center(
                     centers.at<double>(label, 0) + analysis.roi_rect.x,
                     centers.at<double>(label, 1) + analysis.roi_rect.y);
-                if (suppress_cross_scale_duplicates) {
+                if (supplemental) {
                     const double candidate_radius =
                         std::sqrt(std::max(1.0, static_cast<double>(area)) / 3.14159265358979323846);
                     const bool duplicate = std::any_of(
@@ -642,22 +644,22 @@ ImageAnalysis MultispotDetector::detect(
                         [&](const SpotObservation& existing) {
                             const double existing_radius =
                                 std::sqrt(std::max(1.0, existing.area) / 3.14159265358979323846);
-                            const double area_ratio =
-                                std::min(existing.area, static_cast<double>(area)) /
-                                std::max(existing.area, static_cast<double>(area));
-                            return area_ratio >= 0.50 &&
-                                cv::norm(existing.center - geometric_center) <=
-                                    0.50 * std::max(existing_radius, candidate_radius);
+                            return cv::norm(existing.center - geometric_center) <=
+                                0.50 * std::max(existing_radius, candidate_radius);
                         });
                     if (duplicate) {
                         continue;
                     }
                 }
 
-                ++analysis.diagnostics.raw_candidate_count;
+                if (!supplemental) {
+                    ++analysis.diagnostics.raw_candidate_count;
+                }
                 if (area < config.multispot_min_area_pixels || area > maximum_area) {
-                    ++analysis.diagnostics.rejected_area_count;
-                    ++analysis.diagnostics.rejected_absolute_area_count;
+                    if (!supplemental) {
+                        ++analysis.diagnostics.rejected_area_count;
+                        ++analysis.diagnostics.rejected_absolute_area_count;
+                    }
                     continue;
                 }
                 double integrated = 0.0;
@@ -697,8 +699,10 @@ ImageAnalysis MultispotDetector::detect(
                     }
                 }
                 if (integrated <= 1e-9) {
-                    ++analysis.diagnostics.rejected_area_count;
-                    ++analysis.diagnostics.rejected_zero_signal_count;
+                    if (!supplemental) {
+                        ++analysis.diagnostics.rejected_area_count;
+                        ++analysis.diagnostics.rejected_zero_signal_count;
+                    }
                     continue;
                 }
                 const double edge_signal_threshold = centroid_raw_background +
@@ -723,8 +727,10 @@ ImageAnalysis MultispotDetector::detect(
                         height,
                         edge_probe_margin,
                         edge_signal_threshold)) {
-                    ++analysis.diagnostics.rejected_border_count;
-                    addWarning(analysis.diagnostics, "EDGE_CLIPPED_CANDIDATE_REJECTED");
+                    if (!supplemental) {
+                        ++analysis.diagnostics.rejected_border_count;
+                        addWarning(analysis.diagnostics, "EDGE_CLIPPED_CANDIDATE_REJECTED");
+                    }
                     continue;
                 }
 
@@ -757,13 +763,18 @@ ImageAnalysis MultispotDetector::detect(
                 observation.peak_residual_intensity = residual_peak;
                 observation.integrated_intensity = integrated;
                 observation.source_component_label = label_offset + label;
-                analysis.observations.push_back(std::move(observation));
+                if (supplemental) {
+                    ++analysis.diagnostics.raw_candidate_count;
+                }
+                output.push_back(std::move(observation));
             }
         };
     extract_candidates(
-        small_scale_binary, centroid_small_scale_enhanced, 0, false);
-    extract_candidates(
-        large_scale_binary, centroid_large_scale_enhanced, 1000000, true);
+        small_scale_binary,
+        centroid_small_scale_enhanced,
+        0,
+        false,
+        analysis.observations);
 
     analysis.diagnostics.candidate_count = static_cast<int>(analysis.observations.size());
     if (analysis.diagnostics.candidate_count > config.multispot_max_count) {
@@ -875,6 +886,43 @@ ImageAnalysis MultispotDetector::detect(
             addWarning(analysis.diagnostics, "SMALL_AREA_OUTLIER_REJECTED");
         }
         analysis.observations = std::move(kept);
+    }
+
+    extract_candidates(
+        large_scale_binary,
+        centroid_large_scale_enhanced,
+        1000000,
+        true,
+        supplemental_candidates);
+    if (!supplemental_candidates.empty() && !analysis.observations.empty()) {
+        const double typical_spacing =
+            medianNearestNeighborDistance(analysis.observations);
+        const std::vector<cv::Point2d> lattice_steps =
+            collectLatticeStepVectors(analysis.observations, typical_spacing);
+        const double median_integrated_intensity =
+            medianIntegratedIntensity(analysis.observations);
+        const double median_residual_peak =
+            medianResidualPeak(analysis.observations);
+        for (auto& candidate : supplemental_candidates) {
+            const LatticeRecoveryDecision decision = evaluateLatticeSupport(
+                candidate,
+                analysis.observations,
+                lattice_steps,
+                typical_spacing,
+                median_integrated_intensity,
+                median_residual_peak);
+            if (decision != LatticeRecoveryDecision::Supported) {
+                recordRejectedRecoveryDecision(
+                    decision, candidate.center, analysis.diagnostics);
+                continue;
+            }
+            addFlag(candidate, "LATTICE_RECOVERED_UNVERIFIED");
+            addWarning(analysis.diagnostics, "LATTICE_RECOVERED_UNVERIFIED");
+            ++analysis.diagnostics.lattice_recovery_considered_count;
+            ++analysis.diagnostics.lattice_recovered_count;
+            analysis.diagnostics.lattice_recovered_centers.push_back(candidate.center);
+            analysis.observations.push_back(std::move(candidate));
+        }
     }
 
     analysis.diagnostics.candidate_count = static_cast<int>(analysis.observations.size());
