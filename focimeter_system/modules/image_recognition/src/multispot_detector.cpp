@@ -597,132 +597,173 @@ ImageAnalysis MultispotDetector::detect(
         large_scale_threshold,
         255.0,
         cv::THRESH_BINARY);
+    const cv::Mat cleanup_kernel = cv::getStructuringElement(
+        cv::MORPH_ELLIPSE, cv::Size(3, 3));
+    cv::morphologyEx(
+        small_scale_binary, small_scale_binary, cv::MORPH_OPEN, cleanup_kernel);
+    cv::morphologyEx(
+        large_scale_binary, large_scale_binary, cv::MORPH_OPEN, cleanup_kernel);
     cv::bitwise_or(small_scale_binary, large_scale_binary, analysis.binary);
     analysis.diagnostics.background_intensity = borderMean(analysis.enhanced);
     analysis.diagnostics.detection_threshold =
         std::min(small_scale_threshold, large_scale_threshold);
-    const cv::Mat cleanup_kernel = cv::getStructuringElement(
-        cv::MORPH_ELLIPSE, cv::Size(3, 3));
-    cv::morphologyEx(analysis.binary, analysis.binary, cv::MORPH_OPEN, cleanup_kernel);
-
-    cv::Mat labels;
-    cv::Mat stats;
-    cv::Mat centers;
-    const int label_count = cv::connectedComponentsWithStats(
-        analysis.binary, labels, stats, centers, 8, CV_32S);
-    analysis.diagnostics.raw_candidate_count = std::max(0, label_count - 1);
 
     const double maximum_area = std::max(
         static_cast<double>(config.multispot_min_area_pixels + 1),
         analysis.gray.total() * config.multispot_max_area_ratio);
     const double centroid_raw_background = percentile(centroid_intensity, 0.50);
-    for (int label = 1; label < label_count; ++label) {
-        const int area = stats.at<int>(label, cv::CC_STAT_AREA);
-        const int left = stats.at<int>(label, cv::CC_STAT_LEFT);
-        const int top = stats.at<int>(label, cv::CC_STAT_TOP);
-        const int width = stats.at<int>(label, cv::CC_STAT_WIDTH);
-        const int height = stats.at<int>(label, cv::CC_STAT_HEIGHT);
-        if (area < config.multispot_min_area_pixels || area > maximum_area) {
-            ++analysis.diagnostics.rejected_area_count;
-            ++analysis.diagnostics.rejected_absolute_area_count;
-            continue;
-        }
-        double integrated = 0.0;
-        double weighted_x = 0.0;
-        double weighted_y = 0.0;
-        double raw_sum = 0.0;
-        double peak = 0.0;
-        double residual_peak = 0.0;
-        double moment_xx = 0.0;
-        double moment_xy = 0.0;
-        double moment_yy = 0.0;
-        const double component_center_x = centers.at<double>(label, 0);
-        const double component_center_y = centers.at<double>(label, 1);
-        for (int y = top; y < top + height; ++y) {
-            const int* label_row = labels.ptr<int>(y);
-            const unsigned char* centroid_enhanced_row =
-                centroid_enhanced.ptr<unsigned char>(y);
-            const unsigned char* intensity_row = centroid_intensity.ptr<unsigned char>(y);
-            for (int x = left; x < left + width; ++x) {
-                if (label_row[x] != label) {
+    analysis.diagnostics.raw_candidate_count = 0;
+    const auto extract_candidates =
+        [&](const cv::Mat& binary,
+            const cv::Mat& weight_image,
+            const int label_offset,
+            const bool suppress_cross_scale_duplicates) {
+            cv::Mat labels;
+            cv::Mat stats;
+            cv::Mat centers;
+            const int label_count = cv::connectedComponentsWithStats(
+                binary, labels, stats, centers, 8, CV_32S);
+            const double weight_background = borderMean(weight_image);
+            for (int label = 1; label < label_count; ++label) {
+                const int area = stats.at<int>(label, cv::CC_STAT_AREA);
+                const int left = stats.at<int>(label, cv::CC_STAT_LEFT);
+                const int top = stats.at<int>(label, cv::CC_STAT_TOP);
+                const int width = stats.at<int>(label, cv::CC_STAT_WIDTH);
+                const int height = stats.at<int>(label, cv::CC_STAT_HEIGHT);
+                const cv::Point2d geometric_center(
+                    centers.at<double>(label, 0) + analysis.roi_rect.x,
+                    centers.at<double>(label, 1) + analysis.roi_rect.y);
+                if (suppress_cross_scale_duplicates) {
+                    const double candidate_radius =
+                        std::sqrt(std::max(1.0, static_cast<double>(area)) / 3.14159265358979323846);
+                    const bool duplicate = std::any_of(
+                        analysis.observations.begin(),
+                        analysis.observations.end(),
+                        [&](const SpotObservation& existing) {
+                            const double existing_radius =
+                                std::sqrt(std::max(1.0, existing.area) / 3.14159265358979323846);
+                            const double area_ratio =
+                                std::min(existing.area, static_cast<double>(area)) /
+                                std::max(existing.area, static_cast<double>(area));
+                            return area_ratio >= 0.50 &&
+                                cv::norm(existing.center - geometric_center) <=
+                                    0.50 * std::max(existing_radius, candidate_radius);
+                        });
+                    if (duplicate) {
+                        continue;
+                    }
+                }
+
+                ++analysis.diagnostics.raw_candidate_count;
+                if (area < config.multispot_min_area_pixels || area > maximum_area) {
+                    ++analysis.diagnostics.rejected_area_count;
+                    ++analysis.diagnostics.rejected_absolute_area_count;
                     continue;
                 }
-                const double residual = std::max(
-                    0.0,
-                    static_cast<double>(centroid_enhanced_row[x]) - centroid_background);
-                integrated += residual;
-                residual_peak = std::max(residual_peak, residual);
-                weighted_x += residual * x;
-                weighted_y += residual * y;
-                raw_sum += intensity_row[x];
-                peak = std::max(peak, static_cast<double>(intensity_row[x]));
-                const double dx = static_cast<double>(x) - component_center_x;
-                const double dy = static_cast<double>(y) - component_center_y;
-                moment_xx += dx * dx;
-                moment_xy += dx * dy;
-                moment_yy += dy * dy;
-            }
-        }
-        if (integrated <= 1e-9) {
-            ++analysis.diagnostics.rejected_area_count;
-            ++analysis.diagnostics.rejected_zero_signal_count;
-            continue;
-        }
-        const double edge_signal_threshold = centroid_raw_background +
-            std::max(8.0, 0.10 * std::max(0.0, peak - centroid_raw_background));
-        const int edge_probe_margin = std::max(width, height);
-        const bool segmented_support_touches_guard = touchesMargin(
-            left,
-            top,
-            width,
-            height,
-            analysis.gray.cols,
-            analysis.gray.rows,
-            config.multispot_border_margin_pixels);
-        if (segmented_support_touches_guard ||
-            hasBrightEdgeContact(
-                centroid_intensity,
-                labels,
-                label,
-                left,
-                top,
-                width,
-                height,
-                edge_probe_margin,
-                edge_signal_threshold)) {
-            ++analysis.diagnostics.rejected_border_count;
-            addWarning(analysis.diagnostics, "EDGE_CLIPPED_CANDIDATE_REJECTED");
-            continue;
-        }
+                double integrated = 0.0;
+                double weighted_x = 0.0;
+                double weighted_y = 0.0;
+                double raw_sum = 0.0;
+                double peak = 0.0;
+                double residual_peak = 0.0;
+                double moment_xx = 0.0;
+                double moment_xy = 0.0;
+                double moment_yy = 0.0;
+                const double component_center_x = centers.at<double>(label, 0);
+                const double component_center_y = centers.at<double>(label, 1);
+                for (int y = top; y < top + height; ++y) {
+                    const int* label_row = labels.ptr<int>(y);
+                    const unsigned char* weight_row = weight_image.ptr<unsigned char>(y);
+                    const unsigned char* intensity_row =
+                        centroid_intensity.ptr<unsigned char>(y);
+                    for (int x = left; x < left + width; ++x) {
+                        if (label_row[x] != label) {
+                            continue;
+                        }
+                        const double residual = std::max(
+                            0.0,
+                            static_cast<double>(weight_row[x]) - weight_background);
+                        integrated += residual;
+                        residual_peak = std::max(residual_peak, residual);
+                        weighted_x += residual * x;
+                        weighted_y += residual * y;
+                        raw_sum += intensity_row[x];
+                        peak = std::max(peak, static_cast<double>(intensity_row[x]));
+                        const double dx = static_cast<double>(x) - component_center_x;
+                        const double dy = static_cast<double>(y) - component_center_y;
+                        moment_xx += dx * dx;
+                        moment_xy += dx * dy;
+                        moment_yy += dy * dy;
+                    }
+                }
+                if (integrated <= 1e-9) {
+                    ++analysis.diagnostics.rejected_area_count;
+                    ++analysis.diagnostics.rejected_zero_signal_count;
+                    continue;
+                }
+                const double edge_signal_threshold = centroid_raw_background +
+                    std::max(8.0, 0.10 * std::max(0.0, peak - centroid_raw_background));
+                const int edge_probe_margin = std::max(width, height);
+                const bool segmented_support_touches_guard = touchesMargin(
+                    left,
+                    top,
+                    width,
+                    height,
+                    analysis.gray.cols,
+                    analysis.gray.rows,
+                    config.multispot_border_margin_pixels);
+                if (segmented_support_touches_guard ||
+                    hasBrightEdgeContact(
+                        centroid_intensity,
+                        labels,
+                        label,
+                        left,
+                        top,
+                        width,
+                        height,
+                        edge_probe_margin,
+                        edge_signal_threshold)) {
+                    ++analysis.diagnostics.rejected_border_count;
+                    addWarning(analysis.diagnostics, "EDGE_CLIPPED_CANDIDATE_REJECTED");
+                    continue;
+                }
 
-        SpotObservation observation;
-        observation.center = {
-            weighted_x / integrated + analysis.roi_rect.x,
-            weighted_y / integrated + analysis.roi_rect.y};
-        observation.area = area;
-        observation.circularity = static_cast<double>(area) / static_cast<double>(width * height);
-        observation.bounding_box_elongation = std::max(
-            static_cast<double>(width) / static_cast<double>(height),
-            static_cast<double>(height) / static_cast<double>(width));
-        const double covariance_xx = moment_xx / static_cast<double>(area);
-        const double covariance_xy = moment_xy / static_cast<double>(area);
-        const double covariance_yy = moment_yy / static_cast<double>(area);
-        const double trace = covariance_xx + covariance_yy;
-        const double discriminant = std::sqrt(
-            std::max(0.0,
-                (covariance_xx - covariance_yy) * (covariance_xx - covariance_yy) +
-                    4.0 * covariance_xy * covariance_xy));
-        const double largest_eigenvalue = std::max(0.0, 0.5 * (trace + discriminant));
-        const double smallest_eigenvalue = std::max(1e-9, 0.5 * (trace - discriminant));
-        observation.principal_axis_elongation =
-            std::sqrt(largest_eigenvalue / smallest_eigenvalue);
-        observation.mean_intensity = raw_sum / static_cast<double>(area);
-        observation.peak_intensity = peak;
-        observation.peak_residual_intensity = residual_peak;
-        observation.integrated_intensity = integrated;
-        observation.source_component_label = label;
-        analysis.observations.push_back(std::move(observation));
-    }
+                SpotObservation observation;
+                observation.center = {
+                    weighted_x / integrated + analysis.roi_rect.x,
+                    weighted_y / integrated + analysis.roi_rect.y};
+                observation.area = area;
+                observation.circularity =
+                    static_cast<double>(area) / static_cast<double>(width * height);
+                observation.bounding_box_elongation = std::max(
+                    static_cast<double>(width) / static_cast<double>(height),
+                    static_cast<double>(height) / static_cast<double>(width));
+                const double covariance_xx = moment_xx / static_cast<double>(area);
+                const double covariance_xy = moment_xy / static_cast<double>(area);
+                const double covariance_yy = moment_yy / static_cast<double>(area);
+                const double trace = covariance_xx + covariance_yy;
+                const double discriminant = std::sqrt(
+                    std::max(0.0,
+                        (covariance_xx - covariance_yy) * (covariance_xx - covariance_yy) +
+                            4.0 * covariance_xy * covariance_xy));
+                const double largest_eigenvalue =
+                    std::max(0.0, 0.5 * (trace + discriminant));
+                const double smallest_eigenvalue =
+                    std::max(1e-9, 0.5 * (trace - discriminant));
+                observation.principal_axis_elongation =
+                    std::sqrt(largest_eigenvalue / smallest_eigenvalue);
+                observation.mean_intensity = raw_sum / static_cast<double>(area);
+                observation.peak_intensity = peak;
+                observation.peak_residual_intensity = residual_peak;
+                observation.integrated_intensity = integrated;
+                observation.source_component_label = label_offset + label;
+                analysis.observations.push_back(std::move(observation));
+            }
+        };
+    extract_candidates(
+        small_scale_binary, centroid_small_scale_enhanced, 0, false);
+    extract_candidates(
+        large_scale_binary, centroid_large_scale_enhanced, 1000000, true);
 
     analysis.diagnostics.candidate_count = static_cast<int>(analysis.observations.size());
     if (analysis.diagnostics.candidate_count > config.multispot_max_count) {
