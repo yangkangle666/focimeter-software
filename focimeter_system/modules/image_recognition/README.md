@@ -23,6 +23,10 @@ M2 读取 M1 的 `input_package.json`，对标定图和测量图执行同一套�
 
 候选筛选现在分别记录原始连通域、触边、面积异常和形状异常数量。触边候选会被单独剔除并产生 `EDGE_CLIPPED_CANDIDATE_REJECTED` warning，只要剩余候选仍满足数量和质量要求，整张图不再因此失败。`detection_id` 仍按单图内 `(y, x, component_label)` 确定性排序，不具有跨图身份语义。
 
+对于暗心、宽光斑导致的小尺度顶帽漏检，实验路径会用独立的大尺度候选补充，并要求候选信号、重复晶格步长以及相反或正交方向证据同时成立。方格阵列同时支持主邻接步长和约 `sqrt(2)` 倍的对角邻接步长；半格碎片和孤立尘点仍须拒绝。补入点始终保留 `LATTICE_RECOVERED_UNVERIFIED`，不会因为软件恢复成功就被视为物理身份可靠。
+
+算法不包含当前三张 JPEG 的文件名分支、固定坐标或固定点数。现有一张无镜片参考图和两张镜片测量图属于开发样本；后续新增图片应先冻结代码和参数，再作为未参与调参的盲验证数据运行。
+
 真实 JPEG 的统计、重编码稳定性和未验证项见 [REAL_JPEG_SOFTWARE_VALIDATION.md](REAL_JPEG_SOFTWARE_VALIDATION.md)。提供给 M3 的脱敏实验 JSON 位于 `samples/real_jpeg_software_verified/`；其中不含原图，也没有正式 `spot_id`。
 
 两份新增设计文档：
@@ -221,7 +225,8 @@ python focimeter_system/validate_mock_data.py
 - 旧成功结果失效和双错误输出；
 - RGB 绿色 JPEG、JPEG 二次编码坐标偏差、过曝核心/暗心、尘点、小面积碎片和非致命触边剔除；
 - 仓库两组真实 JPEG 输入包的 CLI 软件回归，验证触边 warning 非致命、镜片一不因近圆大连通域误报粘连；
-- 同一 JPEG 连续三次的检测顺序、坐标、质量字段和序列化 JSON 确定性；
+- 方格阵列主邻接/对角邻接恢复、半格干扰和孤立尘点拒绝；
+- 三张真实 JPEG 各连续三次的检测顺序、坐标、置信度和质量标记确定性；
 - CLI 帮助和端到端输出。
 
 ## 错误处理
