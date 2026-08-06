@@ -244,9 +244,9 @@ bool matchesRepeatedLatticeStep(
         return false;
     }
 
-    constexpr double kMinimumLengthRatio = 0.85;
-    constexpr double kMaximumLengthRatio = 1.18;
-    constexpr double kMinimumDirectionCosine = 0.97;
+    constexpr double kMinimumLengthRatio = 0.92;
+    constexpr double kMaximumLengthRatio = 1.08;
+    constexpr double kMinimumDirectionCosine = 0.985;
     constexpr int kMinimumRepeatedSteps = 2;
     int matching_steps = 0;
     for (const auto& step : lattice_steps) {
