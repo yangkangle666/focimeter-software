@@ -974,6 +974,12 @@ bool writeExperimentalMultispotSuccess(
         diagnostics.lattice_recovery_rejected_step_count < 0 ||
         diagnostics.lattice_recovery_rejected_geometry_count < 0 ||
         diagnostics.lattice_recovered_count < 0 ||
+        diagnostics.large_scale_raw_candidate_count < 0 ||
+        diagnostics.large_scale_rejected_duplicate_count < 0 ||
+        diagnostics.large_scale_rejected_area_count < 0 ||
+        diagnostics.large_scale_rejected_zero_signal_count < 0 ||
+        diagnostics.large_scale_rejected_border_count < 0 ||
+        diagnostics.large_scale_rejected_shape_count < 0 ||
         diagnostics.lattice_recovered_count > diagnostics.candidate_count ||
         diagnostics.lattice_recovered_count !=
             static_cast<int>(diagnostics.lattice_recovered_centers.size()) ||
@@ -987,7 +993,15 @@ bool writeExperimentalMultispotSuccess(
         !std::isfinite(diagnostics.background_intensity) || diagnostics.background_intensity < 0.0 ||
         diagnostics.background_intensity > 255.0 ||
         !std::isfinite(diagnostics.detection_threshold) || diagnostics.detection_threshold < 0.0 ||
-        diagnostics.detection_threshold > 255.0) {
+        diagnostics.detection_threshold > 255.0 ||
+        !std::isfinite(diagnostics.small_scale_detection_threshold) ||
+        diagnostics.small_scale_detection_threshold < 0.0 ||
+        diagnostics.small_scale_detection_threshold > 255.0 ||
+        !std::isfinite(diagnostics.large_scale_detection_threshold) ||
+        diagnostics.large_scale_detection_threshold < 0.0 ||
+        diagnostics.large_scale_detection_threshold > 255.0 ||
+        diagnostics.small_scale_top_hat_kernel_pixels < 3 ||
+        diagnostics.large_scale_top_hat_kernel_pixels < 3) {
         write_error = makeError(
             "COORDINATE_SYSTEM_INVALID",
             "Experimental multispot diagnostics contain an invalid value.",
@@ -1032,9 +1046,19 @@ bool writeExperimentalMultispotSuccess(
             {"lattice_recovery_rejected_step_count", diagnostics.lattice_recovery_rejected_step_count},
             {"lattice_recovery_rejected_geometry_count", diagnostics.lattice_recovery_rejected_geometry_count},
             {"lattice_recovered_count", diagnostics.lattice_recovered_count},
+            {"large_scale_raw_candidate_count", diagnostics.large_scale_raw_candidate_count},
+            {"large_scale_rejected_duplicate_count", diagnostics.large_scale_rejected_duplicate_count},
+            {"large_scale_rejected_area_count", diagnostics.large_scale_rejected_area_count},
+            {"large_scale_rejected_zero_signal_count", diagnostics.large_scale_rejected_zero_signal_count},
+            {"large_scale_rejected_border_count", diagnostics.large_scale_rejected_border_count},
+            {"large_scale_rejected_shape_count", diagnostics.large_scale_rejected_shape_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"detection_threshold_8bit", diagnostics.detection_threshold},
+            {"small_scale_detection_threshold_8bit", diagnostics.small_scale_detection_threshold},
+            {"large_scale_detection_threshold_8bit", diagnostics.large_scale_detection_threshold},
             {"top_hat_kernel_pixels", diagnostics.top_hat_kernel_pixels},
+            {"small_scale_top_hat_kernel_pixels", diagnostics.small_scale_top_hat_kernel_pixels},
+            {"large_scale_top_hat_kernel_pixels", diagnostics.large_scale_top_hat_kernel_pixels},
             {"segmentation_source", diagnostics.segmentation_source},
             {"centroid_intensity_source", diagnostics.centroid_intensity_source},
             {"minimum_usable_confidence", config.multispot_min_confidence},
@@ -1147,9 +1171,19 @@ bool writeImageDiagnostics(
             {"lattice_recovery_rejected_step_count", diagnostics.lattice_recovery_rejected_step_count},
             {"lattice_recovery_rejected_geometry_count", diagnostics.lattice_recovery_rejected_geometry_count},
             {"lattice_recovered_count", diagnostics.lattice_recovered_count},
+            {"large_scale_raw_candidate_count", diagnostics.large_scale_raw_candidate_count},
+            {"large_scale_rejected_duplicate_count", diagnostics.large_scale_rejected_duplicate_count},
+            {"large_scale_rejected_area_count", diagnostics.large_scale_rejected_area_count},
+            {"large_scale_rejected_zero_signal_count", diagnostics.large_scale_rejected_zero_signal_count},
+            {"large_scale_rejected_border_count", diagnostics.large_scale_rejected_border_count},
+            {"large_scale_rejected_shape_count", diagnostics.large_scale_rejected_shape_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"threshold_8bit", diagnostics.detection_threshold},
+            {"small_scale_detection_threshold_8bit", diagnostics.small_scale_detection_threshold},
+            {"large_scale_detection_threshold_8bit", diagnostics.large_scale_detection_threshold},
             {"top_hat_kernel_pixels", diagnostics.top_hat_kernel_pixels},
+            {"small_scale_top_hat_kernel_pixels", diagnostics.small_scale_top_hat_kernel_pixels},
+            {"large_scale_top_hat_kernel_pixels", diagnostics.large_scale_top_hat_kernel_pixels},
             {"segmentation_source", diagnostics.segmentation_source},
             {"centroid_intensity_source", diagnostics.centroid_intensity_source},
             {"candidate_limit_exceeded", diagnostics.candidate_limit_exceeded},

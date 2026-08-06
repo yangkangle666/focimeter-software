@@ -194,6 +194,51 @@ double medianNearestNeighborDistance(const std::vector<SpotObservation>& observa
     return nearest_distances[nearest_distances.size() / 2U];
 }
 
+std::vector<SpotObservation> selectStableLatticeAnchors(
+    const std::vector<SpotObservation>& candidates) {
+    const double typical_spacing = medianNearestNeighborDistance(candidates);
+    if (!std::isfinite(typical_spacing) || typical_spacing <= 0.0) {
+        return {};
+    }
+
+    constexpr double kMinimumStepRatio = 0.75;
+    constexpr double kMaximumStepRatio = 1.30;
+    constexpr double kMaximumOpposingDot = -0.70;
+    constexpr double kMaximumOrthogonalAbsoluteDot = 0.35;
+    std::vector<SpotObservation> stable;
+    stable.reserve(candidates.size());
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        std::vector<cv::Point2d> directions;
+        for (std::size_t neighbor = 0; neighbor < candidates.size(); ++neighbor) {
+            if (neighbor == index) {
+                continue;
+            }
+            const cv::Point2d delta =
+                candidates[neighbor].center - candidates[index].center;
+            const double distance = cv::norm(delta);
+            if (distance >= kMinimumStepRatio * typical_spacing &&
+                distance <= kMaximumStepRatio * typical_spacing) {
+                directions.push_back(delta * (1.0 / distance));
+            }
+        }
+        bool supported = false;
+        for (std::size_t left = 0; left < directions.size() && !supported; ++left) {
+            for (std::size_t right = left + 1U; right < directions.size(); ++right) {
+                const double dot = directions[left].dot(directions[right]);
+                if (dot <= kMaximumOpposingDot ||
+                    std::abs(dot) <= kMaximumOrthogonalAbsoluteDot) {
+                    supported = true;
+                    break;
+                }
+            }
+        }
+        if (supported) {
+            stable.push_back(candidates[index]);
+        }
+    }
+    return stable;
+}
+
 std::vector<cv::Point2d> collectLatticeStepVectors(
     const std::vector<SpotObservation>& anchors,
     const double typical_spacing) {
@@ -425,9 +470,29 @@ void appendCountDetails(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["lattice_recovery_rejected_geometry_count"] =
         diagnostics.lattice_recovery_rejected_geometry_count;
     error.number_details["lattice_recovered_count"] = diagnostics.lattice_recovered_count;
+    error.number_details["large_scale_raw_candidate_count"] =
+        diagnostics.large_scale_raw_candidate_count;
+    error.number_details["large_scale_rejected_duplicate_count"] =
+        diagnostics.large_scale_rejected_duplicate_count;
+    error.number_details["large_scale_rejected_area_count"] =
+        diagnostics.large_scale_rejected_area_count;
+    error.number_details["large_scale_rejected_zero_signal_count"] =
+        diagnostics.large_scale_rejected_zero_signal_count;
+    error.number_details["large_scale_rejected_border_count"] =
+        diagnostics.large_scale_rejected_border_count;
+    error.number_details["large_scale_rejected_shape_count"] =
+        diagnostics.large_scale_rejected_shape_count;
     error.number_details["background_intensity"] = diagnostics.background_intensity;
     error.number_details["detection_threshold"] = diagnostics.detection_threshold;
+    error.number_details["small_scale_detection_threshold"] =
+        diagnostics.small_scale_detection_threshold;
+    error.number_details["large_scale_detection_threshold"] =
+        diagnostics.large_scale_detection_threshold;
     error.number_details["top_hat_kernel_pixels"] = diagnostics.top_hat_kernel_pixels;
+    error.number_details["small_scale_top_hat_kernel_pixels"] =
+        diagnostics.small_scale_top_hat_kernel_pixels;
+    error.number_details["large_scale_top_hat_kernel_pixels"] =
+        diagnostics.large_scale_top_hat_kernel_pixels;
     error.string_details["segmentation_source"] = diagnostics.segmentation_source;
     error.string_details["centroid_intensity_source"] = diagnostics.centroid_intensity_source;
 }
@@ -549,6 +614,8 @@ ImageAnalysis MultispotDetector::detect(
     const int configured_top_hat_size = makeOddKernel(config.tophat_kernel);
     const int large_top_hat_size = std::max(configured_top_hat_size, scaled_top_hat_size);
     analysis.diagnostics.top_hat_kernel_pixels = large_top_hat_size;
+    analysis.diagnostics.small_scale_top_hat_kernel_pixels = configured_top_hat_size;
+    analysis.diagnostics.large_scale_top_hat_kernel_pixels = large_top_hat_size;
     const cv::Mat configured_top_hat_kernel = cv::getStructuringElement(
         cv::MORPH_ELLIPSE, cv::Size(configured_top_hat_size, configured_top_hat_size));
     const cv::Mat large_top_hat_kernel = cv::getStructuringElement(
@@ -607,6 +674,8 @@ ImageAnalysis MultispotDetector::detect(
     analysis.diagnostics.background_intensity = borderMean(analysis.enhanced);
     analysis.diagnostics.detection_threshold =
         std::min(small_scale_threshold, large_scale_threshold);
+    analysis.diagnostics.small_scale_detection_threshold = small_scale_threshold;
+    analysis.diagnostics.large_scale_detection_threshold = large_scale_threshold;
 
     const double maximum_area = std::max(
         static_cast<double>(config.multispot_min_area_pixels + 1),
@@ -625,6 +694,10 @@ ImageAnalysis MultispotDetector::detect(
             cv::Mat centers;
             const int label_count = cv::connectedComponentsWithStats(
                 binary, labels, stats, centers, 8, CV_32S);
+            if (supplemental) {
+                analysis.diagnostics.large_scale_raw_candidate_count +=
+                    std::max(0, label_count - 1);
+            }
             const double weight_background = borderMean(weight_image);
             for (int label = 1; label < label_count; ++label) {
                 const int area = stats.at<int>(label, cv::CC_STAT_AREA);
@@ -644,10 +717,15 @@ ImageAnalysis MultispotDetector::detect(
                         [&](const SpotObservation& existing) {
                             const double existing_radius =
                                 std::sqrt(std::max(1.0, existing.area) / 3.14159265358979323846);
-                            return cv::norm(existing.center - geometric_center) <=
+                            const double area_ratio =
+                                std::min(existing.area, static_cast<double>(area)) /
+                                std::max(existing.area, static_cast<double>(area));
+                            return area_ratio >= 0.50 &&
+                                cv::norm(existing.center - geometric_center) <=
                                 0.50 * std::max(existing_radius, candidate_radius);
                         });
                     if (duplicate) {
+                        ++analysis.diagnostics.large_scale_rejected_duplicate_count;
                         continue;
                     }
                 }
@@ -656,7 +734,9 @@ ImageAnalysis MultispotDetector::detect(
                     ++analysis.diagnostics.raw_candidate_count;
                 }
                 if (area < config.multispot_min_area_pixels || area > maximum_area) {
-                    if (!supplemental) {
+                    if (supplemental) {
+                        ++analysis.diagnostics.large_scale_rejected_area_count;
+                    } else {
                         ++analysis.diagnostics.rejected_area_count;
                         ++analysis.diagnostics.rejected_absolute_area_count;
                     }
@@ -699,7 +779,9 @@ ImageAnalysis MultispotDetector::detect(
                     }
                 }
                 if (integrated <= 1e-9) {
-                    if (!supplemental) {
+                    if (supplemental) {
+                        ++analysis.diagnostics.large_scale_rejected_zero_signal_count;
+                    } else {
                         ++analysis.diagnostics.rejected_area_count;
                         ++analysis.diagnostics.rejected_zero_signal_count;
                     }
@@ -727,7 +809,9 @@ ImageAnalysis MultispotDetector::detect(
                         height,
                         edge_probe_margin,
                         edge_signal_threshold)) {
-                    if (!supplemental) {
+                    if (supplemental) {
+                        ++analysis.diagnostics.large_scale_rejected_border_count;
+                    } else {
                         ++analysis.diagnostics.rejected_border_count;
                         addWarning(analysis.diagnostics, "EDGE_CLIPPED_CANDIDATE_REJECTED");
                     }
@@ -763,8 +847,9 @@ ImageAnalysis MultispotDetector::detect(
                 observation.peak_residual_intensity = residual_peak;
                 observation.integrated_intensity = integrated;
                 observation.source_component_label = label_offset + label;
-                if (supplemental) {
-                    ++analysis.diagnostics.raw_candidate_count;
+                if (supplemental && observation.circularity < 0.35) {
+                    ++analysis.diagnostics.large_scale_rejected_shape_count;
+                    continue;
                 }
                 output.push_back(std::move(observation));
             }
@@ -793,13 +878,15 @@ ImageAnalysis MultispotDetector::detect(
         const double preliminary_median_area = medianArea(analysis.observations);
         const double relative_minimum_area =
             preliminary_median_area * config.multispot_relative_min_area_ratio;
-        std::vector<SpotObservation> anchors;
-        anchors.reserve(analysis.observations.size());
+        std::vector<SpotObservation> anchor_candidates;
+        anchor_candidates.reserve(analysis.observations.size());
         for (const auto& observation : analysis.observations) {
             if (observation.area >= relative_minimum_area && observation.circularity >= 0.35) {
-                anchors.push_back(observation);
+                anchor_candidates.push_back(observation);
             }
         }
+        std::vector<SpotObservation> anchors =
+            selectStableLatticeAnchors(anchor_candidates);
         const double typical_spacing = medianNearestNeighborDistance(anchors);
         const std::vector<cv::Point2d> lattice_steps =
             collectLatticeStepVectors(anchors, typical_spacing);
@@ -894,19 +981,40 @@ ImageAnalysis MultispotDetector::detect(
         1000000,
         true,
         supplemental_candidates);
-    if (!supplemental_candidates.empty() && !analysis.observations.empty()) {
+    if (!supplemental_candidates.empty()) {
+        std::sort(
+            supplemental_candidates.begin(),
+            supplemental_candidates.end(),
+            [](const SpotObservation& left, const SpotObservation& right) {
+                if (left.center.y != right.center.y) {
+                    return left.center.y < right.center.y;
+                }
+                if (left.center.x != right.center.x) {
+                    return left.center.x < right.center.x;
+                }
+                return left.source_component_label < right.source_component_label;
+            });
+        const std::vector<SpotObservation> recovery_anchors =
+            selectStableLatticeAnchors(analysis.observations);
         const double typical_spacing =
-            medianNearestNeighborDistance(analysis.observations);
+            medianNearestNeighborDistance(recovery_anchors);
         const std::vector<cv::Point2d> lattice_steps =
-            collectLatticeStepVectors(analysis.observations, typical_spacing);
+            collectLatticeStepVectors(recovery_anchors, typical_spacing);
         const double median_integrated_intensity =
-            medianIntegratedIntensity(analysis.observations);
+            recovery_anchors.empty() ? 0.0 : medianIntegratedIntensity(recovery_anchors);
         const double median_residual_peak =
-            medianResidualPeak(analysis.observations);
+            recovery_anchors.empty() ? 0.0 : medianResidualPeak(recovery_anchors);
+        const double relative_minimum_area = analysis.observations.empty()
+            ? std::numeric_limits<double>::infinity()
+            : medianArea(analysis.observations) * config.multispot_relative_min_area_ratio;
         for (auto& candidate : supplemental_candidates) {
+            if (candidate.area < relative_minimum_area) {
+                ++analysis.diagnostics.large_scale_rejected_area_count;
+                continue;
+            }
             const LatticeRecoveryDecision decision = evaluateLatticeSupport(
                 candidate,
-                analysis.observations,
+                recovery_anchors,
                 lattice_steps,
                 typical_spacing,
                 median_integrated_intensity,
