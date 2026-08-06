@@ -912,6 +912,35 @@ void verifyRealJpegComponentDistribution(
         std::cout << "Reference geometry-rejected candidate: x=" << center.x
                   << ", y=" << center.y << "\n";
     }
+
+    InputPackage real_input;
+    real_input.data_source = "real";
+    const auto emit_debug_json = [&](
+        const std::string& name,
+        const ImageAnalysis& analysis) {
+        real_input.task_id = "m2_debug_" + name;
+        const std::filesystem::path output =
+            std::filesystem::temp_directory_path() / ("m2_debug_" + name + ".json");
+        focimeter::m2::ErrorInfo write_error;
+        if (!focimeter::m2::writeExperimentalMultispotSuccess(
+                output, real_input, "calibration", analysis, config, write_error)) {
+            std::cerr << "M2_DEBUG_JSON_ERROR " << name << ": "
+                      << write_error.code << " " << write_error.message << "\n";
+            return;
+        }
+        const auto text = readText(output);
+        if (text.has_value()) {
+            std::cerr << "M2_DEBUG_JSON_BEGIN " << name << "\n"
+                      << *text
+                      << "\nM2_DEBUG_JSON_END " << name << "\n";
+        }
+        std::error_code remove_error;
+        std::filesystem::remove(output, remove_error);
+    };
+    emit_debug_json("reference", reference);
+    emit_debug_json("lens_001", lens_001);
+    emit_debug_json("lens_002", lens_002);
+    test.expect(false, "temporary real JPEG JSON capture");
 }
 
 }  // namespace
