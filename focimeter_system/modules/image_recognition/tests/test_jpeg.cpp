@@ -264,7 +264,7 @@ GridFixture makeSizeAndBrightnessVariationFixture() {
         for (int column = 0; column < kColumns; ++column) {
             const cv::Point center(origin.x + column * kPitchX, origin.y + row * kPitchY);
             const int variant = (row * kColumns + column) % 4;
-            const int radius = 16 + variant * 9;
+            const int radius = variant == 0 ? 5 : 7 + variant * 2;
             const int green = 150 + variant * 30;
             cv::circle(
                 fixture.image, center, radius, cv::Scalar(5, green, 4), cv::FILLED, cv::LINE_AA);
@@ -901,6 +901,14 @@ void verifyRealJpegComponentDistribution(
               << reference.diagnostics.lattice_recovery_rejected_step_count
               << ", geometry_rejected="
               << reference.diagnostics.lattice_recovery_rejected_geometry_count << "\n";
+    for (const auto& center : reference.diagnostics.lattice_rejected_step_centers) {
+        std::cout << "Reference step-rejected candidate: x=" << center.x
+                  << ", y=" << center.y << "\n";
+    }
+    for (const auto& center : reference.diagnostics.lattice_rejected_geometry_centers) {
+        std::cout << "Reference geometry-rejected candidate: x=" << center.x
+                  << ", y=" << center.y << "\n";
+    }
 }
 
 }  // namespace

@@ -118,6 +118,9 @@ struct ImageDiagnostics {
     std::string segmentation_source{"native_grayscale"};
     std::string centroid_intensity_source{"native_grayscale"};
     std::vector<cv::Point2d> lattice_recovered_centers;
+    std::vector<cv::Point2d> lattice_rejected_signal_centers;
+    std::vector<cv::Point2d> lattice_rejected_step_centers;
+    std::vector<cv::Point2d> lattice_rejected_geometry_centers;
     std::vector<std::string> warnings;
 };
 

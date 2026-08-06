@@ -288,17 +288,21 @@ LatticeRecoveryDecision evaluateLatticeSupport(
 
 void recordRejectedRecoveryDecision(
     const LatticeRecoveryDecision decision,
+    const cv::Point2d& center,
     ImageDiagnostics& diagnostics) {
     ++diagnostics.lattice_recovery_considered_count;
     switch (decision) {
         case LatticeRecoveryDecision::SignalInsufficient:
             ++diagnostics.lattice_recovery_rejected_signal_count;
+            diagnostics.lattice_rejected_signal_centers.push_back(center);
             break;
         case LatticeRecoveryDecision::StepUnsupported:
             ++diagnostics.lattice_recovery_rejected_step_count;
+            diagnostics.lattice_rejected_step_centers.push_back(center);
             break;
         case LatticeRecoveryDecision::GeometryUnsupported:
             ++diagnostics.lattice_recovery_rejected_geometry_count;
+            diagnostics.lattice_rejected_geometry_centers.push_back(center);
             break;
         case LatticeRecoveryDecision::Supported:
             break;
@@ -771,6 +775,7 @@ ImageAnalysis MultispotDetector::detect(
                         typical_spacing,
                         median_integrated_intensity,
                         median_residual_peak),
+                    observation.center,
                     analysis.diagnostics);
             }
             analysis.diagnostics.rejected_area_count +=
