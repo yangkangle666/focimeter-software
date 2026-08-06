@@ -495,6 +495,98 @@ void verifyLatticePhaseRecovery(
     }
 }
 
+struct DiagonalRecoveryFixture {
+    cv::Mat image;
+    std::vector<cv::Point2d> expected_centers;
+    cv::Point2d recovered_center;
+    cv::Point2d half_cell_distractor;
+};
+
+DiagonalRecoveryFixture makeDiagonalRecoveryFixture() {
+    DiagonalRecoveryFixture fixture;
+    fixture.image = cv::Mat(900, 900, CV_8UC3, cv::Scalar(1, 2, 1));
+    const cv::Point2d image_center(450.0, 450.0);
+    constexpr double kPitch = 110.0;
+    constexpr double kRotationDegrees = 19.0;
+    const double radians = kRotationDegrees * CV_PI / 180.0;
+    const double cosine = std::cos(radians);
+    const double sine = std::sin(radians);
+    const auto rotate = [&](const cv::Point2d& point) {
+        const cv::Point2d offset = point - image_center;
+        return cv::Point2d(
+            image_center.x + cosine * offset.x - sine * offset.y,
+            image_center.y + sine * offset.x + cosine * offset.y);
+    };
+
+    constexpr int kGridSide = 5;
+    const cv::Point2d origin(
+        image_center.x - 2.0 * kPitch,
+        image_center.y - 2.0 * kPitch);
+    for (int row = 0; row < kGridSide; ++row) {
+        for (int column = 0; column < kGridSide; ++column) {
+            const bool axial_neighbor_of_center =
+                std::abs(row - 2) + std::abs(column - 2) == 1;
+            if (axial_neighbor_of_center) {
+                continue;
+            }
+            const bool recovered_center = row == 2 && column == 2;
+            const cv::Point2d center = rotate(cv::Point2d(
+                origin.x + column * kPitch,
+                origin.y + row * kPitch));
+            const cv::Point draw_center(cvRound(center.x), cvRound(center.y));
+            cv::circle(
+                fixture.image,
+                draw_center,
+                recovered_center ? 4 : 9,
+                cv::Scalar(5, 225, 4),
+                cv::FILLED,
+                cv::LINE_AA);
+            fixture.expected_centers.emplace_back(draw_center);
+            if (recovered_center) {
+                fixture.recovered_center = draw_center;
+            }
+        }
+    }
+
+    const cv::Point2d half_cell =
+        rotate(origin + cv::Point2d(0.5 * kPitch, 0.5 * kPitch));
+    const cv::Point half_cell_draw_center(cvRound(half_cell.x), cvRound(half_cell.y));
+    fixture.half_cell_distractor = half_cell_draw_center;
+    cv::circle(
+        fixture.image,
+        half_cell_draw_center,
+        4,
+        cv::Scalar(5, 225, 4),
+        cv::FILLED,
+        cv::LINE_AA);
+    return fixture;
+}
+
+void verifyDiagonalOnlyLatticeRecovery(
+    TestContext& test,
+    const std::filesystem::path& temp_root,
+    const ProcessingConfig& config) {
+    const DiagonalRecoveryFixture fixture = makeDiagonalRecoveryFixture();
+    const std::filesystem::path jpeg_path = temp_root / "diagonal_only_recovery_q88.jpg";
+    test.expect(
+        writeJpeg(jpeg_path, fixture.image, 88),
+        "diagonal-only lattice recovery JPEG fixture must be writable");
+
+    const ImageProcessor processor;
+    const ImageAnalysis analysis = processor.processFile(jpeg_path, config);
+    test.expect(analysis.ok(), "diagonal-only lattice recovery fixture must remain usable");
+    test.expect(
+        analysis.ok() &&
+            matchesExpectedCenters(analysis.observations, fixture.expected_centers, 3.0),
+        "a real lattice point with only square-diagonal neighbors must be recovered without accepting the half-cell distractor");
+    test.expect(
+        matchesCenters(
+            analysis.diagnostics.lattice_recovered_centers,
+            std::vector<cv::Point2d>{fixture.recovered_center},
+            3.0),
+        "only the center supported by repeated square-diagonal steps may be recovered");
+}
+
 cv::Mat makeSubpitchDeepValleyFixture() {
     cv::Mat image = makeCandidateFilterFixture(false, false, false, false);
     cv::circle(image, cv::Point(270, 365), 7, cv::Scalar(8, 230, 7), cv::FILLED, cv::LINE_AA);
@@ -980,6 +1072,7 @@ int runJpegTests(const std::vector<std::filesystem::path>& arguments) {
     verifyGreenJpegAndReencoding(test, temp_root, synthetic_root, config);
     verifySizeAndBrightnessVariation(test, temp_root, config);
     verifyLatticePhaseRecovery(test, temp_root, config);
+    verifyDiagonalOnlyLatticeRecovery(test, temp_root, config);
     verifyDeterminismAndSerializer(test, temp_root, config);
     verifyConservativeCandidateFiltering(test);
     verifyRealJpegComponentDistribution(test, real_root, config);

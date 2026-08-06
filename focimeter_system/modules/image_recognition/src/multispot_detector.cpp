@@ -194,49 +194,26 @@ double medianNearestNeighborDistance(const std::vector<SpotObservation>& observa
     return nearest_distances[nearest_distances.size() / 2U];
 }
 
-std::vector<SpotObservation> selectStableLatticeAnchors(
-    const std::vector<SpotObservation>& candidates) {
-    const double typical_spacing = medianNearestNeighborDistance(candidates);
-    if (!std::isfinite(typical_spacing) || typical_spacing <= 0.0) {
-        return {};
+bool isSupportedSquareLatticeStepLength(
+    const double distance,
+    const double typical_spacing) {
+    if (!std::isfinite(distance) || !std::isfinite(typical_spacing) ||
+        distance <= 0.0 || typical_spacing <= 0.0) {
+        return false;
     }
 
-    constexpr double kMinimumStepRatio = 0.75;
-    constexpr double kMaximumStepRatio = 1.30;
-    constexpr double kMaximumOpposingDot = -0.70;
-    constexpr double kMaximumOrthogonalAbsoluteDot = 0.35;
-    std::vector<SpotObservation> stable;
-    stable.reserve(candidates.size());
-    for (std::size_t index = 0; index < candidates.size(); ++index) {
-        std::vector<cv::Point2d> directions;
-        for (std::size_t neighbor = 0; neighbor < candidates.size(); ++neighbor) {
-            if (neighbor == index) {
-                continue;
-            }
-            const cv::Point2d delta =
-                candidates[neighbor].center - candidates[index].center;
-            const double distance = cv::norm(delta);
-            if (distance >= kMinimumStepRatio * typical_spacing &&
-                distance <= kMaximumStepRatio * typical_spacing) {
-                directions.push_back(delta * (1.0 / distance));
-            }
-        }
-        bool supported = false;
-        for (std::size_t left = 0; left < directions.size() && !supported; ++left) {
-            for (std::size_t right = left + 1U; right < directions.size(); ++right) {
-                const double dot = directions[left].dot(directions[right]);
-                if (dot <= kMaximumOpposingDot ||
-                    std::abs(dot) <= kMaximumOrthogonalAbsoluteDot) {
-                    supported = true;
-                    break;
-                }
-            }
-        }
-        if (supported) {
-            stable.push_back(candidates[index]);
-        }
-    }
-    return stable;
+    constexpr double kMinimumPrimaryStepRatio = 0.80;
+    constexpr double kMaximumPrimaryStepRatio = 1.25;
+    constexpr double kSquareDiagonalRatio = 1.4142135623730951;
+    constexpr double kMinimumDiagonalRelativeRatio = 0.85;
+    constexpr double kMaximumDiagonalRelativeRatio = 1.18;
+    const double ratio = distance / typical_spacing;
+    const bool primary_step =
+        ratio >= kMinimumPrimaryStepRatio && ratio <= kMaximumPrimaryStepRatio;
+    const bool diagonal_step =
+        ratio >= kSquareDiagonalRatio * kMinimumDiagonalRelativeRatio &&
+        ratio <= kSquareDiagonalRatio * kMaximumDiagonalRelativeRatio;
+    return primary_step || diagonal_step;
 }
 
 std::vector<cv::Point2d> collectLatticeStepVectors(
@@ -246,14 +223,11 @@ std::vector<cv::Point2d> collectLatticeStepVectors(
     if (!std::isfinite(typical_spacing) || typical_spacing <= 0.0) {
         return steps;
     }
-    constexpr double kMinimumStepRatio = 0.80;
-    constexpr double kMaximumStepRatio = 1.25;
     for (std::size_t left = 0; left < anchors.size(); ++left) {
         for (std::size_t right = left + 1U; right < anchors.size(); ++right) {
             const cv::Point2d delta = anchors[right].center - anchors[left].center;
             const double distance = cv::norm(delta);
-            if (distance >= kMinimumStepRatio * typical_spacing &&
-                distance <= kMaximumStepRatio * typical_spacing) {
+            if (isSupportedSquareLatticeStepLength(distance, typical_spacing)) {
                 steps.push_back(delta);
             }
         }
@@ -266,17 +240,14 @@ bool matchesRepeatedLatticeStep(
     const std::vector<cv::Point2d>& lattice_steps,
     const double typical_spacing) {
     const double distance = cv::norm(delta);
-    constexpr double kMinimumStepRatio = 0.80;
-    constexpr double kMaximumStepRatio = 1.25;
-    if (distance < kMinimumStepRatio * typical_spacing ||
-        distance > kMaximumStepRatio * typical_spacing) {
+    if (!isSupportedSquareLatticeStepLength(distance, typical_spacing)) {
         return false;
     }
 
     constexpr double kMinimumLengthRatio = 0.85;
     constexpr double kMaximumLengthRatio = 1.18;
     constexpr double kMinimumDirectionCosine = 0.97;
-    constexpr int kMinimumRepeatedSteps = 1;
+    constexpr int kMinimumRepeatedSteps = 2;
     int matching_steps = 0;
     for (const auto& step : lattice_steps) {
         const double step_length = cv::norm(step);
