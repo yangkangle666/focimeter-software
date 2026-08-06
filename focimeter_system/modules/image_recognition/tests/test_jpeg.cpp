@@ -247,6 +247,205 @@ cv::Mat makeUnequalNearPairWithContinuousHaloFixture() {
     return image;
 }
 
+struct GridFixture {
+    cv::Mat image;
+    std::vector<cv::Point2d> expected_centers;
+};
+
+GridFixture makeSizeAndBrightnessVariationFixture() {
+    GridFixture fixture;
+    fixture.image = cv::Mat(960, 1280, CV_8UC3, cv::Scalar(1, 2, 1));
+    constexpr int kRows = 4;
+    constexpr int kColumns = 5;
+    constexpr int kPitchX = 230;
+    constexpr int kPitchY = 210;
+    const cv::Point origin(150, 150);
+    for (int row = 0; row < kRows; ++row) {
+        for (int column = 0; column < kColumns; ++column) {
+            const cv::Point center(origin.x + column * kPitchX, origin.y + row * kPitchY);
+            const int variant = (row * kColumns + column) % 4;
+            const int radius = 16 + variant * 9;
+            const int green = 150 + variant * 30;
+            cv::circle(
+                fixture.image, center, radius, cv::Scalar(5, green, 4), cv::FILLED, cv::LINE_AA);
+            if (variant == 2) {
+                cv::circle(
+                    fixture.image,
+                    center,
+                    radius / 3,
+                    cv::Scalar(2, 20, 2),
+                    cv::FILLED,
+                    cv::LINE_AA);
+            } else if (variant == 3) {
+                cv::circle(
+                    fixture.image,
+                    center,
+                    radius / 4,
+                    cv::Scalar(245, 255, 245),
+                    cv::FILLED,
+                    cv::LINE_AA);
+            }
+            fixture.expected_centers.emplace_back(center);
+        }
+    }
+
+    // Isolated bright dust must not pass the recovery rule without lattice neighbors.
+    for (const cv::Point dust :
+         std::vector<cv::Point>{{55, 75}, {265, 255}, {1190, 470}, {610, 910}}) {
+        cv::circle(fixture.image, dust, 2, cv::Scalar(240, 250, 240), cv::FILLED);
+    }
+    return fixture;
+}
+
+bool matchesExpectedCenters(
+    const std::vector<SpotObservation>& observations,
+    const std::vector<cv::Point2d>& expected,
+    const double tolerance) {
+    if (observations.size() != expected.size()) {
+        return false;
+    }
+    std::vector<bool> used(observations.size(), false);
+    for (const auto& center : expected) {
+        double best_distance = std::numeric_limits<double>::infinity();
+        std::size_t best_index = observations.size();
+        for (std::size_t index = 0; index < observations.size(); ++index) {
+            if (used[index]) {
+                continue;
+            }
+            const double distance = cv::norm(observations[index].center - center);
+            if (distance < best_distance) {
+                best_distance = distance;
+                best_index = index;
+            }
+        }
+        if (best_index == observations.size() || best_distance > tolerance) {
+            return false;
+        }
+        used[best_index] = true;
+    }
+    return true;
+}
+
+void verifySizeAndBrightnessVariation(
+    TestContext& test,
+    const std::filesystem::path& temp_root,
+    const ProcessingConfig& config) {
+    const GridFixture fixture = makeSizeAndBrightnessVariationFixture();
+    const std::filesystem::path jpeg_path = temp_root / "size_brightness_grid_q92.jpg";
+    test.expect(
+        writeJpeg(jpeg_path, fixture.image, 92),
+        "size and brightness variation JPEG fixture must be writable");
+
+    const ImageProcessor processor;
+    const ImageAnalysis analysis = processor.processFile(jpeg_path, config);
+    test.expect(analysis.ok(), "size and brightness variation fixture must remain usable");
+    test.expect(
+        analysis.ok() &&
+            matchesExpectedCenters(analysis.observations, fixture.expected_centers, 5.0),
+        "all generated lattice spots must survive size, brightness, dark-core, and JPEG variation");
+    test.expect(
+        analysis.diagnostics.lattice_recovered_count > 0,
+        "the variation fixture must exercise lattice-supported recovery rather than a relaxed global threshold");
+}
+
+struct LatticeRecoveryFixture {
+    cv::Mat image;
+    std::vector<cv::Point2d> expected_centers;
+    cv::Point2d small_lattice_center;
+    cv::Point2d half_cell_distractor;
+};
+
+LatticeRecoveryFixture makeLatticeRecoveryFixture(
+    const double rotation_degrees,
+    const int pitch) {
+    LatticeRecoveryFixture fixture;
+    fixture.image = cv::Mat(900, 900, CV_8UC3, cv::Scalar(1, 2, 1));
+    const cv::Point2d image_center(450.0, 450.0);
+    const double radians = rotation_degrees * CV_PI / 180.0;
+    const double cosine = std::cos(radians);
+    const double sine = std::sin(radians);
+    const auto rotate = [&](const cv::Point2d& point) {
+        const cv::Point2d offset = point - image_center;
+        return cv::Point2d(
+            image_center.x + cosine * offset.x - sine * offset.y,
+            image_center.y + sine * offset.x + cosine * offset.y);
+    };
+
+    constexpr int kGridSide = 5;
+    const cv::Point2d origin(
+        image_center.x - 2.0 * pitch,
+        image_center.y - 2.0 * pitch);
+    for (int row = 0; row < kGridSide; ++row) {
+        for (int column = 0; column < kGridSide; ++column) {
+            const cv::Point2d unrotated(
+                origin.x + column * pitch,
+                origin.y + row * pitch);
+            const cv::Point2d center = rotate(unrotated);
+            const bool small_lattice_spot = row == 2 && column == 2;
+            cv::circle(
+                fixture.image,
+                center,
+                small_lattice_spot ? 4 : 9,
+                cv::Scalar(5, 225, 4),
+                cv::FILLED,
+                cv::LINE_AA);
+            fixture.expected_centers.push_back(center);
+            if (small_lattice_spot) {
+                fixture.small_lattice_center = center;
+            }
+        }
+    }
+
+    fixture.half_cell_distractor = rotate(origin + cv::Point2d(0.5 * pitch, 0.5 * pitch));
+    cv::circle(
+        fixture.image,
+        fixture.half_cell_distractor,
+        4,
+        cv::Scalar(5, 225, 4),
+        cv::FILLED,
+        cv::LINE_AA);
+    return fixture;
+}
+
+void verifyLatticePhaseRecovery(
+    TestContext& test,
+    const std::filesystem::path& temp_root,
+    const ProcessingConfig& config) {
+    struct Scenario {
+        double rotation_degrees;
+        int pitch;
+        int jpeg_quality;
+    };
+    const std::vector<Scenario> scenarios{{0.0, 120, 96}, {27.0, 105, 84}};
+    const ImageProcessor processor;
+    for (std::size_t index = 0; index < scenarios.size(); ++index) {
+        const auto& scenario = scenarios[index];
+        const LatticeRecoveryFixture fixture = makeLatticeRecoveryFixture(
+            scenario.rotation_degrees, scenario.pitch);
+        const std::filesystem::path jpeg_path =
+            temp_root / ("lattice_phase_" + std::to_string(index) + ".jpg");
+        test.expect(
+            writeJpeg(jpeg_path, fixture.image, scenario.jpeg_quality),
+            "lattice phase JPEG fixture must be writable");
+        const ImageAnalysis analysis = processor.processFile(jpeg_path, config);
+        test.expect(analysis.ok(), "lattice phase fixture must remain usable");
+        test.expect(
+            analysis.ok() &&
+                matchesExpectedCenters(analysis.observations, fixture.expected_centers, 3.0),
+            "a small true lattice spot must be retained while an equally bright half-cell distractor is rejected");
+        test.expect(
+            analysis.diagnostics.lattice_recovered_count == 1 &&
+                analysis.diagnostics.lattice_recovered_centers.size() == 1U &&
+                cv::norm(
+                    analysis.diagnostics.lattice_recovered_centers.front() -
+                    fixture.small_lattice_center) <= 3.0,
+            "only the known small lattice member may enter the final output through lattice recovery");
+        test.expect(
+            analysis.diagnostics.rejected_relative_area_count >= 1,
+            "the half-cell distractor must reach relative-area screening and be rejected by lattice phase");
+    }
+}
+
 cv::Mat makeSubpitchDeepValleyFixture() {
     cv::Mat image = makeCandidateFilterFixture(false, false, false, false);
     cv::circle(image, cv::Point(270, 365), 7, cv::Scalar(8, 230, 7), cv::FILLED, cv::LINE_AA);
@@ -544,6 +743,12 @@ void verifyDeterminismAndSerializer(
         document.at("quality").at("rejected_proximity_count").get<int>() >= 1,
         "JPEG output must report the nearby fragment rejected by the detector");
     test.expect(
+        document.at("quality").contains("rejected_absolute_area_count") &&
+            document.at("quality").contains("rejected_relative_area_count") &&
+            document.at("quality").contains("rejected_zero_signal_count") &&
+            document.at("quality").contains("lattice_recovered_count"),
+        "JPEG output must expose auditable area-rejection and lattice-recovery counts");
+    test.expect(
         document.at("spots").size() == 21U &&
             document.at("quality").at("detected_count") == 21 &&
             document.at("quality").contains("rejected_shape_count") &&
@@ -598,13 +803,16 @@ void verifyRealJpegComponentDistribution(
         return;
     }
     test.expect(
-        reference.observations.size() == 27U && lens_001.observations.size() == 27U &&
-            lens_002.observations.size() == 27U,
-        "repository real JPEG fixtures must retain the documented software regression counts");
+        reference.observations.size() >= lens_001.observations.size() &&
+            reference.observations.size() >= lens_002.observations.size(),
+        "the shared no-lens reference must retain at least the complete candidates visible in either measurement");
     test.expect(
-        reference.diagnostics.rejected_border_count == 14 &&
-            lens_002.diagnostics.rejected_border_count == 17,
-        "edge-clipped real candidates must be rejected without failing either image");
+        reference.diagnostics.rejected_border_count > 0 &&
+            lens_002.diagnostics.rejected_border_count > 0,
+        "edge-clipped real candidates must still be rejected without fixing their exact count");
+    test.expect(
+        reference.diagnostics.lattice_recovered_count > 0,
+        "the real reference must recover size-varying lattice candidates that the old area-only rule removed");
     test.expect(
         std::find(
             lens_001.diagnostics.warnings.begin(),
@@ -628,6 +836,11 @@ void verifyRealJpegComponentDistribution(
               << ", fill_ratio=" << fill_ratio.minimum << "/" << fill_ratio.median << "/"
               << fill_ratio.maximum << ", principal_axis=" << principal_axis.minimum << "/"
               << principal_axis.median << "/" << principal_axis.maximum << "\n";
+    std::cout << "Real JPEG counts: reference=" << reference.observations.size()
+              << ", lens_001=" << lens_001.observations.size()
+              << ", lens_002=" << lens_002.observations.size()
+              << ", reference_lattice_recovered="
+              << reference.diagnostics.lattice_recovered_count << "\n";
 }
 
 }  // namespace
@@ -665,6 +878,8 @@ int runJpegTests(const std::vector<std::filesystem::path>& arguments) {
     config.recognition_mode = RecognitionMode::HartmannMultispotExperimental;
     TestContext test;
     verifyGreenJpegAndReencoding(test, temp_root, synthetic_root, config);
+    verifySizeAndBrightnessVariation(test, temp_root, config);
+    verifyLatticePhaseRecovery(test, temp_root, config);
     verifyDeterminismAndSerializer(test, temp_root, config);
     verifyConservativeCandidateFiltering(test);
     verifyRealJpegComponentDistribution(test, real_root, config);

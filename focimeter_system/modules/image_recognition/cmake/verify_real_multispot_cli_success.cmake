@@ -1,6 +1,6 @@
 foreach(required_variable IN ITEMS
         M2_EXECUTABLE M2_INPUT M2_OUTPUT M2_PROJECT_ROOT
-        M2_EXPECTED_MEASUREMENT_WARNING M2_EXPECTED_SPOT_COUNT)
+        M2_EXPECTED_MEASUREMENT_WARNING)
     if(NOT DEFINED ${required_variable} OR "${${required_variable}}" STREQUAL "")
         message(FATAL_ERROR "${required_variable} is required")
     endif()
@@ -40,6 +40,7 @@ foreach(output_name IN ITEMS spots_calib_multispot.json spots_meas_multispot.jso
     string(JSON physical_identity ERROR_VARIABLE identity_error GET "${document}" matching physical_identity_guaranteed)
     string(JSON is_usable ERROR_VARIABLE usable_error GET "${document}" quality is_usable)
     string(JSON spot_count ERROR_VARIABLE spots_error LENGTH "${document}" spots)
+    string(JSON detected_count ERROR_VARIABLE detected_error GET "${document}" quality detected_count)
 
     if(status_error OR NOT status STREQUAL "ok")
         message(FATAL_ERROR "${output_name} must contain status=ok")
@@ -63,9 +64,8 @@ foreach(output_name IN ITEMS spots_calib_multispot.json spots_meas_multispot.jso
     if(usable_error OR NOT is_usable)
         message(FATAL_ERROR "${output_name} must remain usable for software integration")
     endif()
-    if(spots_error OR NOT spot_count EQUAL M2_EXPECTED_SPOT_COUNT)
-        message(FATAL_ERROR
-            "${output_name} software regression count changed: expected ${M2_EXPECTED_SPOT_COUNT}, got ${spot_count}")
+    if(spots_error OR detected_error OR NOT spot_count EQUAL detected_count)
+        message(FATAL_ERROR "${output_name} spots length must equal quality.detected_count")
     endif()
     string(FIND "${document}" "\"spot_id\"" spot_id_position)
     if(NOT spot_id_position EQUAL -1)

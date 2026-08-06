@@ -68,9 +68,13 @@ void appendDiagnostics(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["candidate_count"] = diagnostics.candidate_count;
     error.number_details["raw_candidate_count"] = diagnostics.raw_candidate_count;
     error.number_details["rejected_area_count"] = diagnostics.rejected_area_count;
+    error.number_details["rejected_absolute_area_count"] = diagnostics.rejected_absolute_area_count;
+    error.number_details["rejected_relative_area_count"] = diagnostics.rejected_relative_area_count;
+    error.number_details["rejected_zero_signal_count"] = diagnostics.rejected_zero_signal_count;
     error.number_details["rejected_border_count"] = diagnostics.rejected_border_count;
     error.number_details["rejected_shape_count"] = diagnostics.rejected_shape_count;
     error.number_details["rejected_proximity_count"] = diagnostics.rejected_proximity_count;
+    error.number_details["lattice_recovered_count"] = diagnostics.lattice_recovered_count;
     error.string_details["segmentation_source"] = diagnostics.segmentation_source;
     error.string_details["centroid_intensity_source"] = diagnostics.centroid_intensity_source;
     if (!diagnostics.warnings.empty()) {

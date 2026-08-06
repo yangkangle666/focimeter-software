@@ -963,9 +963,13 @@ bool writeExperimentalMultispotSuccess(
     const auto& diagnostics = analysis.diagnostics;
     if (diagnostics.candidate_count != static_cast<int>(analysis.observations.size()) ||
         diagnostics.raw_candidate_count < 0 || diagnostics.rejected_area_count < 0 ||
+        diagnostics.rejected_absolute_area_count < 0 ||
+        diagnostics.rejected_relative_area_count < 0 ||
+        diagnostics.rejected_zero_signal_count < 0 ||
         diagnostics.rejected_border_count < 0 ||
         diagnostics.rejected_shape_count < 0 ||
         diagnostics.rejected_proximity_count < 0 ||
+        diagnostics.lattice_recovered_count < 0 ||
         diagnostics.segmentation_source.empty() ||
         diagnostics.centroid_intensity_source.empty() ||
         !std::isfinite(diagnostics.background_intensity) || diagnostics.background_intensity < 0.0 ||
@@ -1005,9 +1009,13 @@ bool writeExperimentalMultispotSuccess(
             {"detected_count", analysis.observations.size()},
             {"raw_candidate_count", diagnostics.raw_candidate_count},
             {"rejected_area_count", diagnostics.rejected_area_count},
+            {"rejected_absolute_area_count", diagnostics.rejected_absolute_area_count},
+            {"rejected_relative_area_count", diagnostics.rejected_relative_area_count},
+            {"rejected_zero_signal_count", diagnostics.rejected_zero_signal_count},
             {"rejected_border_count", diagnostics.rejected_border_count},
             {"rejected_shape_count", diagnostics.rejected_shape_count},
             {"rejected_proximity_count", diagnostics.rejected_proximity_count},
+            {"lattice_recovered_count", diagnostics.lattice_recovered_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"detection_threshold_8bit", diagnostics.detection_threshold},
             {"segmentation_source", diagnostics.segmentation_source},
@@ -1111,9 +1119,13 @@ bool writeImageDiagnostics(
             {"candidate_count", diagnostics.candidate_count},
             {"raw_candidate_count", diagnostics.raw_candidate_count},
             {"rejected_area_count", diagnostics.rejected_area_count},
+            {"rejected_absolute_area_count", diagnostics.rejected_absolute_area_count},
+            {"rejected_relative_area_count", diagnostics.rejected_relative_area_count},
+            {"rejected_zero_signal_count", diagnostics.rejected_zero_signal_count},
             {"rejected_border_count", diagnostics.rejected_border_count},
             {"rejected_shape_count", diagnostics.rejected_shape_count},
             {"rejected_proximity_count", diagnostics.rejected_proximity_count},
+            {"lattice_recovered_count", diagnostics.lattice_recovered_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"threshold_8bit", diagnostics.detection_threshold},
             {"segmentation_source", diagnostics.segmentation_source},

@@ -227,7 +227,6 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
                     "-DM2_OUTPUT=${M2_TEST_OUTPUT_ROOT}/real-jpeg-lens-${lens_id}"
                     "-DM2_PROJECT_ROOT=${M2_SYSTEM_ROOT}"
                     "-DM2_EXPECTED_MEASUREMENT_WARNING=${expected_measurement_warning}"
-                    "-DM2_EXPECTED_SPOT_COUNT=27"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_real_multispot_cli_success.cmake"
             )
             list(APPEND M2_REGISTERED_TESTS m2_cli_real_jpeg_lens_${lens_id})

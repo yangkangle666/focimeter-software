@@ -101,14 +101,19 @@ struct ImageDiagnostics {
     int candidate_count{0};
     int raw_candidate_count{0};
     int rejected_area_count{0};
+    int rejected_absolute_area_count{0};
+    int rejected_relative_area_count{0};
+    int rejected_zero_signal_count{0};
     int rejected_border_count{0};
     int rejected_shape_count{0};
     int rejected_proximity_count{0};
+    int lattice_recovered_count{0};
     double background_intensity{0.0};
     double detection_threshold{0.0};
     bool candidate_limit_exceeded{false};
     std::string segmentation_source{"native_grayscale"};
     std::string centroid_intensity_source{"native_grayscale"};
+    std::vector<cv::Point2d> lattice_recovered_centers;
     std::vector<std::string> warnings;
 };
 
