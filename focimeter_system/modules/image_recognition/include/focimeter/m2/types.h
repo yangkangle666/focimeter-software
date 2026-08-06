@@ -107,6 +107,10 @@ struct ImageDiagnostics {
     int rejected_border_count{0};
     int rejected_shape_count{0};
     int rejected_proximity_count{0};
+    int lattice_recovery_considered_count{0};
+    int lattice_recovery_rejected_signal_count{0};
+    int lattice_recovery_rejected_step_count{0};
+    int lattice_recovery_rejected_geometry_count{0};
     int lattice_recovered_count{0};
     double background_intensity{0.0};
     double detection_threshold{0.0};

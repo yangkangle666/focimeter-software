@@ -232,7 +232,14 @@ bool matchesRepeatedLatticeStep(
     return false;
 }
 
-bool hasLatticeSupport(
+enum class LatticeRecoveryDecision {
+    Supported,
+    SignalInsufficient,
+    StepUnsupported,
+    GeometryUnsupported,
+};
+
+LatticeRecoveryDecision evaluateLatticeSupport(
     const SpotObservation& candidate,
     const std::vector<SpotObservation>& anchors,
     const std::vector<cv::Point2d>& lattice_steps,
@@ -240,7 +247,7 @@ bool hasLatticeSupport(
     const double median_integrated_intensity,
     const double median_residual_peak) {
     if (anchors.size() < 3U || !std::isfinite(typical_spacing) || typical_spacing <= 0.0) {
-        return false;
+        return LatticeRecoveryDecision::StepUnsupported;
     }
 
     // A dim or broad spot can leave a small top-hat support. Retain it only when
@@ -249,7 +256,7 @@ bool hasLatticeSupport(
         candidate.integrated_intensity >= 0.08 * median_integrated_intensity &&
         candidate.peak_residual_intensity >= 0.35 * median_residual_peak;
     if (!signal_supported) {
-        return false;
+        return LatticeRecoveryDecision::SignalInsufficient;
     }
 
     constexpr double kMaximumOpposingDot = -0.70;
@@ -270,11 +277,32 @@ bool hasLatticeSupport(
             const bool opposing_support = dot <= kMaximumOpposingDot;
             const bool orthogonal_support = std::abs(dot) <= kMaximumOrthogonalAbsoluteDot;
             if (opposing_support || orthogonal_support) {
-                return true;
+                return LatticeRecoveryDecision::Supported;
             }
         }
     }
-    return false;
+    return directions.size() < 2U
+        ? LatticeRecoveryDecision::StepUnsupported
+        : LatticeRecoveryDecision::GeometryUnsupported;
+}
+
+void recordRejectedRecoveryDecision(
+    const LatticeRecoveryDecision decision,
+    ImageDiagnostics& diagnostics) {
+    ++diagnostics.lattice_recovery_considered_count;
+    switch (decision) {
+        case LatticeRecoveryDecision::SignalInsufficient:
+            ++diagnostics.lattice_recovery_rejected_signal_count;
+            break;
+        case LatticeRecoveryDecision::StepUnsupported:
+            ++diagnostics.lattice_recovery_rejected_step_count;
+            break;
+        case LatticeRecoveryDecision::GeometryUnsupported:
+            ++diagnostics.lattice_recovery_rejected_geometry_count;
+            break;
+        case LatticeRecoveryDecision::Supported:
+            break;
+    }
 }
 
 void rejectNearbyFragments(
@@ -365,6 +393,14 @@ void appendCountDetails(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["rejected_border_count"] = diagnostics.rejected_border_count;
     error.number_details["rejected_shape_count"] = diagnostics.rejected_shape_count;
     error.number_details["rejected_proximity_count"] = diagnostics.rejected_proximity_count;
+    error.number_details["lattice_recovery_considered_count"] =
+        diagnostics.lattice_recovery_considered_count;
+    error.number_details["lattice_recovery_rejected_signal_count"] =
+        diagnostics.lattice_recovery_rejected_signal_count;
+    error.number_details["lattice_recovery_rejected_step_count"] =
+        diagnostics.lattice_recovery_rejected_step_count;
+    error.number_details["lattice_recovery_rejected_geometry_count"] =
+        diagnostics.lattice_recovery_rejected_geometry_count;
     error.number_details["lattice_recovered_count"] = diagnostics.lattice_recovered_count;
     error.number_details["background_intensity"] = diagnostics.background_intensity;
     error.number_details["detection_threshold"] = diagnostics.detection_threshold;
@@ -693,13 +729,13 @@ ImageAnalysis MultispotDetector::detect(
             std::vector<bool> recovered(pending_area_outliers.size(), false);
             bool recovered_any = false;
             for (std::size_t index = 0; index < pending_area_outliers.size(); ++index) {
-                recovered[index] = hasLatticeSupport(
+                recovered[index] = evaluateLatticeSupport(
                     pending_area_outliers[index],
                     anchors,
                     lattice_steps,
                     typical_spacing,
                     median_integrated_intensity,
-                    median_residual_peak);
+                    median_residual_peak) == LatticeRecoveryDecision::Supported;
                 recovered_any = recovered_any || recovered[index];
             }
             if (!recovered_any) {
@@ -716,6 +752,7 @@ ImageAnalysis MultispotDetector::detect(
                 }
                 addFlag(observation, "LATTICE_RECOVERED_UNVERIFIED");
                 addWarning(analysis.diagnostics, "LATTICE_RECOVERED_UNVERIFIED");
+                ++analysis.diagnostics.lattice_recovery_considered_count;
                 ++analysis.diagnostics.lattice_recovered_count;
                 analysis.diagnostics.lattice_recovered_centers.push_back(observation.center);
                 anchors.push_back(observation);
@@ -725,6 +762,17 @@ ImageAnalysis MultispotDetector::detect(
         }
 
         if (!pending_area_outliers.empty()) {
+            for (const auto& observation : pending_area_outliers) {
+                recordRejectedRecoveryDecision(
+                    evaluateLatticeSupport(
+                        observation,
+                        anchors,
+                        lattice_steps,
+                        typical_spacing,
+                        median_integrated_intensity,
+                        median_residual_peak),
+                    analysis.diagnostics);
+            }
             analysis.diagnostics.rejected_area_count +=
                 static_cast<int>(pending_area_outliers.size());
             analysis.diagnostics.rejected_relative_area_count +=

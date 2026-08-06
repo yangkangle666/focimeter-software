@@ -969,6 +969,10 @@ bool writeExperimentalMultispotSuccess(
         diagnostics.rejected_border_count < 0 ||
         diagnostics.rejected_shape_count < 0 ||
         diagnostics.rejected_proximity_count < 0 ||
+        diagnostics.lattice_recovery_considered_count < 0 ||
+        diagnostics.lattice_recovery_rejected_signal_count < 0 ||
+        diagnostics.lattice_recovery_rejected_step_count < 0 ||
+        diagnostics.lattice_recovery_rejected_geometry_count < 0 ||
         diagnostics.lattice_recovered_count < 0 ||
         diagnostics.lattice_recovered_count > diagnostics.candidate_count ||
         diagnostics.lattice_recovered_count !=
@@ -1022,6 +1026,10 @@ bool writeExperimentalMultispotSuccess(
             {"rejected_border_count", diagnostics.rejected_border_count},
             {"rejected_shape_count", diagnostics.rejected_shape_count},
             {"rejected_proximity_count", diagnostics.rejected_proximity_count},
+            {"lattice_recovery_considered_count", diagnostics.lattice_recovery_considered_count},
+            {"lattice_recovery_rejected_signal_count", diagnostics.lattice_recovery_rejected_signal_count},
+            {"lattice_recovery_rejected_step_count", diagnostics.lattice_recovery_rejected_step_count},
+            {"lattice_recovery_rejected_geometry_count", diagnostics.lattice_recovery_rejected_geometry_count},
             {"lattice_recovered_count", diagnostics.lattice_recovered_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"detection_threshold_8bit", diagnostics.detection_threshold},
@@ -1132,6 +1140,10 @@ bool writeImageDiagnostics(
             {"rejected_border_count", diagnostics.rejected_border_count},
             {"rejected_shape_count", diagnostics.rejected_shape_count},
             {"rejected_proximity_count", diagnostics.rejected_proximity_count},
+            {"lattice_recovery_considered_count", diagnostics.lattice_recovery_considered_count},
+            {"lattice_recovery_rejected_signal_count", diagnostics.lattice_recovery_rejected_signal_count},
+            {"lattice_recovery_rejected_step_count", diagnostics.lattice_recovery_rejected_step_count},
+            {"lattice_recovery_rejected_geometry_count", diagnostics.lattice_recovery_rejected_geometry_count},
             {"lattice_recovered_count", diagnostics.lattice_recovered_count},
             {"background_intensity_8bit", diagnostics.background_intensity},
             {"threshold_8bit", diagnostics.detection_threshold},

@@ -350,6 +350,20 @@ void verifySizeAndBrightnessVariation(
 
     const ImageProcessor processor;
     const ImageAnalysis analysis = processor.processFile(jpeg_path, config);
+    if (!analysis.ok() ||
+        !matchesExpectedCenters(analysis.observations, fixture.expected_centers, 5.0)) {
+        std::cerr << "Size/brightness diagnostics: error=" << analysis.error.code
+                  << ", count=" << analysis.observations.size()
+                  << ", considered="
+                  << analysis.diagnostics.lattice_recovery_considered_count
+                  << ", signal_rejected="
+                  << analysis.diagnostics.lattice_recovery_rejected_signal_count
+                  << ", step_rejected="
+                  << analysis.diagnostics.lattice_recovery_rejected_step_count
+                  << ", geometry_rejected="
+                  << analysis.diagnostics.lattice_recovery_rejected_geometry_count
+                  << ", recovered=" << analysis.diagnostics.lattice_recovered_count << "\n";
+    }
     test.expect(analysis.ok(), "size and brightness variation fixture must remain usable");
     test.expect(
         analysis.ok() &&
@@ -779,7 +793,11 @@ void verifyDeterminismAndSerializer(
     test.expect(
         document.at("quality").contains("rejected_absolute_area_count") &&
             document.at("quality").contains("rejected_relative_area_count") &&
-            document.at("quality").contains("rejected_zero_signal_count") &&
+        document.at("quality").contains("rejected_zero_signal_count") &&
+            document.at("quality").contains("lattice_recovery_considered_count") &&
+            document.at("quality").contains("lattice_recovery_rejected_signal_count") &&
+            document.at("quality").contains("lattice_recovery_rejected_step_count") &&
+            document.at("quality").contains("lattice_recovery_rejected_geometry_count") &&
             document.at("quality").contains("lattice_recovered_count"),
         "JPEG output must expose auditable area-rejection and lattice-recovery counts");
     test.expect(
@@ -874,7 +892,15 @@ void verifyRealJpegComponentDistribution(
               << ", lens_001=" << lens_001.observations.size()
               << ", lens_002=" << lens_002.observations.size()
               << ", reference_lattice_recovered="
-              << reference.diagnostics.lattice_recovered_count << "\n";
+              << reference.diagnostics.lattice_recovered_count
+              << ", reference_recovery_considered="
+              << reference.diagnostics.lattice_recovery_considered_count
+              << ", signal_rejected="
+              << reference.diagnostics.lattice_recovery_rejected_signal_count
+              << ", step_rejected="
+              << reference.diagnostics.lattice_recovery_rejected_step_count
+              << ", geometry_rejected="
+              << reference.diagnostics.lattice_recovery_rejected_geometry_count << "\n";
 }
 
 }  // namespace
