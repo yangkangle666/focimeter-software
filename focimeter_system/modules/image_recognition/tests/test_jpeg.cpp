@@ -813,16 +813,6 @@ void verifyDeterminismAndSerializer(
                       << ", shape=" << runs.back().diagnostics.rejected_shape_count
                       << ", proximity=" << runs.back().diagnostics.rejected_proximity_count
                       << "\n";
-            for (const auto& observation : runs.back().observations) {
-                std::cerr << "JPEG fragment observation: x=" << observation.center.x
-                          << ", y=" << observation.center.y
-                          << ", area=" << observation.area
-                          << ", flags=";
-                for (const auto& flag : observation.quality_flags) {
-                    std::cerr << flag << ",";
-                }
-                std::cerr << "\n";
-            }
         }
         test.expect(runs.back().ok(), "realistic green JPEG run must succeed");
         test.expect(
@@ -1015,34 +1005,37 @@ void verifyRealJpegComponentDistribution(
                   << ", y=" << center.y << "\n";
     }
 
-    InputPackage real_input;
-    real_input.data_source = "real";
-    const auto emit_debug_json = [&](
-        const std::string& name,
-        const ImageAnalysis& analysis) {
-        real_input.task_id = "m2_debug_" + name;
-        const std::filesystem::path output =
-            std::filesystem::temp_directory_path() / ("m2_debug_" + name + ".json");
-        focimeter::m2::ErrorInfo write_error;
-        if (!focimeter::m2::writeExperimentalMultispotSuccess(
-                output, real_input, "calibration", analysis, config, write_error)) {
-            std::cerr << "M2_DEBUG_JSON_ERROR " << name << ": "
-                      << write_error.code << " " << write_error.message << "\n";
-            return;
+}
+
+void verifyRealJpegDeterminism(
+    TestContext& test,
+    const std::filesystem::path& real_root,
+    const ProcessingConfig& config) {
+    const std::vector<std::filesystem::path> images{
+        real_root / "images/reference_no_lens.jpg",
+        real_root / "images/lens_001_spots.jpg",
+        real_root / "images/lens_002_spots.jpg"};
+    const ImageProcessor processor;
+    for (const auto& image : images) {
+        const ImageAnalysis baseline = processor.processFile(image, config);
+        test.expect(baseline.ok(), "each real JPEG determinism baseline must be usable");
+        if (!baseline.ok()) {
+            continue;
         }
-        const auto text = readText(output);
-        if (text.has_value()) {
-            std::cerr << "M2_DEBUG_JSON_BEGIN " << name << "\n"
-                      << *text
-                      << "\nM2_DEBUG_JSON_END " << name << "\n";
+        for (int attempt = 1; attempt < 3; ++attempt) {
+            const ImageAnalysis repeated = processor.processFile(image, config);
+            const bool same_observations = repeated.ok() &&
+                repeated.observations.size() == baseline.observations.size() &&
+                std::equal(
+                    repeated.observations.begin(),
+                    repeated.observations.end(),
+                    baseline.observations.begin(),
+                    sameObservation);
+            test.expect(
+                same_observations,
+                "real JPEG detection IDs, coordinates, confidence, and quality flags must be deterministic");
         }
-        std::error_code remove_error;
-        std::filesystem::remove(output, remove_error);
-    };
-    emit_debug_json("reference", reference);
-    emit_debug_json("lens_001", lens_001);
-    emit_debug_json("lens_002", lens_002);
-    test.expect(false, "temporary real JPEG JSON capture");
+    }
 }
 
 }  // namespace
@@ -1086,6 +1079,7 @@ int runJpegTests(const std::vector<std::filesystem::path>& arguments) {
     verifyDeterminismAndSerializer(test, temp_root, config);
     verifyConservativeCandidateFiltering(test);
     verifyRealJpegComponentDistribution(test, real_root, config);
+    verifyRealJpegDeterminism(test, real_root, config);
 
     std::filesystem::remove_all(temp_root, filesystem_error);
     if (filesystem_error) {
