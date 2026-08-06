@@ -79,6 +79,25 @@ double percentile(const cv::Mat& image, const double fraction) {
     return 255.0;
 }
 
+double detectionThreshold(
+    const cv::Mat& enhanced,
+    const ProcessingConfig& config) {
+    const double background = borderMean(enhanced);
+    const double bright_cutoff =
+        background * config.multispot_background_factor;
+    cv::Mat bright_mask;
+    cv::compare(enhanced, bright_cutoff, bright_mask, cv::CMP_GT);
+    const int bright_count = cv::countNonZero(bright_mask);
+    const double bright_mean =
+        bright_count >= 31 ? cv::mean(enhanced, bright_mask)[0] : 0.0;
+    const double high_percentile = percentile(enhanced, 0.995);
+    return std::max({
+        static_cast<double>(config.multispot_min_threshold),
+        std::floor(bright_mean) - 16.0,
+        background + 0.20 * std::max(0.0, high_percentile - background),
+    });
+}
+
 double medianArea(const std::vector<SpotObservation>& observations) {
     std::vector<double> areas;
     areas.reserve(observations.size());
@@ -521,9 +540,9 @@ ImageAnalysis MultispotDetector::detect(
         centroid_filtered = centroid_intensity.clone();
     }
 
-    // The configured kernel is a lower bound. Scaling the background estimator
-    // with the ROI prevents broad, defocused spots from disappearing before
-    // connected-component analysis while retaining one pipeline for all images.
+    // Keep the configured scale for compact spots and add an ROI-relative scale
+    // for broad spots. Each scale is thresholded independently before fusion so
+    // one population cannot suppress the other through a shared histogram.
     constexpr double kTopHatRoiScale = 0.09;
     const int scaled_top_hat_size = makeOddKernel(cvRound(
         kTopHatRoiScale * static_cast<double>(std::min(filtered.rows, filtered.cols))));
@@ -560,44 +579,28 @@ ImageAnalysis MultispotDetector::detect(
         centroid_enhanced);
     const double centroid_background = borderMean(centroid_enhanced);
 
-    analysis.diagnostics.background_intensity = borderMean(analysis.enhanced);
-    const double bright_cutoff =
-        analysis.diagnostics.background_intensity * config.multispot_background_factor;
-    cv::Mat bright_mask;
-    cv::compare(analysis.enhanced, bright_cutoff, bright_mask, cv::CMP_GT);
-    const int bright_count = cv::countNonZero(bright_mask);
-    const double bright_mean = bright_count >= 31 ? cv::mean(analysis.enhanced, bright_mask)[0] : 0.0;
-    const double high_percentile = percentile(analysis.enhanced, 0.995);
-    analysis.diagnostics.detection_threshold = std::max({
-        static_cast<double>(config.multispot_min_threshold),
-        std::floor(bright_mean) - 16.0,
-        analysis.diagnostics.background_intensity +
-            0.20 * std::max(0.0, high_percentile - analysis.diagnostics.background_intensity),
-    });
-
+    const double small_scale_threshold =
+        detectionThreshold(small_scale_enhanced, config);
+    const double large_scale_threshold =
+        detectionThreshold(large_scale_enhanced, config);
+    cv::Mat small_scale_binary;
+    cv::Mat large_scale_binary;
     cv::threshold(
-        analysis.enhanced,
-        analysis.binary,
-        analysis.diagnostics.detection_threshold,
+        small_scale_enhanced,
+        small_scale_binary,
+        small_scale_threshold,
         255.0,
         cv::THRESH_BINARY);
-    cv::Mat raw_otsu_binary;
     cv::threshold(
-        filtered,
-        raw_otsu_binary,
-        0.0,
+        large_scale_enhanced,
+        large_scale_binary,
+        large_scale_threshold,
         255.0,
-        cv::THRESH_BINARY | cv::THRESH_OTSU);
-    const double raw_otsu_foreground_ratio =
-        static_cast<double>(cv::countNonZero(raw_otsu_binary)) /
-        static_cast<double>(raw_otsu_binary.total());
-    constexpr double kMaximumRawOtsuForegroundRatio = 0.35;
-    if (raw_otsu_foreground_ratio > 0.0 &&
-        raw_otsu_foreground_ratio <= kMaximumRawOtsuForegroundRatio) {
-        cv::bitwise_or(analysis.binary, raw_otsu_binary, analysis.binary);
-    } else if (raw_otsu_foreground_ratio > kMaximumRawOtsuForegroundRatio) {
-        addWarning(analysis.diagnostics, "RAW_OTSU_FOREGROUND_REJECTED");
-    }
+        cv::THRESH_BINARY);
+    cv::bitwise_or(small_scale_binary, large_scale_binary, analysis.binary);
+    analysis.diagnostics.background_intensity = borderMean(analysis.enhanced);
+    analysis.diagnostics.detection_threshold =
+        std::min(small_scale_threshold, large_scale_threshold);
     const cv::Mat cleanup_kernel = cv::getStructuringElement(
         cv::MORPH_ELLIPSE, cv::Size(3, 3));
     cv::morphologyEx(analysis.binary, analysis.binary, cv::MORPH_OPEN, cleanup_kernel);
