@@ -14,25 +14,46 @@
   "metrology_validated": false,
   "module": "m2_image_recognition",
   "quality": {
-    "background_intensity_8bit": 3.1315104166666665,
+    "background_intensity_8bit": 15.999438757183908,
     "centroid_intensity_source": "green_channel",
     "count_policy": "range",
     "detected_count": 27,
     "detection_threshold_8bit": 8.0,
     "is_usable": true,
+    "large_scale_detection_threshold_8bit": 85.0,
+    "large_scale_raw_candidate_count": 39,
+    "large_scale_rejected_area_count": 0,
+    "large_scale_rejected_border_count": 12,
+    "large_scale_rejected_duplicate_count": 26,
+    "large_scale_rejected_shape_count": 0,
+    "large_scale_rejected_zero_signal_count": 0,
+    "large_scale_top_hat_kernel_pixels": 109,
+    "lattice_recovered_count": 1,
+    "lattice_recovery_considered_count": 4,
+    "lattice_recovery_rejected_geometry_count": 0,
+    "lattice_recovery_rejected_signal_count": 2,
+    "lattice_recovery_rejected_step_count": 0,
     "max_count": 150,
     "min_count": 12,
     "minimum_usable_confidence": 0.35,
     "raw_candidate_count": 52,
-    "rejected_area_count": 7,
+    "rejected_absolute_area_count": 4,
+    "rejected_area_count": 6,
     "rejected_border_count": 17,
-    "rejected_proximity_count": 1,
+    "rejected_proximity_count": 3,
+    "rejected_relative_area_count": 2,
     "rejected_shape_count": 0,
+    "rejected_zero_signal_count": 0,
     "segmentation_source": "bt601_luminance",
+    "small_scale_detection_threshold_8bit": 8.0,
+    "small_scale_top_hat_kernel_pixels": 31,
+    "top_hat_kernel_pixels": 109,
     "warnings": [
       "EDGE_CLIPPED_CANDIDATE_REJECTED",
+      "LATTICE_RECOVERED_UNVERIFIED",
       "SMALL_AREA_OUTLIER_REJECTED",
       "NEARBY_FRAGMENT_REJECTED",
+      "SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED",
       "SATURATED_PEAK",
       "AREA_VARIATION_HIGH"
     ]
@@ -42,7 +63,7 @@
     {
       "area_pixel2": 627.0,
       "bounding_box_elongation_ratio": 1.0740740740740742,
-      "confidence": 0.7707036103573358,
+      "confidence": 0.771662503267793,
       "detection_id": 0,
       "integrated_residual_8bit_pixel": 6092.676926185257,
       "mean_intensity_8bit": 253.207336523126,
@@ -58,7 +79,7 @@
     {
       "area_pixel2": 685.0,
       "bounding_box_elongation_ratio": 1.0,
-      "confidence": 0.7846959612101478,
+      "confidence": 0.7862377054276248,
       "detection_id": 1,
       "integrated_residual_8bit_pixel": 10548.61833243516,
       "mean_intensity_8bit": 251.73138686131387,
@@ -74,7 +95,7 @@
     {
       "area_pixel2": 680.0,
       "bounding_box_elongation_ratio": 1.0344827586206897,
-      "confidence": 0.7855850635584593,
+      "confidence": 0.7870435433035049,
       "detection_id": 2,
       "integrated_residual_8bit_pixel": 10153.037176723961,
       "mean_intensity_8bit": 252.39264705882354,
@@ -90,7 +111,7 @@
     {
       "area_pixel2": 625.0,
       "bounding_box_elongation_ratio": 1.0740740740740742,
-      "confidence": 0.7672584234140786,
+      "confidence": 0.7679675229072415,
       "detection_id": 3,
       "integrated_residual_8bit_pixel": 4213.644463900862,
       "mean_intensity_8bit": 253.2192,
@@ -106,7 +127,7 @@
     {
       "area_pixel2": 661.0,
       "bounding_box_elongation_ratio": 1.1071428571428572,
-      "confidence": 0.7771793553375833,
+      "confidence": 0.7775553969410204,
       "detection_id": 4,
       "integrated_residual_8bit_pixel": 1391.3816002155233,
       "mean_intensity_8bit": 252.4750378214826,
@@ -122,7 +143,7 @@
     {
       "area_pixel2": 1586.0,
       "bounding_box_elongation_ratio": 1.0638297872340425,
-      "confidence": 0.6268700198742974,
+      "confidence": 0.6275791193674601,
       "detection_id": 5,
       "integrated_residual_8bit_pixel": 10968.742591594399,
       "mean_intensity_8bit": 253.4249684741488,
@@ -139,7 +160,7 @@
     {
       "area_pixel2": 657.0,
       "bounding_box_elongation_ratio": 1.0714285714285714,
-      "confidence": 0.7909463255936191,
+      "confidence": 0.7927378632283905,
       "detection_id": 6,
       "integrated_residual_8bit_pixel": 12008.1638604524,
       "mean_intensity_8bit": 251.78386605783865,
@@ -155,7 +176,7 @@
     {
       "area_pixel2": 1792.0,
       "bounding_box_elongation_ratio": 1.0408163265306123,
-      "confidence": 0.6282561964255469,
+      "confidence": 0.629215089336004,
       "detection_id": 7,
       "integrated_residual_8bit_pixel": 16636.08620689604,
       "mean_intensity_8bit": 252.79910714285714,
@@ -172,7 +193,7 @@
     {
       "area_pixel2": 657.0,
       "bounding_box_elongation_ratio": 1.0344827586206897,
-      "confidence": 0.7801685808235927,
+      "confidence": 0.780960944789187,
       "detection_id": 8,
       "integrated_residual_8bit_pixel": 4572.163860452559,
       "mean_intensity_8bit": 252.45205479452054,
@@ -188,7 +209,7 @@
     {
       "area_pixel2": 689.0,
       "bounding_box_elongation_ratio": 1.0689655172413792,
-      "confidence": 0.7805904034302354,
+      "confidence": 0.7818823542304182,
       "detection_id": 9,
       "integrated_residual_8bit_pixel": 9058.683257004146,
       "mean_intensity_8bit": 252.60522496371553,
@@ -204,7 +225,7 @@
     {
       "area_pixel2": 655.0,
       "bounding_box_elongation_ratio": 1.0714285714285714,
-      "confidence": 0.7812141208678464,
+      "confidence": 0.7821730137783035,
       "detection_id": 10,
       "integrated_residual_8bit_pixel": 6241.131398168005,
       "mean_intensity_8bit": 252.93435114503816,
@@ -220,7 +241,7 @@
     {
       "area_pixel2": 666.0,
       "bounding_box_elongation_ratio": 1.0344827586206897,
-      "confidence": 0.7844451045994734,
+      "confidence": 0.7853207330374989,
       "detection_id": 11,
       "integrated_residual_8bit_pixel": 5326.809940732691,
       "mean_intensity_8bit": 252.45945945945945,
@@ -236,7 +257,7 @@
     {
       "area_pixel2": 680.0,
       "bounding_box_elongation_ratio": 1.0689655172413792,
-      "confidence": 0.7810943365709483,
+      "confidence": 0.7821364939538368,
       "detection_id": 12,
       "integrated_residual_8bit_pixel": 7030.037176724009,
       "mean_intensity_8bit": 252.66764705882352,
@@ -252,7 +273,7 @@
     {
       "area_pixel2": 1249.0,
       "bounding_box_elongation_ratio": 1.0,
-      "confidence": 0.6243148959129725,
+      "confidence": 0.6255235822407238,
       "detection_id": 13,
       "integrated_residual_8bit_pixel": 12557.772696659096,
       "mean_intensity_8bit": 250.59167333867094,
@@ -267,27 +288,10 @@
       "y": 599.1594375433401
     },
     {
-      "area_pixel2": 1859.0,
-      "bounding_box_elongation_ratio": 1.018181818181818,
-      "confidence": 0.7254879740620516,
-      "detection_id": 14,
-      "integrated_residual_8bit_pixel": 76258.1574622851,
-      "mean_intensity_8bit": 180.34857450242066,
-      "peak_intensity_8bit": 255.0,
-      "peak_residual_intensity_8bit": 169.51623114224137,
-      "principal_axis_elongation_ratio": 1.220272206794674,
-      "quality_flags": [
-        "AREA_ABOVE_MEDIAN",
-        "SATURATED_PEAK"
-      ],
-      "x": 190.8723762410285,
-      "y": 618.1562133771916
-    },
-    {
       "area_pixel2": 989.0,
       "bounding_box_elongation_ratio": 1.0975609756097562,
-      "confidence": 0.663964932845649,
-      "detection_id": 15,
+      "confidence": 0.6677548178187744,
+      "detection_id": 14,
       "integrated_residual_8bit_pixel": 18507.552599676597,
       "mean_intensity_8bit": 223.24772497472193,
       "peak_intensity_8bit": 255.0,
@@ -300,9 +304,28 @@
       "y": 625.368720243857
     },
     {
+      "area_pixel2": 3065.0,
+      "bounding_box_elongation_ratio": 1.0,
+      "confidence": 0.8043230016313214,
+      "detection_id": 15,
+      "integrated_residual_8bit_pixel": 551693.0624775689,
+      "mean_intensity_8bit": 205.8437194127243,
+      "peak_intensity_8bit": 255.0,
+      "peak_residual_intensity_8bit": 229.26201059626436,
+      "principal_axis_elongation_ratio": 1.1233712957923614,
+      "quality_flags": [
+        "LATTICE_RECOVERED_UNVERIFIED",
+        "SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED",
+        "AREA_ABOVE_MEDIAN",
+        "SATURATED_PEAK"
+      ],
+      "x": 174.20604943691544,
+      "y": 632.9178386400388
+    },
+    {
       "area_pixel2": 625.0,
       "bounding_box_elongation_ratio": 1.0740740740740742,
-      "confidence": 0.7672584234140786,
+      "confidence": 0.7679675229072415,
       "detection_id": 16,
       "integrated_residual_8bit_pixel": 4131.644463900869,
       "mean_intensity_8bit": 253.1232,
@@ -318,7 +341,7 @@
     {
       "area_pixel2": 686.0,
       "bounding_box_elongation_ratio": 1.1428571428571428,
-      "confidence": 0.7852397834393837,
+      "confidence": 0.7868647921292922,
       "detection_id": 17,
       "integrated_residual_8bit_pixel": 11469.134563577396,
       "mean_intensity_8bit": 251.92128279883383,
@@ -334,7 +357,7 @@
     {
       "area_pixel2": 643.0,
       "bounding_box_elongation_ratio": 1.0,
-      "confidence": 0.7731170347733332,
+      "confidence": 0.7737428697940645,
       "detection_id": 18,
       "integrated_residual_8bit_pixel": 3106.420393318974,
       "mean_intensity_8bit": 252.32970451010885,
@@ -350,7 +373,7 @@
     {
       "area_pixel2": 1810.0,
       "bounding_box_elongation_ratio": 1.0392156862745099,
-      "confidence": 0.6125186270935623,
+      "confidence": 0.6133109910591565,
       "detection_id": 19,
       "integrated_residual_8bit_pixel": 13413.378367456357,
       "mean_intensity_8bit": 252.92486187845304,
@@ -367,7 +390,7 @@
     {
       "area_pixel2": 656.0,
       "bounding_box_elongation_ratio": 1.0714285714285714,
-      "confidence": 0.7824876416407239,
+      "confidence": 0.7835297990236124,
       "detection_id": 20,
       "integrated_residual_8bit_pixel": 6761.6476293102305,
       "mean_intensity_8bit": 252.77134146341464,
@@ -383,7 +406,7 @@
     {
       "area_pixel2": 1540.0,
       "bounding_box_elongation_ratio": 1.0208333333333333,
-      "confidence": 0.6195816510243068,
+      "confidence": 0.6201242215726068,
       "detection_id": 21,
       "integrated_residual_8bit_pixel": 7800.963496766928,
       "mean_intensity_8bit": 253.55844155844156,
@@ -400,7 +423,7 @@
     {
       "area_pixel2": 655.0,
       "bounding_box_elongation_ratio": 1.0714285714285714,
-      "confidence": 0.779417830072842,
+      "confidence": 0.7802101940384363,
       "detection_id": 22,
       "integrated_residual_8bit_pixel": 4562.098935883597,
       "mean_intensity_8bit": 252.4641221374046,
@@ -416,7 +439,7 @@
     {
       "area_pixel2": 672.0,
       "bounding_box_elongation_ratio": 1.0689655172413792,
-      "confidence": 0.7777222347548196,
+      "confidence": 0.778181540830688,
       "detection_id": 23,
       "integrated_residual_8bit_pixel": 2261.391096443974,
       "mean_intensity_8bit": 252.80208333333334,
@@ -432,7 +455,7 @@
     {
       "area_pixel2": 653.0,
       "bounding_box_elongation_ratio": 1.0714285714285714,
-      "confidence": 0.7804633701170955,
+      "confidence": 0.7814222630275527,
       "detection_id": 24,
       "integrated_residual_8bit_pixel": 5918.098935883532,
       "mean_intensity_8bit": 252.58499234303216,
@@ -448,7 +471,7 @@
     {
       "area_pixel2": 645.0,
       "bounding_box_elongation_ratio": 1.0357142857142858,
-      "confidence": 0.7783585125115948,
+      "confidence": 0.7794006698944833,
       "detection_id": 25,
       "integrated_residual_8bit_pixel": 6675.969086745581,
       "mean_intensity_8bit": 252.87131782945735,
@@ -464,7 +487,7 @@
     {
       "area_pixel2": 646.0,
       "bounding_box_elongation_ratio": 1.0,
-      "confidence": 0.7724468701044549,
+      "confidence": 0.7729061761803233,
       "detection_id": 26,
       "integrated_residual_8bit_pixel": 2032.8716998922498,
       "mean_intensity_8bit": 252.6315789473684,

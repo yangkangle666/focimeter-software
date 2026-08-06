@@ -68,9 +68,42 @@ void appendDiagnostics(ErrorInfo& error, const ImageDiagnostics& diagnostics) {
     error.number_details["candidate_count"] = diagnostics.candidate_count;
     error.number_details["raw_candidate_count"] = diagnostics.raw_candidate_count;
     error.number_details["rejected_area_count"] = diagnostics.rejected_area_count;
+    error.number_details["rejected_absolute_area_count"] = diagnostics.rejected_absolute_area_count;
+    error.number_details["rejected_relative_area_count"] = diagnostics.rejected_relative_area_count;
+    error.number_details["rejected_zero_signal_count"] = diagnostics.rejected_zero_signal_count;
     error.number_details["rejected_border_count"] = diagnostics.rejected_border_count;
     error.number_details["rejected_shape_count"] = diagnostics.rejected_shape_count;
     error.number_details["rejected_proximity_count"] = diagnostics.rejected_proximity_count;
+    error.number_details["lattice_recovery_considered_count"] =
+        diagnostics.lattice_recovery_considered_count;
+    error.number_details["lattice_recovery_rejected_signal_count"] =
+        diagnostics.lattice_recovery_rejected_signal_count;
+    error.number_details["lattice_recovery_rejected_step_count"] =
+        diagnostics.lattice_recovery_rejected_step_count;
+    error.number_details["lattice_recovery_rejected_geometry_count"] =
+        diagnostics.lattice_recovery_rejected_geometry_count;
+    error.number_details["lattice_recovered_count"] = diagnostics.lattice_recovered_count;
+    error.number_details["large_scale_raw_candidate_count"] =
+        diagnostics.large_scale_raw_candidate_count;
+    error.number_details["large_scale_rejected_duplicate_count"] =
+        diagnostics.large_scale_rejected_duplicate_count;
+    error.number_details["large_scale_rejected_area_count"] =
+        diagnostics.large_scale_rejected_area_count;
+    error.number_details["large_scale_rejected_zero_signal_count"] =
+        diagnostics.large_scale_rejected_zero_signal_count;
+    error.number_details["large_scale_rejected_border_count"] =
+        diagnostics.large_scale_rejected_border_count;
+    error.number_details["large_scale_rejected_shape_count"] =
+        diagnostics.large_scale_rejected_shape_count;
+    error.number_details["top_hat_kernel_pixels"] = diagnostics.top_hat_kernel_pixels;
+    error.number_details["small_scale_top_hat_kernel_pixels"] =
+        diagnostics.small_scale_top_hat_kernel_pixels;
+    error.number_details["large_scale_top_hat_kernel_pixels"] =
+        diagnostics.large_scale_top_hat_kernel_pixels;
+    error.number_details["small_scale_detection_threshold"] =
+        diagnostics.small_scale_detection_threshold;
+    error.number_details["large_scale_detection_threshold"] =
+        diagnostics.large_scale_detection_threshold;
     error.string_details["segmentation_source"] = diagnostics.segmentation_source;
     error.string_details["centroid_intensity_source"] = diagnostics.centroid_intensity_source;
     if (!diagnostics.warnings.empty()) {

@@ -1,5 +1,20 @@
 # M2 更新日志
 
+## Unreleased - 2026-08-06
+
+### 修复与强化
+
+- 增加方格阵列约 `sqrt(2)` 倍对角邻接步长的恢复证据，修复公共无镜片参考图中央完整光斑被误判为 `StepUnsupported` 的问题。
+- 收紧重复步长的长度和方向一致性，保持半格碎片、孤立尘点和 JPEG 微小伪候选被拒绝；没有按文件名、固定坐标或固定点数分支。
+- 增加“中央候选只有对角邻居”的合成回归，并让三张真实 JPEG 各连续运行三次验证 `detection_id`、坐标、置信度和质量标记确定性。
+- 更新真实联调样例为公共参考图 `31` 点、两张镜片测量图各 `27` 点。正式风险标记保留，M3 原始链路继续安全拒绝；仅在内存诊断副本中清除标记后，两组均覆盖全部 `27/27` 测量点。
+- 明确现有三张图是开发样本；后续新增图片在冻结代码和参数后作为未参与调参的盲验证数据。
+
+### 接口与验证边界
+
+- `m2.multispot.experimental.1`、`detection_id` 的单图作用域和 `physical_identity_guaranteed=false` 保持不变；不新增 `spot_id`，不执行跨图匹配，不计算 S/C/A。
+- 恢复候选保留 `LATTICE_RECOVERED_UNVERIFIED`，所有结果仍为 `software_verified` / `software_only`、`metrology_validated=false`。
+
 ## 0.4.0 - 2026-08-04
 
 ### 新增
