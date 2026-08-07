@@ -1,5 +1,7 @@
 # 焦度计项目 GitHub 协作开发规范（AI 必读版）
 
+> **历史分支说明（2026-08-07）**：本文中的长期 `feature/m1-input`、`feature/m2-image`、`feature/m3-calc`、`feature/m4-system` 流程属于早期方案。当前新任务统一从最新 `origin/develop` 创建新的 `task/m1-*`、`task/m2-*`、`task/m3-*` 或 `task/m4-*` 分支，并通过 PR 合入 `develop`；除非负责人明确指定，不得执行本文旧 `feature/*` 命令。当前状态和第一步/第二步安排见仓库根 `README.md`。
+
 > 本文件用于约束参与本项目开发的编程 AI。每次开始新任务时，成员必须先让 AI 完整阅读本文件。AI 必须确认成员负责的模块、当前阶段、任务范围和 GitHub 交付终点，再进行任何文件修改。
 
 ## 1. 适用方式
