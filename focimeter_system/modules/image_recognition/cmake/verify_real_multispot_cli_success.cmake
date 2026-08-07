@@ -1,15 +1,27 @@
 foreach(required_variable IN ITEMS
         M2_EXECUTABLE M2_INPUT M2_OUTPUT M2_PROJECT_ROOT
-        M2_EXPECTED_MEASUREMENT_WARNING)
+        M2_EXPECTED_MEASUREMENT_WARNING M2_EXPECTED_OUTPUT_ROOT
+        M2_EXPECTED_TASK_ID)
     if(NOT DEFINED ${required_variable} OR "${${required_variable}}" STREQUAL "")
         message(FATAL_ERROR "${required_variable} is required")
     endif()
 endforeach()
 
 file(REMOVE_RECURSE "${M2_OUTPUT}")
+set(normalized_input_path "${M2_OUTPUT}-input.json")
+file(REMOVE "${normalized_input_path}")
+file(READ "${M2_INPUT}" input_document)
+string(
+    JSON normalized_input
+    ERROR_VARIABLE input_error
+    SET "${input_document}" task_id "\"${M2_EXPECTED_TASK_ID}\"")
+if(input_error)
+    message(FATAL_ERROR "Could not normalize real JPEG task_id: ${input_error}")
+endif()
+file(WRITE "${normalized_input_path}" "${normalized_input}\n")
 execute_process(
     COMMAND "${M2_EXECUTABLE}"
-        --input "${M2_INPUT}"
+        --input "${normalized_input_path}"
         --output "${M2_OUTPUT}"
         --project-root "${M2_PROJECT_ROOT}"
         --experimental-multispot
@@ -102,4 +114,39 @@ foreach(output_name IN ITEMS spots_calib_multispot.json spots_meas_multispot.jso
     if(NOT has_expected_warning)
         message(FATAL_ERROR "${output_name} must report ${expected_warning}")
     endif()
+
+    set(expected_path "${M2_EXPECTED_OUTPUT_ROOT}/${output_name}")
+    if(NOT EXISTS "${expected_path}")
+        message(FATAL_ERROR "Expected checked-in real JPEG output does not exist: ${expected_path}")
+    endif()
+    file(READ "${expected_path}" expected_document)
+    string(
+        JSON canonical_output
+        ERROR_VARIABLE output_json_error
+        SET "${document}" task_id "\"${M2_EXPECTED_TASK_ID}\"")
+    string(
+        JSON canonical_expected
+        ERROR_VARIABLE expected_json_error
+        SET "${expected_document}" task_id "\"${M2_EXPECTED_TASK_ID}\"")
+    if(output_json_error OR expected_json_error)
+        message(FATAL_ERROR
+            "Could not canonicalize ${output_name}: "
+            "output=${output_json_error}; expected=${expected_json_error}")
+    endif()
+    set(output_canonical_path "${M2_OUTPUT}/${output_name}.canonical")
+    set(expected_canonical_path "${M2_OUTPUT}/${output_name}.expected.canonical")
+    file(WRITE "${output_canonical_path}" "${canonical_output}\n")
+    file(WRITE "${expected_canonical_path}" "${canonical_expected}\n")
+    file(SHA256 "${output_canonical_path}" output_sha256)
+    file(SHA256 "${expected_canonical_path}" expected_sha256)
+    file(REMOVE "${output_canonical_path}" "${expected_canonical_path}")
+    if(NOT output_sha256 STREQUAL expected_sha256)
+        message(FATAL_ERROR
+            "${output_name} changed relative to the M3 integration fixture. "
+            "Generated canonical SHA-256=${output_sha256}; "
+            "expected canonical SHA-256=${expected_sha256}")
+    endif()
+    message(STATUS "${output_name} canonical SHA-256 matches ${output_sha256}")
 endforeach()
+
+file(REMOVE "${normalized_input_path}")

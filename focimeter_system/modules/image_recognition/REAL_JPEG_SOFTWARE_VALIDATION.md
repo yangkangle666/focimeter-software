@@ -2,7 +2,7 @@
 
 ## 结论
 
-M2 已能对本次外置数据中的一张候选参考图和两张候选测量图完成单图多光斑检测，并稳定输出 `m2.multispot.experimental.1` JSON。M3 已实际读取本目录的四份 JSON；两组输入均按负责人确认的安全策略整组返回 `COORDINATE_SYSTEM_INVALID`，没有生成处方。该结论仅为 `software_verified`，不是光学计量验证；M2 没有执行跨图匹配，也没有生成正式 `spot_id`。
+M2 已能对本次外置数据中的一张候选参考图和两张候选测量图完成单图多光斑检测，并稳定输出 `m2.multispot.experimental.1` JSON。M3 已实际读取本目录的四份 JSON：默认正式模式按负责人确认的安全策略整组返回 `COORDINATE_SYSTEM_INVALID`；只有负责人显式启用 `--engineering-mode` 时，才会生成未经计量验证的工程估算结果。该结论仅为 `software_verified`，不是光学计量验证；M2 没有执行跨图匹配，也没有生成正式 `spot_id`。
 
 ## 数据边界
 
@@ -52,8 +52,8 @@ M2 已能对本次外置数据中的一张候选参考图和两张候选测量�
 
 ## 确定性与重编码
 
-- 两组真实输入对各连续运行三次，覆盖当前参考图和两张测量图；每个输入对应的 JSON 均只有一个 SHA-256，说明同一构建、同一输入下 `detection_id`、坐标和质量字段按字节保持一致。
-- 最终 Release 样例 SHA-256：`pair_1/calibration=49CCEAAF7E29A7D985E6BE12EDA40900BC1D2116806997C44C76FA3A991343F3`、`pair_1/measurement=F1FA73265CF725FB34D53CE8E16AC52E6BFD3039693A8B3094B9B9867C27A45E`、`pair_2/calibration=DF7FC77846706008A7626DFCBF8F6B9F4FBE5B0C06ED0A138CA9CD81359B42DC`、`pair_2/measurement=75C130F3544855AB67AC4B10DE1EF9DE4CE6EA9B5F19C9E73E98C8868C105D94`。
+- 两组真实输入对各连续运行三次，覆盖当前参考图和两张测量图；同一构建、同一输入下 `detection_id`、坐标和质量字段保持一致。CLI 回归会先规范化 JSON 再核对 SHA-256，因此不受 Windows/Unix 换行格式影响。
+- 最终 Release 样例规范化 JSON SHA-256：`pair_1/calibration=30C45B8D92C81B69408B2A89FBD3393178E67A7B52BA08F969EE3135EC92255A`、`pair_1/measurement=2CE6898B221F38B91AF9E12C14946092A4E9E2C5420A6EFF523DA4991347F933`、`pair_2/calibration=D2058D45CD6C334DF3AD0B51BE31278B77C5BE8A64A536F0ECC23608421F2766`、`pair_2/measurement=EBA3D9ADC7E2AFBEF9E75BACF0CD638E0D8E86BF89F4362E99FABBD5F9F08204`。
 - 本轮不再沿用旧版“参考图固定 27 点”的回归假设。修复后参考图保留 31 个完整候选，两张测量图各保留 27 个；点数差异允许由视场边缘和镜片位移造成，不能据此自行删点。
 - 这些结果只说明同一构建下的软件检测确定性，不是质心绝对误差，也不是焦度精度。
 
@@ -74,12 +74,12 @@ M3 跨模块回归实际读取了上述四份 JSON，并得到：
 
 | 输入对 | M3 合同读取 | M3 运行结果 | 结论 |
 | --- | --- | --- | --- |
-| `pair_1` | `software_only` 合同通过 | `COORDINATE_SYSTEM_INVALID` | 预期安全拒绝；保留 `AREA_ABOVE_MEDIAN`、`SUBPITCH_FRAGMENT_NEIGHBOR_REJECTED` 和 `SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED` 风险证据 |
-| `pair_2` | `software_only` 合同通过 | `COORDINATE_SYSTEM_INVALID` | 预期安全拒绝；保留 `AREA_ABOVE_MEDIAN` 风险证据，不能静默删除候选后使用子集计算 |
+| `pair_1` | `software_only` 合同通过 | 正式模式：`COORDINATE_SYSTEM_INVALID`；工程模式：输出估算值 | 正式模式预期安全拒绝；工程结果保留全部风险证据，且固定为 `metrology_validated=false` |
+| `pair_2` | `software_only` 合同通过 | 正式模式：`COORDINATE_SYSTEM_INVALID`；工程模式：输出估算值 | 正式模式预期安全拒绝；工程结果保留全部风险证据，且固定为 `metrology_validated=false` |
 
-这两组数据是 M2→M3 **安全拒绝回归**，不是跨图匹配成功样例，更不是计量成功样例。M3 要求测量图中每个保留的检测点都具有唯一物理身份；任一测量点带身份阻断标记、无法匹配或存在歧义时，必须整组失败。标定图边缘光斑可以缺失，但仍受最低覆盖率约束。
+这两组数据在默认正式模式下是 M2→M3 **安全拒绝回归**；显式工程模式只用于当前软件链路联调，可以在保留风险标记的前提下输出估算值。两种模式都不是计量成功样例。正式模式要求测量图中每个保留的检测点都具有唯一物理身份；任一测量点带身份阻断标记、无法匹配或存在歧义时，必须整组失败。标定图边缘光斑可以缺失，但仍受最低覆盖率约束。
 
-另有一条只用于定位 M2 漏检的内存诊断：临时清除两组副本的 spot 质量标记后，M3 几何层对 `pair_1` 和 `pair_2` 均覆盖全部 `27/27` 测量点，分别留下 4 个未使用的参考点；匹配 RMSE 分别约为 `5.24 px` 和 `3.57 px`。正式样例 JSON 的风险标记未被清除，生产链路仍整组返回 `COORDINATE_SYSTEM_INVALID`；该诊断没有人工物理身份真值，不能用作匹配正确率或处方证据。
+M3 几何层对 `pair_1` 和 `pair_2` 均覆盖全部 `27/27` 测量点，分别留下 4 个未使用的参考点；匹配 RMSE 分别约为 `5.24 px` 和 `3.57 px`。正式样例 JSON 的风险标记未被清除，因此默认正式模式仍整组返回 `COORDINATE_SYSTEM_INVALID`；工程模式显式保留并传播这些风险标记。当前没有人工物理身份真值，不能把匹配结果或工程估算值用作处方精度证据。
 
 本轮算法只使用这一张公共无镜片参考图和两张不同镜片测量图开发。代码未按文件名、坐标或 `31/27` 点数分支；后续新增图片必须在冻结当前代码和参数后作为盲验证集运行，若失败应先区分采集差异与算法泛化问题，再决定是否开启下一轮调参。
 
