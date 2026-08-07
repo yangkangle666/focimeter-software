@@ -82,6 +82,7 @@ double percentile(const cv::Mat& image, const double fraction) {
 double detectionThreshold(
     const cv::Mat& enhanced,
     const ProcessingConfig& config) {
+    constexpr int kMinimumBrightPixelSample = 31;
     const double background = borderMean(enhanced);
     const double bright_cutoff =
         background * config.multispot_background_factor;
@@ -89,7 +90,9 @@ double detectionThreshold(
     cv::compare(enhanced, bright_cutoff, bright_mask, cv::CMP_GT);
     const int bright_count = cv::countNonZero(bright_mask);
     const double bright_mean =
-        bright_count >= 31 ? cv::mean(enhanced, bright_mask)[0] : 0.0;
+        bright_count >= kMinimumBrightPixelSample
+        ? cv::mean(enhanced, bright_mask)[0]
+        : 0.0;
     const double high_percentile = percentile(enhanced, 0.995);
     return std::max({
         static_cast<double>(config.multispot_min_threshold),
@@ -108,21 +111,25 @@ double medianArea(const std::vector<SpotObservation>& observations) {
     return areas[areas.size() / 2U];
 }
 
-double medianIntegratedIntensity(const std::vector<SpotObservation>& observations) {
+double medianMeanContrast(
+    const std::vector<SpotObservation>& observations,
+    const double background) {
     std::vector<double> values;
     values.reserve(observations.size());
     for (const auto& observation : observations) {
-        values.push_back(observation.integrated_intensity);
+        values.push_back(std::max(0.0, observation.mean_intensity - background));
     }
     std::sort(values.begin(), values.end());
     return values[values.size() / 2U];
 }
 
-double medianResidualPeak(const std::vector<SpotObservation>& observations) {
+double medianPeakContrast(
+    const std::vector<SpotObservation>& observations,
+    const double background) {
     std::vector<double> values;
     values.reserve(observations.size());
     for (const auto& observation : observations) {
-        values.push_back(observation.peak_residual_intensity);
+        values.push_back(std::max(0.0, observation.peak_intensity - background));
     }
     std::sort(values.begin(), values.end());
     return values[values.size() / 2U];
@@ -279,17 +286,23 @@ LatticeRecoveryDecision evaluateLatticeSupport(
     const std::vector<SpotObservation>& anchors,
     const std::vector<cv::Point2d>& lattice_steps,
     const double typical_spacing,
-    const double median_integrated_intensity,
-    const double median_residual_peak) {
+    const double raw_background,
+    const double median_mean_contrast,
+    const double median_peak_contrast) {
     if (anchors.size() < 3U || !std::isfinite(typical_spacing) || typical_spacing <= 0.0) {
         return LatticeRecoveryDecision::StepUnsupported;
     }
 
-    // A dim or broad spot can leave a small top-hat support. Retain it only when
-    // both its signal and its local geometry agree with the stable lattice.
+    // Compare both scales using raw-channel contrast. Top-hat area and residual
+    // magnitude change with kernel size and are not valid cross-scale scores.
+    const double candidate_mean_contrast =
+        std::max(0.0, candidate.mean_intensity - raw_background);
+    const double candidate_peak_contrast =
+        std::max(0.0, candidate.peak_intensity - raw_background);
     const bool signal_supported =
-        candidate.integrated_intensity >= 0.08 * median_integrated_intensity &&
-        candidate.peak_residual_intensity >= 0.35 * median_residual_peak;
+        median_mean_contrast > 0.0 && median_peak_contrast > 0.0 &&
+        candidate_mean_contrast >= 0.08 * median_mean_contrast &&
+        candidate_peak_contrast >= 0.35 * median_peak_contrast;
     if (!signal_supported) {
         return LatticeRecoveryDecision::SignalInsufficient;
     }
@@ -856,10 +869,10 @@ ImageAnalysis MultispotDetector::detect(
         const double typical_spacing = medianNearestNeighborDistance(anchors);
         const std::vector<cv::Point2d> lattice_steps =
             collectLatticeStepVectors(anchors, typical_spacing);
-        const double median_integrated_intensity =
-            anchors.empty() ? 0.0 : medianIntegratedIntensity(anchors);
-        const double median_residual_peak =
-            anchors.empty() ? 0.0 : medianResidualPeak(anchors);
+        const double median_mean_contrast =
+            anchors.empty() ? 0.0 : medianMeanContrast(anchors, centroid_raw_background);
+        const double median_peak_contrast =
+            anchors.empty() ? 0.0 : medianPeakContrast(anchors, centroid_raw_background);
 
         std::vector<SpotObservation> kept;
         std::vector<SpotObservation> pending_area_outliers;
@@ -892,8 +905,9 @@ ImageAnalysis MultispotDetector::detect(
                     anchors,
                     lattice_steps,
                     typical_spacing,
-                    median_integrated_intensity,
-                    median_residual_peak) == LatticeRecoveryDecision::Supported;
+                    centroid_raw_background,
+                    median_mean_contrast,
+                    median_peak_contrast) == LatticeRecoveryDecision::Supported;
                 recovered_any = recovered_any || recovered[index];
             }
             if (!recovered_any) {
@@ -927,8 +941,9 @@ ImageAnalysis MultispotDetector::detect(
                         anchors,
                         lattice_steps,
                         typical_spacing,
-                        median_integrated_intensity,
-                        median_residual_peak),
+                        centroid_raw_background,
+                        median_mean_contrast,
+                        median_peak_contrast),
                     observation.center,
                     analysis.diagnostics);
             }
@@ -947,6 +962,23 @@ ImageAnalysis MultispotDetector::detect(
         1000000,
         true,
         supplemental_candidates);
+    const std::size_t supplemental_candidate_budget =
+        static_cast<std::size_t>(config.multispot_max_count) -
+        analysis.observations.size();
+    if (supplemental_candidates.size() > supplemental_candidate_budget) {
+        analysis.diagnostics.candidate_count = static_cast<int>(
+            analysis.observations.size() + supplemental_candidates.size());
+        analysis.diagnostics.candidate_limit_exceeded = true;
+        addWarning(analysis.diagnostics, "SPOT_LIMIT_EXCEEDED");
+        analysis.error = makeError(
+            "SPOT_COUNT_MISMATCH",
+            "Experimental multispot detection found more nonduplicate broad-scale candidates than the safe recovery budget.",
+            true);
+        analysis.error.number_details["max_spot_count"] = config.multispot_max_count;
+        analysis.error.string_details["candidate_stage"] = "large_scale_recovery";
+        appendCountDetails(analysis.error, analysis.diagnostics);
+        return analysis;
+    }
     if (!supplemental_candidates.empty()) {
         std::sort(
             supplemental_candidates.begin(),
@@ -965,10 +997,12 @@ ImageAnalysis MultispotDetector::detect(
             medianNearestNeighborDistance(recovery_anchors);
         const std::vector<cv::Point2d> lattice_steps =
             collectLatticeStepVectors(recovery_anchors, typical_spacing);
-        const double median_integrated_intensity =
-            recovery_anchors.empty() ? 0.0 : medianIntegratedIntensity(recovery_anchors);
-        const double median_residual_peak =
-            recovery_anchors.empty() ? 0.0 : medianResidualPeak(recovery_anchors);
+        const double median_mean_contrast = recovery_anchors.empty()
+            ? 0.0
+            : medianMeanContrast(recovery_anchors, centroid_raw_background);
+        const double median_peak_contrast = recovery_anchors.empty()
+            ? 0.0
+            : medianPeakContrast(recovery_anchors, centroid_raw_background);
         const double relative_minimum_area = analysis.observations.empty()
             ? std::numeric_limits<double>::infinity()
             : medianArea(analysis.observations) * config.multispot_relative_min_area_ratio;
@@ -982,8 +1016,9 @@ ImageAnalysis MultispotDetector::detect(
                 recovery_anchors,
                 lattice_steps,
                 typical_spacing,
-                median_integrated_intensity,
-                median_residual_peak);
+                centroid_raw_background,
+                median_mean_contrast,
+                median_peak_contrast);
             if (decision != LatticeRecoveryDecision::Supported) {
                 recordRejectedRecoveryDecision(
                     decision, candidate.center, analysis.diagnostics);

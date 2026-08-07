@@ -216,8 +216,12 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
         foreach(lens_id IN ITEMS 001 002)
             if(lens_id STREQUAL "001")
                 set(expected_measurement_warning "SUBPITCH_FRAGMENT_REJECTED_UNVERIFIED")
+                set(expected_pair_directory "pair_1")
+                set(expected_task_id "m2_real_jpeg_measurement_1")
             else()
                 set(expected_measurement_warning "EDGE_CLIPPED_CANDIDATE_REJECTED")
+                set(expected_pair_directory "pair_2")
+                set(expected_task_id "m2_real_jpeg_measurement_2")
             endif()
             add_test(
                 NAME m2_cli_real_jpeg_lens_${lens_id}
@@ -227,6 +231,8 @@ if(M2_BUILD_TESTS AND BUILD_TESTING)
                     "-DM2_OUTPUT=${M2_TEST_OUTPUT_ROOT}/real-jpeg-lens-${lens_id}"
                     "-DM2_PROJECT_ROOT=${M2_SYSTEM_ROOT}"
                     "-DM2_EXPECTED_MEASUREMENT_WARNING=${expected_measurement_warning}"
+                    "-DM2_EXPECTED_OUTPUT_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/samples/real_jpeg_software_verified/${expected_pair_directory}"
+                    "-DM2_EXPECTED_TASK_ID=${expected_task_id}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_real_multispot_cli_success.cmake"
             )
             list(APPEND M2_REGISTERED_TESTS m2_cli_real_jpeg_lens_${lens_id})
