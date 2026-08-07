@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from modules.calibration_calculation.algorithm.power_vector import (
+    map_power_matrix_between_bases,
     matrix_to_power_vector,
     power_matrix_from_transform,
     power_vector_to_matrix,
@@ -55,6 +56,25 @@ class PowerVectorTests(unittest.TestCase):
         symmetric, skew = power_matrix_from_transform(transform, 0.03)
         np.testing.assert_allclose(expected, symmetric, atol=1e-14)
         self.assertLess(skew, 1e-14)
+
+    def test_camera_to_instrument_mapping_is_a_general_basis_change(self) -> None:
+        source = Prescription(-4.0, -2.0, 25.0)
+        camera_matrix = power_vector_to_matrix(prescription_to_power_vector(source))
+        camera_from_instrument = np.asarray([[0.0, -1.0], [1.0, 0.0]])
+
+        instrument_matrix = map_power_matrix_between_bases(
+            camera_matrix,
+            camera_from_instrument,
+        )
+        mapped = power_vector_to_prescription(matrix_to_power_vector(instrument_matrix), 1e-12)
+
+        self.assertAlmostEqual(source.S, mapped.S, places=12)
+        self.assertAlmostEqual(source.C, mapped.C, places=12)
+        self.assertLess(axis_error(115.0, mapped.A), 1e-10)
+
+    def test_power_matrix_basis_mapping_rejects_reflection(self) -> None:
+        with self.assertRaises(CalculationError):
+            map_power_matrix_between_bases(np.eye(2), np.diag([1.0, -1.0]))
 
 
 if __name__ == "__main__":

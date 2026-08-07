@@ -9,6 +9,25 @@ import numpy as np
 from .types import CalculationError, PowerVector, Prescription
 
 
+def map_power_matrix_between_bases(
+    power_matrix: np.ndarray,
+    source_from_target_basis: np.ndarray,
+) -> np.ndarray:
+    """Express a power matrix in a proper-rotation target coordinate basis."""
+
+    matrix = np.asarray(power_matrix, dtype=float)
+    basis = np.asarray(source_from_target_basis, dtype=float)
+    if matrix.shape != (2, 2) or not np.all(np.isfinite(matrix)):
+        raise CalculationError("Power matrix must be finite and 2x2.")
+    if basis.shape != (2, 2) or not np.all(np.isfinite(basis)):
+        raise CalculationError("Coordinate basis mapping must be finite and 2x2.")
+    if not np.allclose(basis.T @ basis, np.eye(2), rtol=0.0, atol=1e-12):
+        raise CalculationError("Coordinate basis mapping must be orthonormal.")
+    if not math.isclose(float(np.linalg.det(basis)), 1.0, rel_tol=0.0, abs_tol=1e-12):
+        raise CalculationError("Coordinate basis mapping must not reflect physical axes.")
+    return basis.T @ matrix @ basis
+
+
 def power_matrix_from_transform(transform: np.ndarray, distance_m: float) -> tuple[np.ndarray, float]:
     transform = np.asarray(transform, dtype=float)
     if transform.shape != (2, 2) or not np.all(np.isfinite(transform)):
