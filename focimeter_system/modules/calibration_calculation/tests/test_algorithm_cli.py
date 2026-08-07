@@ -68,6 +68,32 @@ class AlgorithmCliTests(unittest.TestCase):
         self.assertEqual(0, allowed.returncode, allowed.stderr or allowed.stdout)
         self.assertAlmostEqual(-2.5, json.loads(allowed.stdout)["result"]["S"])
 
+    def test_real_multispot_engineering_output_requires_explicit_flag(self) -> None:
+        pair_root = (
+            ROOT
+            / "modules/image_recognition/samples/real_jpeg_software_verified/pair_2"
+        )
+        common = (
+            "calculate",
+            "--calibration", pair_root / "spots_calib_multispot.json",
+            "--measurement", pair_root / "spots_meas_multispot.json",
+            "--config", ROOT / "config/default_config.json",
+            "--model", self.model_path,
+        )
+
+        denied = self.run_cli(*common, "--allow-simulation-model")
+        self.assertEqual(2, denied.returncode, denied.stderr or denied.stdout)
+        self.assertEqual("COORDINATE_SYSTEM_INVALID", json.loads(denied.stdout)["error"]["code"])
+
+        allowed = self.run_cli(*common, "--engineering-mode")
+        self.assertEqual(0, allowed.returncode, allowed.stderr or allowed.stdout)
+        payload = json.loads(allowed.stdout)
+        self.assertEqual("spherical", payload["lens_type"])
+        self.assertEqual(0, payload["result"]["C"])
+        self.assertIsNone(payload["result"]["A"])
+        self.assertEqual("software_only", payload["quality"]["validation_scope"])
+        self.assertFalse(payload["quality"]["metrology_validated"])
+
     def test_calibration_artifact_uses_independent_final_test(self) -> None:
         cases = [
             ("sphere_neg_5", "train", Prescription(-5, 0, None), "SPH-N05", (0, 0)),

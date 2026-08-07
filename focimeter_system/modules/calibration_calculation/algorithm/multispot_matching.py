@@ -33,6 +33,7 @@ class MatchDiagnostics:
     matching_rmse_pixel: float
     matching_max_residual_pixel: float
     hypothesis_margin: float
+    min_pair_confidence_product: float
 
 
 @dataclass(frozen=True)
@@ -402,6 +403,11 @@ def match_experimental_multispot(
         matching_rmse_pixel=best.rmse,
         matching_max_residual_pixel=best.maximum_residual,
         hypothesis_margin=margin,
+        min_pair_confidence_product=min(
+            pair.calibration[calibration_index].confidence
+            * pair.measurement[measurement_index].confidence
+            for calibration_index, measurement_index in ordered_pairs
+        ),
     )
     return MatchedExperimentalPair(
         calibration=_document(pair.task_id, "calibration", calibration_spots),

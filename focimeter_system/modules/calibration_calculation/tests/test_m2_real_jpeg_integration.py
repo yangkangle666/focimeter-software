@@ -65,6 +65,21 @@ class M2RealJpegIntegrationTests(unittest.TestCase):
         for prescription_key in ('"S"', '"C"', '"A"'):
             self.assertNotIn(prescription_key, serialized)
 
+    @staticmethod
+    def _source_markers(*documents: dict) -> set[str]:
+        return {
+            str(marker)
+            for document in documents
+            for marker in (
+                list(document["quality"].get("warnings", []))
+                + [
+                    flag
+                    for spot in document["spots"]
+                    for flag in spot.get("quality_flags", [])
+                ]
+            )
+        }
+
     def test_all_four_documents_conform_to_the_m3_experimental_schema(self) -> None:
         validator = Draft202012Validator(self.schema)
         for pair_name in ("pair_1", "pair_2"):
@@ -171,6 +186,79 @@ class M2RealJpegIntegrationTests(unittest.TestCase):
                 self.assertEqual(27, matched.diagnostics.matched_spot_count)
                 self.assertEqual(4, matched.diagnostics.unmatched_calibration_count)
                 self.assertEqual(0, matched.diagnostics.unmatched_measurement_count)
+
+    def test_explicit_engineering_mode_produces_schema_valid_real_results(self) -> None:
+        expected = {
+            "pair_1": {"lens_type": "cylindrical", "S": -4.41852, "C": -1.762216, "A": 154.564174},
+            "pair_2": {"lens_type": "spherical", "S": -1.290545, "C": 0.0, "A": None},
+        }
+        for pair_name, target in expected.items():
+            with self.subTest(pair=pair_name):
+                calibration, measurement = self._load_pair(pair_name)
+                original = copy.deepcopy((calibration, measurement))
+                result = calculate(
+                    calibration,
+                    measurement,
+                    self.config,
+                    self.model,
+                    engineering_mode=True,
+                )
+
+                self.assertEqual("ok", result["status"], result)
+                self.assertTrue(validate_result(result).valid, validate_result(result).issues)
+                self.assertEqual(target["lens_type"], result["lens_type"])
+                self.assertAlmostEqual(target["S"], result["result"]["S"], places=5)
+                self.assertAlmostEqual(target["C"], result["result"]["C"], places=5)
+                if target["A"] is None:
+                    self.assertIsNone(result["result"]["A"])
+                else:
+                    self.assertAlmostEqual(target["A"], result["result"]["A"], places=5)
+                self.assertEqual("software_verified", result["quality"]["validation_status"])
+                self.assertEqual("software_only", result["quality"]["validation_scope"])
+                self.assertFalse(result["quality"]["metrology_validated"])
+                self.assertEqual(27, result["matching"]["matched_spot_count"])
+                self.assertEqual(0, result["matching"]["unmatched_measurement_count"])
+                self.assertGreaterEqual(result["matching"]["min_pair_confidence_product"], 0.35)
+                self.assertGreater(result["quality"]["fit_rmse"], 0)
+                self.assertGreater(result["quality"]["condition_number"], 1)
+                self.assertTrue(
+                    self._source_markers(calibration, measurement).issubset(
+                        set(result["quality"]["warnings"])
+                    )
+                )
+                self.assertEqual(original, (calibration, measurement))
+
+    def test_engineering_mode_does_not_bypass_low_pair_confidence(self) -> None:
+        calibration, measurement = self._load_pair("pair_2")
+        measurement = copy.deepcopy(measurement)
+        measurement["spots"][0]["confidence"] = 0.1
+
+        result = calculate(
+            calibration,
+            measurement,
+            self.config,
+            self.model,
+            engineering_mode=True,
+        )
+
+        self._assert_identity_error(result)
+        self.assertIn("conservative matching limits", result["error"]["message"])
+
+    def test_engineering_mode_rejects_identity_risk_flag(self) -> None:
+        calibration, measurement = self._load_pair("pair_2")
+        measurement = copy.deepcopy(measurement)
+        measurement["spots"][0]["quality_flags"].append("LOW_CONFIDENCE")
+
+        result = calculate(
+            calibration,
+            measurement,
+            self.config,
+            self.model,
+            engineering_mode=True,
+        )
+
+        self._assert_identity_error(result)
+        self.assertIn("LOW_CONFIDENCE", result["error"]["message"])
 
 
 if __name__ == "__main__":
