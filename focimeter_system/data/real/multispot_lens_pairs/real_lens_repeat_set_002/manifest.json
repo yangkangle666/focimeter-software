@@ -99,6 +99,7 @@
     }
   ],
   "files": [
+    {"path": "config/detection_config.json", "sha256": "022248e6b8c015e4edf5f0262333a4c31ffdecffe3690dc49f08151d4457147c"},
     {"path": "images/lens_001/reference_no_lens.jpg", "sha256": "8bc432a2050f5e2505bde1cbfae9714b2e04bbb53518f3c35f420637a891cf5f"},
     {"path": "images/lens_001/measurement_01.jpg", "sha256": "0d1f5c6138ee7faba65986d9149db8864c81d230127a16856b50129f9f60d088"},
     {"path": "images/lens_001/measurement_02.jpg", "sha256": "d82382ae2a603d4ff48eaa196dd895a343a97ebeeed1cc6719c0d81139ecdf61"},
@@ -143,6 +144,6 @@
     "The source files are JPEG rather than raw or lossless camera frames.",
     "Commercial focimeter readings are engineering references, not certified standard-lens values.",
     "Package labels are nominal product labels and are not metrology truth values.",
-    "No phase-two algorithm run had been performed when this dataset was committed."
+    "The first phase-two run passed M1 for all 12 packages but stopped at M2 candidate-limit rejection; no M3 result was produced."
   ]
 }

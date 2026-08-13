@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "config_name": "real_lens_repeat_set_002_detection",
+  "config_name": "default_config",
   "camera": {
     "pixel_size_um": null,
     "image_width": 2560,
@@ -39,7 +39,7 @@
     "x_positive": "right",
     "y_positive": "down",
     "y_flip": false,
-    "confirmation_status": "reported_calibrated_values_not_supplied"
+    "confirmation_status": "pending_hardware"
   },
   "illumination": {
     "source_color": "green",
