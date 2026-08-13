@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "task_id": "real_lens_repeat_set_002_lens_003_repeat_03",
+  "module": "m1_input_config",
+  "status": "ok",
+  "data_source": "real",
+  "data": {"calibration_image": "data/real/multispot_lens_pairs/real_lens_repeat_set_002/images/lens_003/reference_no_lens.jpg", "measurement_image": "data/real/multispot_lens_pairs/real_lens_repeat_set_002/images/lens_003/measurement_03.jpg", "config_path": "data/real/multispot_lens_pairs/real_lens_repeat_set_002/config/detection_config.json", "run_mode": "local_image"},
+  "quality": {"config_checked": true, "paths_checked": true, "is_usable": true, "warnings": ["REAL_DATA_SOFTWARE_INTEGRATION_ONLY", "JPEG_SOURCE", "DEVICE_REFERENCE_ONLY", "NOT_METROLOGY_VALIDATED"]},
+  "error": null
+}
