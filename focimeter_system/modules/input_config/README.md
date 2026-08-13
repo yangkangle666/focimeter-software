@@ -1,6 +1,8 @@
 # M1 输入与配置模块
 
-开发分支：`feature/m1-input`
+当前集成基线：从最新 `origin/develop` 创建一次性 `task/m1-*` 分支，PR 目标为 `develop`。
+
+当前任务：第二阶段只读复核 12 个真实输入包、配置枚举、路径和 manifest；没有明确 M1 问题时不创建无意义 PR。详见仓库根目录 `docs/TASK_BOARD_PHASE2_20260813.md`。
 
 负责接收参考图、测量图和配置参数，完成路径、配置与标定依赖校验，并输出标准 `input_package.json` 和可直接交给 M2 的完整 ZIP。
 
