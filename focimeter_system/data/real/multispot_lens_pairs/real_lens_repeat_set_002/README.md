@@ -8,6 +8,12 @@ commercial focimeter screen photo, and a package-label photo.
 Use this dataset for phase-two software integration and repeatability checks.
 Do not use it to claim metrology accuracy.
 
+The first parameter-unchanged blind run is recorded in
+`PHASE2_BLIND_RUN_20260813.md`. M1 passed all 12 inputs, while M2 safely rejected
+all 12 because background fragments exceeded the pre-filter candidate limit.
+M3 was therefore not run. The next task belongs to M2; this dataset must not be
+described as having completed phase-two integration yet.
+
 ## Confirmed cases
 
 | Case | Commercial device reference | Repeats | Notes |
